@@ -1,1 +1,0 @@
-// (não é rota — componente auxiliar exportado abaixo)
