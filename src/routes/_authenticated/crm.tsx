@@ -37,6 +37,17 @@ export function CrmList() {
   }, [contacts, q, stage]);
 
   async function importCsv(file: File) {
+    const finish = (msg?: string, isError = false) => {
+      setImporting(false);
+      setImportProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
+      if (msg) (isError ? toast.error : toast.success)(msg);
+    };
+
+    if (!file) return toast.error("Nenhum arquivo selecionado.");
+    if (!/\.csv$/i.test(file.name) && file.type && !file.type.includes("csv")) {
+      return toast.error("Selecione um arquivo .csv");
+    }
+
     setImporting(true);
     setImportProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
 
@@ -55,22 +66,29 @@ export function CrmList() {
       return null;
     };
 
-    Papa.parse<Record<string, any>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      worker: true,
-      complete: async (results) => {
-        const rows = results.data;
-        const mapped = rows
+    try {
+      Papa.parse<Record<string, any>>(file, {
+        header: true,
+        skipEmptyLines: true,
+        worker: true,
+        complete: async (results) => {
+          try {
+            const rows = Array.isArray(results?.data) ? results.data : [];
+            if (rows.length === 0) {
+              return finish("Não foi possível ler as linhas do arquivo. Verifique se o CSV não está vazio ou corrompido.", true);
+            }
+
+            const mapped = rows
           .map((r) => {
+            if (!r || typeof r !== "object") return null;
             const nomeFantasia = pick(r, ["Nome Fantasia", "nome_fantasia"]);
             const razaoSocial = pick(r, ["Razao Social", "Razão Social", "razao_social"]);
             const name = nomeFantasia || razaoSocial || pick(r, ["name", "nome"]);
             const whatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
             const email = pick(r, ["E-mail", "Email", "email"]);
-            if (!name || (!whatsapp && !email)) return null;
+            if (!whatsapp && !email) return null;
             return {
-              name,
+              name: name || "Sem nome",
               phone: whatsapp || pick(r, ["Telefone", "phone", "telefone"]),
               whatsapp,
               email,
@@ -80,29 +98,37 @@ export function CrmList() {
           })
           .filter((r): r is NonNullable<typeof r> => r !== null);
 
-        if (mapped.length === 0) {
-          setImporting(false);
-          return toast.error("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).");
-        }
-
-        const BATCH = 500;
-        setImportProgress({ done: 0, total: mapped.length, inserted: 0, skipped: 0 });
-        let inserted = 0;
-        let skipped = 0;
-
-        for (let i = 0; i < mapped.length; i += BATCH) {
-          const batch = mapped.slice(i, i + BATCH);
-          const { error } = await supabase.from("contacts").insert(batch);
-          if (error) {
-            console.error("Batch insert error:", error);
-            // fallback: try one-by-one so a single bad row doesn't kill the batch
-            for (const row of batch) {
-              const { error: rowErr } = await supabase.from("contacts").insert(row);
-              if (rowErr) skipped += 1;
-              else inserted += 1;
+            if (mapped.length === 0) {
+              return finish("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).", true);
             }
-          } else {
-            inserted += batch.length;
+
+            const BATCH = 500;
+            setImportProgress({ done: 0, total: mapped.length, inserted: 0, skipped: 0 });
+            let inserted = 0;
+            let skipped = 0;
+
+            for (let i = 0; i < mapped.length; i += BATCH) {
+          const batch = mapped.slice(i, i + BATCH);
+          try {
+            const { error } = await supabase.from("contacts").insert(batch);
+            if (error) {
+              console.error("Batch insert error:", error);
+              for (const row of batch) {
+                try {
+                  const { error: rowErr } = await supabase.from("contacts").insert(row);
+                  if (rowErr) skipped += 1;
+                  else inserted += 1;
+                } catch (e) {
+                  console.error("Row insert exception:", e);
+                  skipped += 1;
+                }
+              }
+            } else {
+              inserted += batch.length;
+            }
+          } catch (e) {
+            console.error("Batch exception:", e);
+            skipped += batch.length;
           }
           setImportProgress({
             done: Math.min(i + BATCH, mapped.length),
@@ -110,17 +136,24 @@ export function CrmList() {
             inserted,
             skipped,
           });
-        }
+            }
 
-        toast.success(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
-        qc.invalidateQueries({ queryKey: ["contacts"] });
-        setImporting(false);
-      },
-      error: (err) => {
-        setImporting(false);
-        toast.error(`Erro ao ler CSV: ${err.message}`);
-      },
-    });
+            qc.invalidateQueries({ queryKey: ["contacts"] });
+            finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
+          } catch (e: any) {
+            console.error("Import error:", e);
+            finish(`Erro na importação: ${e?.message ?? "erro desconhecido"}`, true);
+          }
+        },
+        error: (err) => {
+          console.error("PapaParse error:", err);
+          finish(`Erro ao ler CSV: ${err?.message ?? "falha desconhecida"}`, true);
+        },
+      });
+    } catch (e: any) {
+      console.error("importCsv exception:", e);
+      finish(`Erro na importação: ${e?.message ?? "erro desconhecido"}`, true);
+    }
   }
 
   function exportCsv() {
