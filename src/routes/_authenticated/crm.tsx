@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import Papa from "papaparse";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
@@ -19,6 +21,8 @@ export function CrmList() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts"],
     queryFn: async () => (await supabase.from("contacts").select("*").order("created_at", { ascending: false })).data ?? [],
@@ -33,29 +37,78 @@ export function CrmList() {
   }, [contacts, q, stage]);
 
   async function importCsv(file: File) {
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) return toast.error("CSV vazio");
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const rows = lines.slice(1).map((l) => {
-      const cols = l.split(",");
-      const obj: any = {};
-      headers.forEach((h, i) => (obj[h] = cols[i]?.trim() ?? null));
-      return {
-        name: obj.name || obj.nome || obj.name || "Sem nome",
-        whatsapp: obj.whatsapp ?? null,
-        phone: obj.phone ?? obj.telefone ?? null,
-        email: obj.email ?? null,
-        company_name: obj.company ?? obj.empresa ?? null,
-        city: obj.city ?? obj.cidade ?? null,
-      };
+    setImporting(true);
+    setImportProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
+
+    const pick = (row: Record<string, any>, keys: string[]): string | null => {
+      for (const k of keys) {
+        const found = Object.keys(row).find(
+          (rk) => rk.trim().toLowerCase().replace(/[\s_-]+/g, "") === k.toLowerCase().replace(/[\s_-]+/g, "")
+        );
+        const v = found ? row[found] : undefined;
+        if (v != null && String(v).trim()) return String(v).trim();
+      }
+      return null;
+    };
+
+    Papa.parse<Record<string, any>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      worker: true,
+      complete: async (results) => {
+        const rows = results.data;
+        const mapped = rows
+          .map((r) => {
+            const name =
+              pick(r, ["Razao Social", "Razão Social", "Nome Fantasia", "name", "nome"]) || null;
+            if (!name) return null;
+            return {
+              name,
+              phone: pick(r, ["Telefone1 Completo", "Telefone", "phone", "telefone"]),
+              whatsapp: pick(r, ["Telefone1 Completo", "WhatsApp", "whatsapp"]),
+              email: pick(r, ["E-mail", "Email", "email"]),
+              company_name: pick(r, ["Nome Fantasia", "Razao Social", "Razão Social", "company"]),
+              city: pick(r, ["Cidade", "city"]),
+            };
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null);
+
+        if (mapped.length === 0) {
+          setImporting(false);
+          return toast.error("Nenhuma linha válida encontrada (verifique a coluna Razao Social).");
+        }
+
+        const BATCH = 100;
+        setImportProgress({ done: 0, total: mapped.length, inserted: 0, skipped: 0 });
+        let inserted = 0;
+        let skipped = 0;
+
+        for (let i = 0; i < mapped.length; i += BATCH) {
+          const batch = mapped.slice(i, i + BATCH);
+          const { error } = await supabase.from("contacts").insert(batch);
+          if (error) {
+            skipped += batch.length;
+            console.error("Batch insert error:", error);
+          } else {
+            inserted += batch.length;
+          }
+          setImportProgress({
+            done: Math.min(i + BATCH, mapped.length),
+            total: mapped.length,
+            inserted,
+            skipped,
+          });
+        }
+
+        toast.success(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
+        qc.invalidateQueries({ queryKey: ["contacts"] });
+        setImporting(false);
+      },
+      error: (err) => {
+        setImporting(false);
+        toast.error(`Erro ao ler CSV: ${err.message}`);
+      },
     });
-    const { error } = await supabase.from("contacts").insert(rows);
-    if (error) toast.error(error.message);
-    else {
-      toast.success(`${rows.length} contatos importados`);
-      qc.invalidateQueries({ queryKey: ["contacts"] });
-    }
   }
 
   function exportCsv() {
@@ -77,13 +130,38 @@ export function CrmList() {
         </div>
         <div className="flex flex-wrap gap-2">
           <label className="cursor-pointer">
-            <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
-            <Button variant="outline" asChild><span><Upload className="mr-2 h-4 w-4" /> Importar CSV</span></Button>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importCsv(f);
+                e.target.value = "";
+              }}
+            />
+            <Button variant="outline" asChild disabled={importing}>
+              <span><Upload className="mr-2 h-4 w-4" /> {importing ? "Importando…" : "Importar CSV"}</span>
+            </Button>
           </label>
           <Button variant="outline" onClick={exportCsv}><Download className="mr-2 h-4 w-4" /> Exportar</Button>
           <NewContactDialog />
         </div>
       </div>
+
+      {importing && (
+        <Card className="p-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Importando contatos…</span>
+            <span className="text-muted-foreground">
+              {importProgress.done} / {importProgress.total || "?"}
+              {importProgress.skipped ? ` · ${importProgress.skipped} ignorados` : ""}
+            </span>
+          </div>
+          <Progress value={importProgress.total ? (importProgress.done / importProgress.total) * 100 : 0} />
+        </Card>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">
