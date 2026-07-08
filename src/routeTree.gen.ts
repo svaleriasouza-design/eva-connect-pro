@@ -9,38 +9,244 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WhatsappRouteImport } from './routes/whatsapp'
+import { Route as TarefasRouteImport } from './routes/tarefas'
+import { Route as HistoricoRouteImport } from './routes/historico'
+import { Route as FunilRouteImport } from './routes/funil'
+import { Route as EvaRouteImport } from './routes/eva'
+import { Route as EmpresasRouteImport } from './routes/empresas'
+import { Route as CrmRouteImport } from './routes/crm'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CrmIndexRouteImport } from './routes/crm.index'
+import { Route as CrmIdRouteImport } from './routes/crm.$id'
 
+const WhatsappRoute = WhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TarefasRoute = TarefasRouteImport.update({
+  id: '/tarefas',
+  path: '/tarefas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoricoRoute = HistoricoRouteImport.update({
+  id: '/historico',
+  path: '/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FunilRoute = FunilRouteImport.update({
+  id: '/funil',
+  path: '/funil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaRoute = EvaRouteImport.update({
+  id: '/eva',
+  path: '/eva',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmpresasRoute = EmpresasRouteImport.update({
+  id: '/empresas',
+  path: '/empresas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmRoute = CrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgendaRoute = AgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CrmIndexRoute = CrmIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CrmRoute,
+} as any)
+const CrmIdRoute = CrmIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CrmRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/crm': typeof CrmRouteWithChildren
+  '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
+  '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
+  '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
+  '/crm/$id': typeof CrmIdRoute
+  '/crm/': typeof CrmIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
+  '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
+  '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
+  '/crm/$id': typeof CrmIdRoute
+  '/crm': typeof CrmIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/crm': typeof CrmRouteWithChildren
+  '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
+  '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
+  '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
+  '/crm/$id': typeof CrmIdRoute
+  '/crm/': typeof CrmIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/agenda'
+    | '/configuracoes'
+    | '/crm'
+    | '/empresas'
+    | '/eva'
+    | '/funil'
+    | '/historico'
+    | '/tarefas'
+    | '/whatsapp'
+    | '/crm/$id'
+    | '/crm/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/agenda'
+    | '/configuracoes'
+    | '/empresas'
+    | '/eva'
+    | '/funil'
+    | '/historico'
+    | '/tarefas'
+    | '/whatsapp'
+    | '/crm/$id'
+    | '/crm'
+  id:
+    | '__root__'
+    | '/'
+    | '/agenda'
+    | '/configuracoes'
+    | '/crm'
+    | '/empresas'
+    | '/eva'
+    | '/funil'
+    | '/historico'
+    | '/tarefas'
+    | '/whatsapp'
+    | '/crm/$id'
+    | '/crm/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgendaRoute: typeof AgendaRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
+  CrmRoute: typeof CrmRouteWithChildren
+  EmpresasRoute: typeof EmpresasRoute
+  EvaRoute: typeof EvaRoute
+  FunilRoute: typeof FunilRoute
+  HistoricoRoute: typeof HistoricoRoute
+  TarefasRoute: typeof TarefasRoute
+  WhatsappRoute: typeof WhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/whatsapp': {
+      id: '/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof WhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tarefas': {
+      id: '/tarefas'
+      path: '/tarefas'
+      fullPath: '/tarefas'
+      preLoaderRoute: typeof TarefasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/historico': {
+      id: '/historico'
+      path: '/historico'
+      fullPath: '/historico'
+      preLoaderRoute: typeof HistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/funil': {
+      id: '/funil'
+      path: '/funil'
+      fullPath: '/funil'
+      preLoaderRoute: typeof FunilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/eva': {
+      id: '/eva'
+      path: '/eva'
+      fullPath: '/eva'
+      preLoaderRoute: typeof EvaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/empresas': {
+      id: '/empresas'
+      path: '/empresas'
+      fullPath: '/empresas'
+      preLoaderRoute: typeof EmpresasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm': {
+      id: '/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof CrmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agenda': {
+      id: '/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +254,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/crm/': {
+      id: '/crm/'
+      path: '/'
+      fullPath: '/crm/'
+      preLoaderRoute: typeof CrmIndexRouteImport
+      parentRoute: typeof CrmRoute
+    }
+    '/crm/$id': {
+      id: '/crm/$id'
+      path: '/$id'
+      fullPath: '/crm/$id'
+      preLoaderRoute: typeof CrmIdRouteImport
+      parentRoute: typeof CrmRoute
+    }
   }
 }
 
+interface CrmRouteChildren {
+  CrmIdRoute: typeof CrmIdRoute
+  CrmIndexRoute: typeof CrmIndexRoute
+}
+
+const CrmRouteChildren: CrmRouteChildren = {
+  CrmIdRoute: CrmIdRoute,
+  CrmIndexRoute: CrmIndexRoute,
+}
+
+const CrmRouteWithChildren = CrmRoute._addFileChildren(CrmRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgendaRoute: AgendaRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
+  CrmRoute: CrmRouteWithChildren,
+  EmpresasRoute: EmpresasRoute,
+  EvaRoute: EvaRoute,
+  FunilRoute: FunilRoute,
+  HistoricoRoute: HistoricoRoute,
+  TarefasRoute: TarefasRoute,
+  WhatsappRoute: WhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
