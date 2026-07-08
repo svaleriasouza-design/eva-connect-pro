@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhatsappRouteImport } from './routes/whatsapp'
 import { Route as TarefasRouteImport } from './routes/tarefas'
+import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as FunilRouteImport } from './routes/funil'
 import { Route as EmpresasRouteImport } from './routes/empresas'
 import { Route as CrmRouteImport } from './routes/crm'
@@ -26,6 +27,11 @@ const WhatsappRoute = WhatsappRouteImport.update({
 const TarefasRoute = TarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoricoRoute = HistoricoRouteImport.update({
+  id: '/historico',
+  path: '/historico',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FunilRoute = FunilRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
   '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
   '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
+  '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
   '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/empresas'
     | '/funil'
+    | '/historico'
     | '/tarefas'
     | '/whatsapp'
     | '/crm/$id'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/empresas'
     | '/funil'
+    | '/historico'
     | '/tarefas'
     | '/whatsapp'
     | '/crm/$id'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/empresas'
     | '/funil'
+    | '/historico'
     | '/tarefas'
     | '/whatsapp'
     | '/crm/$id'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   CrmRoute: typeof CrmRouteWithChildren
   EmpresasRoute: typeof EmpresasRoute
   FunilRoute: typeof FunilRoute
+  HistoricoRoute: typeof HistoricoRoute
   TarefasRoute: typeof TarefasRoute
   WhatsappRoute: typeof WhatsappRoute
 }
@@ -147,6 +160,13 @@ declare module '@tanstack/react-router' {
       path: '/tarefas'
       fullPath: '/tarefas'
       preLoaderRoute: typeof TarefasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/historico': {
+      id: '/historico'
+      path: '/historico'
+      fullPath: '/historico'
+      preLoaderRoute: typeof HistoricoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/funil': {
@@ -210,6 +230,7 @@ const rootRouteChildren: RootRouteChildren = {
   CrmRoute: CrmRouteWithChildren,
   EmpresasRoute: EmpresasRoute,
   FunilRoute: FunilRoute,
+  HistoricoRoute: HistoricoRoute,
   TarefasRoute: TarefasRoute,
   WhatsappRoute: WhatsappRoute,
 }
