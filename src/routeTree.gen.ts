@@ -9,126 +9,153 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WhatsappRouteImport } from './routes/whatsapp'
-import { Route as TarefasRouteImport } from './routes/tarefas'
-import { Route as HistoricoRouteImport } from './routes/historico'
-import { Route as FunilRouteImport } from './routes/funil'
-import { Route as EvaRouteImport } from './routes/eva'
-import { Route as EmpresasRouteImport } from './routes/empresas'
-import { Route as CrmRouteImport } from './routes/crm'
-import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as AgendaRouteImport } from './routes/agenda'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as CrmIndexRouteImport } from './routes/crm.index'
-import { Route as CrmIdRouteImport } from './routes/crm.$id'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
+import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
+import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
+import { Route as AuthenticatedFunilRouteImport } from './routes/_authenticated/funil'
+import { Route as AuthenticatedEvaRouteImport } from './routes/_authenticated/eva'
+import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
+import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
+import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
+import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
+import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 
-const WhatsappRoute = WhatsappRouteImport.update({
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const TarefasRoute = TarefasRouteImport.update({
+const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const HistoricoRoute = HistoricoRouteImport.update({
+const AuthenticatedHistoricoRoute = AuthenticatedHistoricoRouteImport.update({
   id: '/historico',
   path: '/historico',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const FunilRoute = FunilRouteImport.update({
+const AuthenticatedFunilRoute = AuthenticatedFunilRouteImport.update({
   id: '/funil',
   path: '/funil',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const EvaRoute = EvaRouteImport.update({
+const AuthenticatedEvaRoute = AuthenticatedEvaRouteImport.update({
   id: '/eva',
   path: '/eva',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const EmpresasRoute = EmpresasRouteImport.update({
+const AuthenticatedEmpresasRoute = AuthenticatedEmpresasRouteImport.update({
   id: '/empresas',
   path: '/empresas',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const CrmRoute = CrmRouteImport.update({
+const AuthenticatedCrmRoute = AuthenticatedCrmRouteImport.update({
   id: '/crm',
   path: '/crm',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
-  id: '/configuracoes',
-  path: '/configuracoes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgendaRoute = AgendaRouteImport.update({
+const AuthenticatedConfiguracoesRoute =
+  AuthenticatedConfiguracoesRouteImport.update({
+    id: '/configuracoes',
+    path: '/configuracoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedCrmIndexRoute = AuthenticatedCrmIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedCrmRoute,
 } as any)
-const CrmIndexRoute = CrmIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CrmRoute,
-} as any)
-const CrmIdRoute = CrmIdRouteImport.update({
+const AuthenticatedCrmIdRoute = AuthenticatedCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
-  getParentRoute: () => CrmRoute,
+  getParentRoute: () => AuthenticatedCrmRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/crm': typeof CrmRouteWithChildren
-  '/empresas': typeof EmpresasRoute
-  '/eva': typeof EvaRoute
-  '/funil': typeof FunilRoute
-  '/historico': typeof HistoricoRoute
-  '/tarefas': typeof TarefasRoute
-  '/whatsapp': typeof WhatsappRoute
-  '/crm/$id': typeof CrmIdRoute
-  '/crm/': typeof CrmIndexRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/agenda': typeof AuthenticatedAgendaRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/crm': typeof AuthenticatedCrmRouteWithChildren
+  '/empresas': typeof AuthenticatedEmpresasRoute
+  '/eva': typeof AuthenticatedEvaRoute
+  '/funil': typeof AuthenticatedFunilRoute
+  '/historico': typeof AuthenticatedHistoricoRoute
+  '/tarefas': typeof AuthenticatedTarefasRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/crm/': typeof AuthenticatedCrmIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/empresas': typeof EmpresasRoute
-  '/eva': typeof EvaRoute
-  '/funil': typeof FunilRoute
-  '/historico': typeof HistoricoRoute
-  '/tarefas': typeof TarefasRoute
-  '/whatsapp': typeof WhatsappRoute
-  '/crm/$id': typeof CrmIdRoute
-  '/crm': typeof CrmIndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/agenda': typeof AuthenticatedAgendaRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/empresas': typeof AuthenticatedEmpresasRoute
+  '/eva': typeof AuthenticatedEvaRoute
+  '/funil': typeof AuthenticatedFunilRoute
+  '/historico': typeof AuthenticatedHistoricoRoute
+  '/tarefas': typeof AuthenticatedTarefasRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/crm': typeof AuthenticatedCrmIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/agenda': typeof AgendaRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/crm': typeof CrmRouteWithChildren
-  '/empresas': typeof EmpresasRoute
-  '/eva': typeof EvaRoute
-  '/funil': typeof FunilRoute
-  '/historico': typeof HistoricoRoute
-  '/tarefas': typeof TarefasRoute
-  '/whatsapp': typeof WhatsappRoute
-  '/crm/$id': typeof CrmIdRoute
-  '/crm/': typeof CrmIndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
+  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/crm': typeof AuthenticatedCrmRouteWithChildren
+  '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
+  '/_authenticated/eva': typeof AuthenticatedEvaRoute
+  '/_authenticated/funil': typeof AuthenticatedFunilRoute
+  '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
+  '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
+  '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
+    | '/reset-password'
     | '/agenda'
     | '/configuracoes'
     | '/crm'
@@ -142,7 +169,8 @@ export interface FileRouteTypes {
     | '/crm/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/auth'
+    | '/reset-password'
     | '/agenda'
     | '/configuracoes'
     | '/empresas'
@@ -151,149 +179,190 @@ export interface FileRouteTypes {
     | '/historico'
     | '/tarefas'
     | '/whatsapp'
+    | '/'
     | '/crm/$id'
     | '/crm'
   id:
     | '__root__'
-    | '/'
-    | '/agenda'
-    | '/configuracoes'
-    | '/crm'
-    | '/empresas'
-    | '/eva'
-    | '/funil'
-    | '/historico'
-    | '/tarefas'
-    | '/whatsapp'
-    | '/crm/$id'
-    | '/crm/'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/agenda'
+    | '/_authenticated/configuracoes'
+    | '/_authenticated/crm'
+    | '/_authenticated/empresas'
+    | '/_authenticated/eva'
+    | '/_authenticated/funil'
+    | '/_authenticated/historico'
+    | '/_authenticated/tarefas'
+    | '/_authenticated/whatsapp'
+    | '/_authenticated/'
+    | '/_authenticated/crm/$id'
+    | '/_authenticated/crm/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AgendaRoute: typeof AgendaRoute
-  ConfiguracoesRoute: typeof ConfiguracoesRoute
-  CrmRoute: typeof CrmRouteWithChildren
-  EmpresasRoute: typeof EmpresasRoute
-  EvaRoute: typeof EvaRoute
-  FunilRoute: typeof FunilRoute
-  HistoricoRoute: typeof HistoricoRoute
-  TarefasRoute: typeof TarefasRoute
-  WhatsappRoute: typeof WhatsappRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/whatsapp': {
-      id: '/whatsapp'
-      path: '/whatsapp'
-      fullPath: '/whatsapp'
-      preLoaderRoute: typeof WhatsappRouteImport
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tarefas': {
-      id: '/tarefas'
-      path: '/tarefas'
-      fullPath: '/tarefas'
-      preLoaderRoute: typeof TarefasRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/historico': {
-      id: '/historico'
-      path: '/historico'
-      fullPath: '/historico'
-      preLoaderRoute: typeof HistoricoRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/funil': {
-      id: '/funil'
-      path: '/funil'
-      fullPath: '/funil'
-      preLoaderRoute: typeof FunilRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/eva': {
-      id: '/eva'
-      path: '/eva'
-      fullPath: '/eva'
-      preLoaderRoute: typeof EvaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/empresas': {
-      id: '/empresas'
-      path: '/empresas'
-      fullPath: '/empresas'
-      preLoaderRoute: typeof EmpresasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/crm': {
-      id: '/crm'
-      path: '/crm'
-      fullPath: '/crm'
-      preLoaderRoute: typeof CrmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracoes': {
-      id: '/configuracoes'
-      path: '/configuracoes'
-      fullPath: '/configuracoes'
-      preLoaderRoute: typeof ConfiguracoesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agenda': {
-      id: '/agenda'
-      path: '/agenda'
-      fullPath: '/agenda'
-      preLoaderRoute: typeof AgendaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/crm/': {
-      id: '/crm/'
+    '/_authenticated/whatsapp': {
+      id: '/_authenticated/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tarefas': {
+      id: '/_authenticated/tarefas'
+      path: '/tarefas'
+      fullPath: '/tarefas'
+      preLoaderRoute: typeof AuthenticatedTarefasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/historico': {
+      id: '/_authenticated/historico'
+      path: '/historico'
+      fullPath: '/historico'
+      preLoaderRoute: typeof AuthenticatedHistoricoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/funil': {
+      id: '/_authenticated/funil'
+      path: '/funil'
+      fullPath: '/funil'
+      preLoaderRoute: typeof AuthenticatedFunilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/eva': {
+      id: '/_authenticated/eva'
+      path: '/eva'
+      fullPath: '/eva'
+      preLoaderRoute: typeof AuthenticatedEvaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/empresas': {
+      id: '/_authenticated/empresas'
+      path: '/empresas'
+      fullPath: '/empresas'
+      preLoaderRoute: typeof AuthenticatedEmpresasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/crm': {
+      id: '/_authenticated/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AuthenticatedCrmRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/configuracoes': {
+      id: '/_authenticated/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/agenda': {
+      id: '/_authenticated/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AuthenticatedAgendaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/crm/': {
+      id: '/_authenticated/crm/'
       path: '/'
       fullPath: '/crm/'
-      preLoaderRoute: typeof CrmIndexRouteImport
-      parentRoute: typeof CrmRoute
+      preLoaderRoute: typeof AuthenticatedCrmIndexRouteImport
+      parentRoute: typeof AuthenticatedCrmRoute
     }
-    '/crm/$id': {
-      id: '/crm/$id'
+    '/_authenticated/crm/$id': {
+      id: '/_authenticated/crm/$id'
       path: '/$id'
       fullPath: '/crm/$id'
-      preLoaderRoute: typeof CrmIdRouteImport
-      parentRoute: typeof CrmRoute
+      preLoaderRoute: typeof AuthenticatedCrmIdRouteImport
+      parentRoute: typeof AuthenticatedCrmRoute
     }
   }
 }
 
-interface CrmRouteChildren {
-  CrmIdRoute: typeof CrmIdRoute
-  CrmIndexRoute: typeof CrmIndexRoute
+interface AuthenticatedCrmRouteChildren {
+  AuthenticatedCrmIdRoute: typeof AuthenticatedCrmIdRoute
+  AuthenticatedCrmIndexRoute: typeof AuthenticatedCrmIndexRoute
 }
 
-const CrmRouteChildren: CrmRouteChildren = {
-  CrmIdRoute: CrmIdRoute,
-  CrmIndexRoute: CrmIndexRoute,
+const AuthenticatedCrmRouteChildren: AuthenticatedCrmRouteChildren = {
+  AuthenticatedCrmIdRoute: AuthenticatedCrmIdRoute,
+  AuthenticatedCrmIndexRoute: AuthenticatedCrmIndexRoute,
 }
 
-const CrmRouteWithChildren = CrmRoute._addFileChildren(CrmRouteChildren)
+const AuthenticatedCrmRouteWithChildren =
+  AuthenticatedCrmRoute._addFileChildren(AuthenticatedCrmRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
+  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedCrmRoute: typeof AuthenticatedCrmRouteWithChildren
+  AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
+  AuthenticatedEvaRoute: typeof AuthenticatedEvaRoute
+  AuthenticatedFunilRoute: typeof AuthenticatedFunilRoute
+  AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
+  AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
+  AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
+  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedCrmRoute: AuthenticatedCrmRouteWithChildren,
+  AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
+  AuthenticatedEvaRoute: AuthenticatedEvaRoute,
+  AuthenticatedFunilRoute: AuthenticatedFunilRoute,
+  AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
+  AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
+  AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AgendaRoute: AgendaRoute,
-  ConfiguracoesRoute: ConfiguracoesRoute,
-  CrmRoute: CrmRouteWithChildren,
-  EmpresasRoute: EmpresasRoute,
-  EvaRoute: EvaRoute,
-  FunilRoute: FunilRoute,
-  HistoricoRoute: HistoricoRoute,
-  TarefasRoute: TarefasRoute,
-  WhatsappRoute: WhatsappRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

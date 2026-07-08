@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Calendar as CalIcon } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/agenda")({ component: Agenda });
+export const Route = createFileRoute("/_authenticated/agenda")({ component: Agenda });
 
 function Agenda() {
   const qc = useQueryClient();

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, MessageCircle, Calendar, CheckSquare, Sparkles, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/crm/$id")({ component: Ficha });
+export const Route = createFileRoute("/_authenticated/crm/$id")({ component: Ficha });
 
 function Ficha() {
   const { id } = Route.useParams();

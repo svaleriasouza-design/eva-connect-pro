@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/funil")({ component: Funil });
+export const Route = createFileRoute("/_authenticated/funil")({ component: Funil });
 
 function Funil() {
   const qc = useQueryClient();

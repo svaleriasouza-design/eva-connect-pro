@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase, formatDateTime } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 
-export const Route = createFileRoute("/historico")({ component: Historico });
+export const Route = createFileRoute("/_authenticated/historico")({ component: Historico });
 
 function Historico() {
   const { data: acts = [] } = useQuery({

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/tarefas")({ component: Tarefas });
+export const Route = createFileRoute("/_authenticated/tarefas")({ component: Tarefas });
 
 function Tarefas() {
   const qc = useQueryClient();

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/empresas")({ component: Empresas });
+export const Route = createFileRoute("/_authenticated/empresas")({ component: Empresas });
 
 function Empresas() {
   const qc = useQueryClient();
