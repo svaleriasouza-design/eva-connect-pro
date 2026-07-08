@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime } from "@/lib/db";
@@ -13,15 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/crm")({ component: CrmLayout });
+export const Route = createFileRoute("/crm")({ component: () => <Outlet /> });
 
-function CrmLayout() {
-  const path = useRouterState({ select: (r) => r.location.pathname });
-  if (path !== "/crm") return <Outlet />;
-  return <CrmList />;
-}
-
-function CrmList() {
+export function CrmList() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
