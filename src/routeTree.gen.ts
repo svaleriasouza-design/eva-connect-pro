@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as FunilRouteImport } from './routes/funil'
+import { Route as EmpresasRouteImport } from './routes/empresas'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CrmIdRouteImport } from './routes/crm.$id'
@@ -17,6 +18,11 @@ import { Route as CrmIdRouteImport } from './routes/crm.$id'
 const FunilRoute = FunilRouteImport.update({
   id: '/funil',
   path: '/funil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmpresasRoute = EmpresasRouteImport.update({
+  id: '/empresas',
+  path: '/empresas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmRoute = CrmRouteImport.update({
@@ -38,12 +44,14 @@ const CrmIdRoute = CrmIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/crm': typeof CrmRouteWithChildren
+  '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/crm': typeof CrmRouteWithChildren
+  '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/crm/$id': typeof CrmIdRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/crm': typeof CrmRouteWithChildren
+  '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/crm' | '/funil' | '/crm/$id'
+  fullPaths: '/' | '/crm' | '/empresas' | '/funil' | '/crm/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/crm' | '/funil' | '/crm/$id'
-  id: '__root__' | '/' | '/crm' | '/funil' | '/crm/$id'
+  to: '/' | '/crm' | '/empresas' | '/funil' | '/crm/$id'
+  id: '__root__' | '/' | '/crm' | '/empresas' | '/funil' | '/crm/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CrmRoute: typeof CrmRouteWithChildren
+  EmpresasRoute: typeof EmpresasRoute
   FunilRoute: typeof FunilRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       path: '/funil'
       fullPath: '/funil'
       preLoaderRoute: typeof FunilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/empresas': {
+      id: '/empresas'
+      path: '/empresas'
+      fullPath: '/empresas'
+      preLoaderRoute: typeof EmpresasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crm': {
@@ -114,6 +131,7 @@ const CrmRouteWithChildren = CrmRoute._addFileChildren(CrmRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CrmRoute: CrmRouteWithChildren,
+  EmpresasRoute: EmpresasRoute,
   FunilRoute: FunilRoute,
 }
 export const routeTree = rootRouteImport
