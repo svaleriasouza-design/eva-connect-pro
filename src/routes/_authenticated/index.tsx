@@ -1,22 +1,41 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase, formatDateTime } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calendar, MessageCircle, CheckSquare, Building2, TrendingUp, AlertTriangle, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users, Calendar, MessageCircle, CheckSquare, Building2, TrendingUp,
+  AlertTriangle, Sparkles, Play, Target, Flame, Clock, FileText, UserCheck,
+} from "lucide-react";
+import { fetchDueCadence } from "@/lib/cadence";
+import { CadenceModal } from "@/components/cadence-modal";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
-function StatCard({ label, value, icon: Icon, hint }: { label: string; value: number | string; icon: any; hint?: string }) {
+const META_DIARIA = 4;
+
+function StatCard({ label, value, icon: Icon, tone = "primary", hint }: {
+  label: string; value: number | string; icon: any; tone?: "primary" | "gold" | "warn" | "muted"; hint?: string;
+}) {
+  const toneMap = {
+    primary: "bg-primary/10 text-primary",
+    gold: "bg-[color:var(--gold)]/15 text-[color:var(--gold)]",
+    warn: "bg-orange-500/10 text-orange-600",
+    muted: "bg-muted text-muted-foreground",
+  } as const;
   return (
     <Card className="border-border/60">
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <CardContent className="flex items-center gap-4 p-4">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${toneMap[tone]}`}>
           <Icon className="h-5 w-5" />
         </div>
-        <div className="flex-1">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-          <div className="text-2xl font-semibold text-foreground">{value}</div>
-          {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+          <div className="text-2xl font-semibold text-foreground leading-tight">{value}</div>
+          {hint && <div className="text-xs text-muted-foreground truncate">{hint}</div>}
         </div>
       </CardContent>
     </Card>
@@ -24,67 +43,153 @@ function StatCard({ label, value, icon: Icon, hint }: { label: string; value: nu
 }
 
 function Dashboard() {
-  const { data } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => {
-      const today = new Date();
-      const startDay = new Date(today); startDay.setHours(0,0,0,0);
-      const endDay = new Date(today); endDay.setHours(23,59,59,999);
-      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-      const fifteen = new Date(); fifteen.setDate(fifteen.getDate() - 15);
+  const [cadenceOpen, setCadenceOpen] = useState(false);
 
-      const [contacts, companies, tasksPending, meetingsToday, newLeads, forgotten, upcoming] = await Promise.all([
-        supabase.from("contacts").select("id, funnel_stage, last_contact_at, name, do_not_contact"),
-        supabase.from("companies").select("id"),
-        supabase.from("tasks").select("id, title, due_at, done").eq("done", false),
-        supabase.from("events").select("id, title, starts_at, contact_id").gte("starts_at", startDay.toISOString()).lte("starts_at", endDay.toISOString()).order("starts_at"),
-        supabase.from("contacts").select("id").gte("created_at", weekAgo.toISOString()),
-        supabase.from("contacts").select("id, name, last_contact_at").lt("last_contact_at", fifteen.toISOString()).eq("do_not_contact", false).limit(5),
-        supabase.from("events").select("id, title, starts_at").gt("starts_at", new Date().toISOString()).order("starts_at").limit(5),
+  const { data } = useQuery({
+    queryKey: ["dashboard-central"],
+    queryFn: async () => {
+      const startDay = new Date(); startDay.setHours(0, 0, 0, 0);
+      const endDay = new Date(); endDay.setHours(23, 59, 59, 999);
+      const fifteen = new Date(); fifteen.setDate(fifteen.getDate() - 15);
+      const three = new Date(); three.setDate(three.getDate() - 3);
+
+      const [contacts, companies, tasksAll, meetingsToday, meetingsClosed, priorities] = await Promise.all([
+        supabase.from("contacts").select("id, funnel_stage, last_contact_at, cadence_active, do_not_contact, name, status, updated_at"),
+        supabase.from("companies").select("id, next_meeting"),
+        supabase.from("tasks").select("id, title, due_at, done, contact_id"),
+        supabase.from("events").select("id, title, starts_at, contact_id, status, kind")
+          .gte("starts_at", startDay.toISOString()).lte("starts_at", endDay.toISOString()).order("starts_at"),
+        supabase.from("events").select("id, status, starts_at, kind")
+          .eq("kind", "reuniao").gte("starts_at", startDay.toISOString()).lte("starts_at", endDay.toISOString()).eq("status", "confirmed"),
+        supabase.from("contacts")
+          .select("id, name, funnel_stage, last_contact_at, cadence_active, cadence_day, do_not_contact")
+          .order("last_contact_at", { ascending: true, nullsFirst: true })
+          .limit(30),
       ]);
 
-      const active = contacts.data?.filter(c => c.funnel_stage === "cliente_ativo").length ?? 0;
-      const proposals = contacts.data?.filter(c => c.funnel_stage === "proposta_enviada").length ?? 0;
+      const c = contacts.data ?? [];
+      const active = c.filter((x) => x.funnel_stage === "cliente_ativo").length;
+      const proposals = c.filter((x) => x.funnel_stage === "proposta_enviada").length;
+      const inCadence = c.filter((x) => x.cadence_active && !x.do_not_contact).length;
+      const forgottenCompanies = (companies.data ?? []).filter((x) => !x.next_meeting).length;
+      const tasks = tasksAll.data ?? [];
+      const overdueTasks = tasks.filter((t) => !t.done && t.due_at && new Date(t.due_at) < startDay);
+      const noShows = (meetingsToday.data ?? []).filter((m) => m.status === "no_show").length;
+      const inbox = c.filter((x) => x.status === "aguardando_resposta").length;
+
+      // Prioridades EVA
+      const prio = priorities.data ?? [];
+      const semContatoLongo = prio.filter((x) => !x.do_not_contact && (!x.last_contact_at || new Date(x.last_contact_at) < fifteen)).slice(0, 5);
+      const respondeuHoje = prio.filter((x) => x.last_contact_at && new Date(x.last_contact_at) >= startDay).slice(0, 5);
+      const propostaAberta = c.filter((x) => x.funnel_stage === "proposta_enviada").slice(0, 5);
+      const foraCadencia = prio.filter((x) => x.cadence_active && x.last_contact_at && new Date(x.last_contact_at) >= three && x.funnel_stage === "resposta").slice(0, 5);
+
+      const reunioesHoje = (meetingsClosed.data ?? []).length;
+
       return {
-        totalContacts: contacts.data?.length ?? 0,
-        totalCompanies: companies.data?.length ?? 0,
-        tasksPending: tasksPending.data ?? [],
-        meetingsToday: meetingsToday.data ?? [],
-        newLeads: newLeads.data?.length ?? 0,
-        forgotten: forgotten.data ?? [],
-        upcoming: upcoming.data ?? [],
-        active, proposals,
+        stats: {
+          inbox,
+          inCadence,
+          meetingsToday: (meetingsToday.data ?? []).length,
+          overdueFollowups: overdueTasks.length,
+          proposals,
+          noShows,
+          forgottenCompanies,
+          active,
+        },
+        meetings: meetingsToday.data ?? [],
+        reunioesHoje,
+        prioridades: { semContatoLongo, respondeuHoje, propostaAberta, foraCadencia, tasks: overdueTasks.slice(0, 5) },
       };
     },
   });
 
+  const { data: dueCount = 0 } = useQuery({
+    queryKey: ["cadence-due-count"],
+    queryFn: async () => (await fetchDueCadence()).length,
+  });
+
+  const meta = data?.reunioesHoje ?? 0;
+  const metaPct = Math.min(100, Math.round((meta / META_DIARIA) * 100));
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Bom dia, Valéria ✨</h1>
-        <p className="text-sm text-muted-foreground">Aqui está o resumo do seu dia.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Central de Operações ✨</h1>
+          <p className="text-sm text-muted-foreground">Bom dia, Valéria. A EVA já organizou o que importa para hoje.</p>
+        </div>
+
+        <Button size="lg" onClick={() => setCadenceOpen(true)} className="h-14 gap-3 bg-[color:var(--petrol)] px-6 text-base text-white shadow-lg hover:brightness-110">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--gold)]/20">
+            <Play className="h-4 w-4 text-[color:var(--gold)]" fill="currentColor" />
+          </div>
+          <div className="flex flex-col items-start leading-tight">
+            <span className="font-semibold">Iniciar Cadência</span>
+            <span className="text-[11px] opacity-80">{dueCount} contato(s) prontos para hoje</span>
+          </div>
+        </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        <StatCard label="Novos leads (7d)" value={data?.newLeads ?? 0} icon={Users} />
-        <StatCard label="Reuniões hoje" value={data?.meetingsToday.length ?? 0} icon={Calendar} />
-        <StatCard label="Follow-ups pendentes" value={data?.tasksPending.length ?? 0} icon={CheckSquare} />
-        <StatCard label="Propostas em aberto" value={data?.proposals ?? 0} icon={MessageCircle} />
-        <StatCard label="Clientes ativos" value={data?.active ?? 0} icon={TrendingUp} />
-        <StatCard label="Empresas" value={data?.totalCompanies ?? 0} icon={Building2} />
-        <StatCard label="Total de contatos" value={data?.totalContacts ?? 0} icon={Users} />
-        <StatCard label="No shows" value={0} icon={AlertTriangle} />
+      {/* Meta diária */}
+      <Card className="border-[color:var(--gold)]/30 bg-gradient-to-r from-[color:var(--petrol)]/5 to-[color:var(--gold)]/5">
+        <CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[color:var(--gold)]/20 text-[color:var(--gold)]">
+              <Target className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Meta do dia</div>
+              <div className="text-lg font-semibold">Agendar {META_DIARIA} reuniões</div>
+            </div>
+          </div>
+          <div className="flex-1 md:max-w-md">
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="font-medium">{meta} de {META_DIARIA} reuniões</span>
+              <span className="text-muted-foreground">{metaPct}%</span>
+            </div>
+            <Progress value={metaPct} className="h-3" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Números da operação */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4">
+        <StatCard label="Mensagens p/ responder" value={data?.stats.inbox ?? 0} icon={MessageCircle} tone="gold" hint="clientes aguardando você" />
+        <StatCard label="Em cadência" value={data?.stats.inCadence ?? 0} icon={Flame} tone="primary" hint="rodando automaticamente" />
+        <StatCard label="Reuniões hoje" value={data?.stats.meetingsToday ?? 0} icon={Calendar} tone="primary" />
+        <StatCard label="Follow-ups atrasados" value={data?.stats.overdueFollowups ?? 0} icon={Clock} tone="warn" />
+        <StatCard label="Propostas pendentes" value={data?.stats.proposals ?? 0} icon={FileText} tone="gold" />
+        <StatCard label="No shows" value={data?.stats.noShows ?? 0} icon={AlertTriangle} tone="warn" />
+        <StatCard label="Empresas aguardando" value={data?.stats.forgottenCompanies ?? 0} icon={Building2} tone="muted" />
+        <StatCard label="Clientes ativos" value={data?.stats.active ?? 0} icon={UserCheck} tone="primary" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* Prioridades EVA + Agenda */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[color:var(--gold)]" /> Prioridades da EVA
+            </CardTitle>
+            <Badge variant="secondary" className="text-[10px]">Sugerido pela IA</Badge>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <PrioRow title="Quem responder primeiro" tone="gold" items={data?.prioridades.respondeuHoje ?? []} empty="Ninguém respondeu ainda hoje." />
+            <PrioRow title="Sem contato há mais de 15 dias" tone="warn" items={data?.prioridades.semContatoLongo ?? []} empty="Todos com contato recente 👏" />
+            <PrioRow title="Proposta em aberto" tone="primary" items={data?.prioridades.propostaAberta ?? []} empty="Sem propostas para acompanhar." />
+            <PrioRow title="Follow-ups atrasados" tone="warn" tasks={data?.prioridades.tasks ?? []} empty="Nenhum follow-up atrasado." />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Agenda de hoje</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {(data?.meetingsToday ?? []).length === 0 && <p className="text-sm text-muted-foreground">Sem compromissos hoje.</p>}
-            {data?.meetingsToday.map((m) => (
+            {(data?.meetings ?? []).length === 0 && <p className="text-sm text-muted-foreground">Sem compromissos hoje.</p>}
+            {data?.meetings.map((m) => (
               <div key={m.id} className="flex items-center justify-between rounded-md border p-3">
-                <div>
-                  <div className="font-medium">{m.title}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{m.title}</div>
                   <div className="text-xs text-muted-foreground">{formatDateTime(m.starts_at)}</div>
                 </div>
                 <Link to="/agenda" className="text-xs text-primary hover:underline">Abrir</Link>
@@ -92,36 +197,44 @@ function Dashboard() {
             ))}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[color:var(--gold)]" /> Sugestões da EVA</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {(data?.forgotten.length ?? 0) > 0 && (
-              <div className="rounded-md border bg-accent/10 p-3">
-                <div className="font-medium text-foreground">Clientes esquecidos</div>
-                <div className="text-xs text-muted-foreground">Você tem {data?.forgotten.length} contato(s) sem interação há mais de 15 dias.</div>
-                <ul className="mt-2 space-y-1 text-xs">
-                  {data?.forgotten.map((c) => (
-                    <li key={c.id}>• <Link to="/crm/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.name}</Link></li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {(data?.tasksPending.length ?? 0) > 0 && (
-              <div className="rounded-md border bg-primary/5 p-3">
-                <div className="font-medium">Follow-ups em aberto</div>
-                <div className="text-xs text-muted-foreground">Existem {data?.tasksPending.length} tarefa(s) para concluir.</div>
-              </div>
-            )}
-            {(data?.meetingsToday.length ?? 0) > 0 && (
-              <div className="rounded-md border p-3">
-                <div className="font-medium">Você tem reuniões hoje</div>
-                <div className="text-xs text-muted-foreground">Prepare-se com antecedência. Clique em "Pergunte à EVA" para gerar um briefing.</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      <CadenceModal open={cadenceOpen} onOpenChange={setCadenceOpen} />
+    </div>
+  );
+}
+
+function PrioRow({ title, items = [], tasks = [], tone, empty }: {
+  title: string;
+  items?: { id: string; name?: string; last_contact_at?: string | null }[];
+  tasks?: { id: string; title: string; due_at: string | null; contact_id: string | null }[];
+  tone: "primary" | "gold" | "warn";
+  empty: string;
+}) {
+  const toneBar = { primary: "bg-primary", gold: "bg-[color:var(--gold)]", warn: "bg-orange-500" }[tone];
+  const total = (items?.length ?? 0) + (tasks?.length ?? 0);
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${toneBar}`} />
+        <div className="text-xs font-semibold uppercase tracking-wide text-foreground">{title}</div>
+        <Badge variant="outline" className="ml-auto text-[10px]">{total}</Badge>
+      </div>
+      {total === 0 ? (
+        <div className="text-xs text-muted-foreground">{empty}</div>
+      ) : (
+        <ul className="space-y-1 text-xs">
+          {items.slice(0, 4).map((c) => (
+            <li key={c.id}>
+              • <Link to="/crm/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.name}</Link>
+              {c.last_contact_at && <span className="text-muted-foreground"> — último: {new Date(c.last_contact_at).toLocaleDateString("pt-BR")}</span>}
+            </li>
+          ))}
+          {tasks.slice(0, 4).map((t) => (
+            <li key={t.id}>• <span className="text-foreground">{t.title}</span>{t.due_at && <span className="text-muted-foreground"> — {new Date(t.due_at).toLocaleDateString("pt-BR")}</span>}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
