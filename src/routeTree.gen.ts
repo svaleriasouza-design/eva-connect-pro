@@ -13,6 +13,7 @@ import { Route as WhatsappRouteImport } from './routes/whatsapp'
 import { Route as TarefasRouteImport } from './routes/tarefas'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as FunilRouteImport } from './routes/funil'
+import { Route as EvaRouteImport } from './routes/eva'
 import { Route as EmpresasRouteImport } from './routes/empresas'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as AgendaRouteImport } from './routes/agenda'
@@ -37,6 +38,11 @@ const HistoricoRoute = HistoricoRouteImport.update({
 const FunilRoute = FunilRouteImport.update({
   id: '/funil',
   path: '/funil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaRoute = EvaRouteImport.update({
+  id: '/eva',
+  path: '/eva',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmpresasRoute = EmpresasRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
   '/funil': typeof FunilRoute
   '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
   '/funil': typeof FunilRoute
   '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/crm': typeof CrmRouteWithChildren
   '/empresas': typeof EmpresasRoute
+  '/eva': typeof EvaRoute
   '/funil': typeof FunilRoute
   '/historico': typeof HistoricoRoute
   '/tarefas': typeof TarefasRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/crm'
     | '/empresas'
+    | '/eva'
     | '/funil'
     | '/historico'
     | '/tarefas'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/crm'
     | '/empresas'
+    | '/eva'
     | '/funil'
     | '/historico'
     | '/tarefas'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/crm'
     | '/empresas'
+    | '/eva'
     | '/funil'
     | '/historico'
     | '/tarefas'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   CrmRoute: typeof CrmRouteWithChildren
   EmpresasRoute: typeof EmpresasRoute
+  EvaRoute: typeof EvaRoute
   FunilRoute: typeof FunilRoute
   HistoricoRoute: typeof HistoricoRoute
   TarefasRoute: typeof TarefasRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/funil'
       fullPath: '/funil'
       preLoaderRoute: typeof FunilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/eva': {
+      id: '/eva'
+      path: '/eva'
+      fullPath: '/eva'
+      preLoaderRoute: typeof EvaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/empresas': {
@@ -229,6 +249,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   CrmRoute: CrmRouteWithChildren,
   EmpresasRoute: EmpresasRoute,
+  EvaRoute: EvaRoute,
   FunilRoute: FunilRoute,
   HistoricoRoute: HistoricoRoute,
   TarefasRoute: TarefasRoute,
