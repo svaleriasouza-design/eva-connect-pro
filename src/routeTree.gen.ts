@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WhatsappRouteImport } from './routes/whatsapp'
 import { Route as TarefasRouteImport } from './routes/tarefas'
 import { Route as FunilRouteImport } from './routes/funil'
 import { Route as EmpresasRouteImport } from './routes/empresas'
@@ -17,6 +18,11 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CrmIdRouteImport } from './routes/crm.$id'
 
+const WhatsappRoute = WhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TarefasRoute = TarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/empresas': typeof EmpresasRoute
   '/funil': typeof FunilRoute
   '/tarefas': typeof TarefasRoute
+  '/whatsapp': typeof WhatsappRoute
   '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/empresas'
     | '/funil'
     | '/tarefas'
+    | '/whatsapp'
     | '/crm/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/empresas'
     | '/funil'
     | '/tarefas'
+    | '/whatsapp'
     | '/crm/$id'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/empresas'
     | '/funil'
     | '/tarefas'
+    | '/whatsapp'
     | '/crm/$id'
   fileRoutesById: FileRoutesById
 }
@@ -118,10 +130,18 @@ export interface RootRouteChildren {
   EmpresasRoute: typeof EmpresasRoute
   FunilRoute: typeof FunilRoute
   TarefasRoute: typeof TarefasRoute
+  WhatsappRoute: typeof WhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/whatsapp': {
+      id: '/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof WhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tarefas': {
       id: '/tarefas'
       path: '/tarefas'
@@ -191,6 +211,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmpresasRoute: EmpresasRoute,
   FunilRoute: FunilRoute,
   TarefasRoute: TarefasRoute,
+  WhatsappRoute: WhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
