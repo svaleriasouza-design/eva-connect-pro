@@ -20,8 +20,11 @@ export type Database = {
           contact_id: string | null
           content: string | null
           created_at: string
+          external_id: string | null
           id: string
           kind: string
+          status: string | null
+          status_updated_at: string | null
           title: string
         }
         Insert: {
@@ -29,8 +32,11 @@ export type Database = {
           contact_id?: string | null
           content?: string | null
           created_at?: string
+          external_id?: string | null
           id?: string
           kind: string
+          status?: string | null
+          status_updated_at?: string | null
           title: string
         }
         Update: {
@@ -38,8 +44,11 @@ export type Database = {
           contact_id?: string | null
           content?: string | null
           created_at?: string
+          external_id?: string | null
           id?: string
           kind?: string
+          status?: string | null
+          status_updated_at?: string | null
           title?: string
         }
         Relationships: [
