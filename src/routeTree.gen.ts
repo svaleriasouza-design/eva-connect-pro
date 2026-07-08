@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CrmIdRouteImport } from './routes/crm.$id'
 
 const CrmRoute = CrmRouteImport.update({
   id: '/crm',
@@ -22,31 +23,39 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CrmIdRoute = CrmIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CrmRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/crm': typeof CrmRoute
+  '/crm': typeof CrmRouteWithChildren
+  '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/crm': typeof CrmRoute
+  '/crm': typeof CrmRouteWithChildren
+  '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/crm': typeof CrmRoute
+  '/crm': typeof CrmRouteWithChildren
+  '/crm/$id': typeof CrmIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/crm'
+  fullPaths: '/' | '/crm' | '/crm/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/crm'
-  id: '__root__' | '/' | '/crm'
+  to: '/' | '/crm' | '/crm/$id'
+  id: '__root__' | '/' | '/crm' | '/crm/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CrmRoute: typeof CrmRoute
+  CrmRoute: typeof CrmRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +74,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/crm/$id': {
+      id: '/crm/$id'
+      path: '/$id'
+      fullPath: '/crm/$id'
+      preLoaderRoute: typeof CrmIdRouteImport
+      parentRoute: typeof CrmRoute
+    }
   }
 }
 
+interface CrmRouteChildren {
+  CrmIdRoute: typeof CrmIdRoute
+}
+
+const CrmRouteChildren: CrmRouteChildren = {
+  CrmIdRoute: CrmIdRoute,
+}
+
+const CrmRouteWithChildren = CrmRoute._addFileChildren(CrmRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CrmRoute: CrmRoute,
+  CrmRoute: CrmRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
