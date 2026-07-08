@@ -11,8 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, MessageCircle, Calendar, CheckSquare, Sparkles, Trash2, Save } from "lucide-react";
+import { ArrowLeft, MessageCircle, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
 
 export const Route = createFileRoute("/_authenticated/crm/$id")({ component: Ficha });
 
@@ -23,6 +24,9 @@ function Ficha() {
   const [nextAction, setNextAction] = useState<string | null>(null);
   const [nextLoading, setNextLoading] = useState(false);
   const askServer = useServerFn(askEva);
+  const sendWa = useServerFn(sendWhatsappMessageFn);
+  const [quickMsg, setQuickMsg] = useState("");
+  const [quickSending, setQuickSending] = useState(false);
 
   const { data: contact } = useQuery({
     queryKey: ["contact", id],
@@ -71,6 +75,26 @@ function Ficha() {
       setNextAction(res.text);
     } catch { toast.error("EVA falhou"); }
     finally { setNextLoading(false); }
+  }
+
+  async function sendQuick() {
+    if (!contact || !quickMsg.trim()) return;
+    const to = contact.whatsapp ?? contact.phone;
+    if (!to) { toast.error("Sem WhatsApp/telefone cadastrado."); return; }
+    setQuickSending(true);
+    try {
+      const res = await sendWa({ data: { contactId: id, to, body: quickMsg.trim() } });
+      if (res.ok) {
+        toast.success("Mensagem enviada");
+        setQuickMsg("");
+        qc.invalidateQueries({ queryKey: ["activities", id] });
+        qc.invalidateQueries({ queryKey: ["contact", id] });
+      } else {
+        toast.error(res.error ?? "Falha no envio");
+      }
+    } finally {
+      setQuickSending(false);
+    }
   }
 
   if (!contact) return <div className="p-6 text-muted-foreground">Carregando…</div>;
@@ -147,9 +171,28 @@ function Ficha() {
             <CardHeader><CardTitle>Resumo</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div><span className="text-muted-foreground">Etapa:</span> <Badge variant="secondary">{FUNNEL_STAGES.find(s=>s.key===contact.funnel_stage)?.label}</Badge></div>
+              <div>
+                <span className="text-muted-foreground">Cadência:</span>{" "}
+                {contact.cadence_active ? (
+                  <Badge>Dia {contact.cadence_day ?? 0}/5</Badge>
+                ) : (
+                  <Badge variant="outline">Fora da cadência</Badge>
+                )}
+              </div>
               <div><span className="text-muted-foreground">Último contato:</span> {formatDateTime(contact.last_contact_at)}</div>
               <div><span className="text-muted-foreground">Origem:</span> {contact.origin ?? "—"}</div>
               <div><span className="text-muted-foreground">Não contatar:</span> {contact.do_not_contact ? "Sim" : "Não"}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Enviar WhatsApp</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <Textarea rows={3} value={quickMsg} onChange={(e) => setQuickMsg(e.target.value)} placeholder="Mensagem rápida via Meta Cloud API…" />
+              <Button size="sm" className="w-full" onClick={sendQuick} disabled={quickSending || !quickMsg.trim()}>
+                {quickSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Enviar
+              </Button>
             </CardContent>
           </Card>
 
@@ -160,7 +203,11 @@ function Ficha() {
               {activities.length === 0 && <p className="text-xs text-muted-foreground">Sem atividades ainda.</p>}
               {activities.map((a: any) => (
                 <div key={a.id} className="rounded-md border-l-2 border-primary/40 bg-muted/40 p-2 text-xs">
-                  <div className="flex justify-between"><b>{a.title}</b><span className="text-muted-foreground">{formatDateTime(a.created_at)}</span></div>
+                  <div className="flex justify-between gap-2">
+                    <b className="truncate">{a.title}</b>
+                    <span className="text-muted-foreground shrink-0">{formatDateTime(a.created_at)}</span>
+                  </div>
+                  {a.status && <div className="mt-0.5 text-[10px] uppercase text-muted-foreground">{a.status}</div>}
                   {a.content && <div className="text-muted-foreground mt-1">{a.content}</div>}
                 </div>
               ))}
