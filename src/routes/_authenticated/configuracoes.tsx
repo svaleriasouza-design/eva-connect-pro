@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const Route = createFileRoute("/configuracoes")({ component: Configs });
+export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
 function Configs() {
   return (

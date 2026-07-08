@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Send } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/eva")({ component: EvaPage });
+export const Route = createFileRoute("/_authenticated/eva")({ component: EvaPage });
 
 type M = { role: "user" | "assistant"; content: string };
 

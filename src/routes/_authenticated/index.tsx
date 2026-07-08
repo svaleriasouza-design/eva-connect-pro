@@ -4,7 +4,7 @@ import { supabase, formatDateTime } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, MessageCircle, CheckSquare, Building2, TrendingUp, AlertTriangle, Sparkles } from "lucide-react";
 
-export const Route = createFileRoute("/")({ component: Dashboard });
+export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
 function StatCard({ label, value, icon: Icon, hint }: { label: string; value: number | string; icon: any; hint?: string }) {
   return (

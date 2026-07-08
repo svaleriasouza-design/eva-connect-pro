@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/crm")({ component: () => <Outlet /> });
+export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
 export function CrmList() {
   const qc = useQueryClient();

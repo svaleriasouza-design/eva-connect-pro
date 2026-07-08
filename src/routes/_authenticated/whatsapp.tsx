@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Trash2, MessageCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/whatsapp")({ component: WhatsApp });
+export const Route = createFileRoute("/_authenticated/whatsapp")({ component: WhatsApp });
 
 function WhatsApp() {
   return (
