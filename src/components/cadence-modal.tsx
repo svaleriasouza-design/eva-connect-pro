@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fetchDueCadence, markCadenceSent, waUrl, type DueContact } from "@/lib/cadence";
-import { Loader2, MessageCircle, ExternalLink, CheckCircle2 } from "lucide-react";
+import { fetchDueCadence, waUrl, type DueContact } from "@/lib/cadence";
+import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
+import { Loader2, MessageCircle, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -17,6 +19,8 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
+  const sendFn = useServerFn(sendWhatsappMessageFn);
 
   const list = due as DueContact[];
   const activeIds = list.map((c) => c.id).filter((id) => !sentIds.has(id));
@@ -35,18 +39,42 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
       return;
     }
     setSending(true);
+    let okCount = 0;
+    let failCount = 0;
     for (const c of targets) {
-      if (!c.whatsapp && !c.phone) {
+      const to = c.whatsapp ?? c.phone;
+      if (!to) {
         toast.warning(`${c.name} não possui WhatsApp cadastrado.`);
+        failCount++;
         continue;
       }
-      window.open(waUrl(c.whatsapp ?? c.phone, c.message), "_blank", "noopener");
-      await markCadenceSent(c);
-      setSentIds((s) => new Set(s).add(c.id));
-      await new Promise((r) => setTimeout(r, 800));
+      try {
+        const res = await sendFn({
+          data: {
+            contactId: c.id,
+            to,
+            body: c.message,
+            cadenceDay: c.nextDay,
+          },
+        });
+        if (res.ok) {
+          setSentIds((s) => new Set(s).add(c.id));
+          okCount++;
+        } else {
+          setFailedIds((s) => new Set(s).add(c.id));
+          failCount++;
+          toast.error(`${c.name}: ${res.error}`);
+        }
+      } catch (err) {
+        setFailedIds((s) => new Set(s).add(c.id));
+        failCount++;
+        toast.error(`${c.name}: ${err instanceof Error ? err.message : "erro"}`);
+      }
+      await new Promise((r) => setTimeout(r, 400));
     }
     setSending(false);
-    toast.success(`${targets.length} envio(s) processado(s).`);
+    if (okCount) toast.success(`${okCount} enviado(s) via Meta Cloud API.`);
+    if (failCount && !okCount) toast.error(`Falha em ${failCount} envio(s).`);
     qc.invalidateQueries();
     refetch();
   }
@@ -84,6 +112,7 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
             {list.map((c) => {
               const isSent = sentIds.has(c.id);
+              const isFailed = failedIds.has(c.id);
               return (
                 <div key={c.id} className={`flex items-center gap-3 border-b px-3 py-2 text-sm ${isSent ? "opacity-60" : ""}`}>
                   <Checkbox
@@ -99,9 +128,11 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
                   <div className="w-20 text-right">
                     {isSent ? (
                       <span className="inline-flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="h-3 w-3" /> Enviado</span>
+                    ) : isFailed ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-destructive"><AlertCircle className="h-3 w-3" /> Falhou</span>
                     ) : (
                       <a href={waUrl(c.whatsapp ?? c.phone, c.message)} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                        Abrir <ExternalLink className="h-3 w-3" />
+                        Prévia <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
                   </div>
@@ -115,7 +146,7 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
           <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
           <Button onClick={startSending} disabled={sending || list.length === 0}>
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Iniciar envios
+            Enviar via Meta Cloud API
           </Button>
         </DialogFooter>
       </DialogContent>
