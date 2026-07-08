@@ -14,7 +14,349 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          content: string | null
+          created_at: string
+          id: string
+          kind: string
+          title: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          title: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          city: string | null
+          contracts: string | null
+          created_at: string
+          diagnosis: string | null
+          email: string | null
+          employees: number | null
+          id: string
+          last_meeting: string | null
+          name: string
+          next_meeting: string | null
+          notes: string | null
+          phone: string | null
+          proposals: string | null
+          renewal: string | null
+          responsible: string | null
+          results: string | null
+          segment: string | null
+          trainings: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          contracts?: string | null
+          created_at?: string
+          diagnosis?: string | null
+          email?: string | null
+          employees?: number | null
+          id?: string
+          last_meeting?: string | null
+          name: string
+          next_meeting?: string | null
+          notes?: string | null
+          phone?: string | null
+          proposals?: string | null
+          renewal?: string | null
+          responsible?: string | null
+          results?: string | null
+          segment?: string | null
+          trainings?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          contracts?: string | null
+          created_at?: string
+          diagnosis?: string | null
+          email?: string | null
+          employees?: number | null
+          id?: string
+          last_meeting?: string | null
+          name?: string
+          next_meeting?: string | null
+          notes?: string | null
+          phone?: string | null
+          proposals?: string | null
+          renewal?: string | null
+          responsible?: string | null
+          results?: string | null
+          segment?: string | null
+          trainings?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          birthdate: string | null
+          cadence_active: boolean
+          cadence_day: number
+          children: string | null
+          city: string | null
+          company_id: string | null
+          company_name: string | null
+          created_at: string
+          do_not_contact: boolean
+          email: string | null
+          facebook: string | null
+          funnel_stage: string
+          goal: string | null
+          id: string
+          instagram: string | null
+          last_contact_at: string | null
+          main_pain: string | null
+          name: string
+          next_action: string | null
+          next_action_at: string | null
+          notes: string | null
+          origin: string | null
+          phone: string | null
+          profession: string | null
+          service_interest: string | null
+          status: string
+          updated_at: string
+          website: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          birthdate?: string | null
+          cadence_active?: boolean
+          cadence_day?: number
+          children?: string | null
+          city?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          do_not_contact?: boolean
+          email?: string | null
+          facebook?: string | null
+          funnel_stage?: string
+          goal?: string | null
+          id?: string
+          instagram?: string | null
+          last_contact_at?: string | null
+          main_pain?: string | null
+          name: string
+          next_action?: string | null
+          next_action_at?: string | null
+          notes?: string | null
+          origin?: string | null
+          phone?: string | null
+          profession?: string | null
+          service_interest?: string | null
+          status?: string
+          updated_at?: string
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          birthdate?: string | null
+          cadence_active?: boolean
+          cadence_day?: number
+          children?: string | null
+          city?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          do_not_contact?: boolean
+          email?: string | null
+          facebook?: string | null
+          funnel_stage?: string
+          goal?: string | null
+          id?: string
+          instagram?: string | null
+          last_contact_at?: string | null
+          main_pain?: string | null
+          name?: string
+          next_action?: string | null
+          next_action_at?: string | null
+          notes?: string | null
+          origin?: string | null
+          phone?: string | null
+          profession?: string | null
+          service_interest?: string | null
+          status?: string
+          updated_at?: string
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          ends_at: string | null
+          id: string
+          kind: string
+          location: string | null
+          meet_link: string | null
+          notes: string | null
+          starts_at: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          meet_link?: string | null
+          notes?: string | null
+          starts_at: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          meet_link?: string | null
+          notes?: string | null
+          starts_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          description: string | null
+          done: boolean
+          due_at: string | null
+          id: string
+          priority: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          priority?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          priority?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
