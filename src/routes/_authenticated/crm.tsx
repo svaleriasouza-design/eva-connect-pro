@@ -41,10 +41,14 @@ export function CrmList() {
     setImportProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
 
     const pick = (row: Record<string, any>, keys: string[]): string | null => {
+      const norm = (s: string) =>
+        s
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[\s_\-.]+/g, "");
       for (const k of keys) {
-        const found = Object.keys(row).find(
-          (rk) => rk.trim().toLowerCase().replace(/[\s_-]+/g, "") === k.toLowerCase().replace(/[\s_-]+/g, "")
-        );
+        const found = Object.keys(row).find((rk) => norm(rk) === norm(k));
         const v = found ? row[found] : undefined;
         if (v != null && String(v).trim()) return String(v).trim();
       }
@@ -59,15 +63,18 @@ export function CrmList() {
         const rows = results.data;
         const mapped = rows
           .map((r) => {
-            const name =
-              pick(r, ["Razao Social", "Razão Social", "Nome Fantasia", "name", "nome"]) || null;
-            if (!name) return null;
+            const nomeFantasia = pick(r, ["Nome Fantasia", "nome_fantasia"]);
+            const razaoSocial = pick(r, ["Razao Social", "Razão Social", "razao_social"]);
+            const name = nomeFantasia || razaoSocial || pick(r, ["name", "nome"]);
+            const whatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
+            const email = pick(r, ["E-mail", "Email", "email"]);
+            if (!name || (!whatsapp && !email)) return null;
             return {
               name,
-              phone: pick(r, ["Telefone1 Completo", "Telefone", "phone", "telefone"]),
-              whatsapp: pick(r, ["Telefone1 Completo", "WhatsApp", "whatsapp"]),
-              email: pick(r, ["E-mail", "Email", "email"]),
-              company_name: pick(r, ["Nome Fantasia", "Razao Social", "Razão Social", "company"]),
+              phone: whatsapp || pick(r, ["Telefone", "phone", "telefone"]),
+              whatsapp,
+              email,
+              company_name: razaoSocial || pick(r, ["company", "empresa"]),
               city: pick(r, ["Cidade", "city"]),
             };
           })
@@ -75,7 +82,7 @@ export function CrmList() {
 
         if (mapped.length === 0) {
           setImporting(false);
-          return toast.error("Nenhuma linha válida encontrada (verifique a coluna Razao Social).");
+          return toast.error("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).");
         }
 
         const BATCH = 500;
