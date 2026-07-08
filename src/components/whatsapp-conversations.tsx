@@ -130,7 +130,7 @@ export function WhatsappConversations() {
       const { data } = await supabase
         .from("activities")
         .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at")
-        .eq("contact_id", selectedId)
+      .eq("contact_id", selectedId as string)
         .in("kind", ["whatsapp_out", "whatsapp_in", "cadence_stop", "nota"])
         .order("created_at", { ascending: true })
         .limit(200);
