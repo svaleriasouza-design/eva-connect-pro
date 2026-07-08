@@ -39,14 +39,19 @@ function AuthPage() {
         toast.success("Bem-vinda, Valéria ✨");
         navigate({ to: "/" });
       } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast.success("Conta criada. Você já pode entrar.");
-        setMode("login");
+        if (data.session) {
+          toast.success("Conta criada. Bem-vinda ✨");
+          navigate({ to: "/" });
+        } else {
+          toast.success("Conta criada. Você já pode entrar.");
+          setMode("login");
+        }
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + "/reset-password",
