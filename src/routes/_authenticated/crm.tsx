@@ -78,7 +78,7 @@ export function CrmList() {
           return toast.error("Nenhuma linha válida encontrada (verifique a coluna Razao Social).");
         }
 
-        const BATCH = 100;
+        const BATCH = 500;
         setImportProgress({ done: 0, total: mapped.length, inserted: 0, skipped: 0 });
         let inserted = 0;
         let skipped = 0;
@@ -87,8 +87,13 @@ export function CrmList() {
           const batch = mapped.slice(i, i + BATCH);
           const { error } = await supabase.from("contacts").insert(batch);
           if (error) {
-            skipped += batch.length;
             console.error("Batch insert error:", error);
+            // fallback: try one-by-one so a single bad row doesn't kill the batch
+            for (const row of batch) {
+              const { error: rowErr } = await supabase.from("contacts").insert(row);
+              if (rowErr) skipped += 1;
+              else inserted += 1;
+            }
           } else {
             inserted += batch.length;
           }
@@ -153,13 +158,23 @@ export function CrmList() {
       {importing && (
         <Card className="p-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Importando contatos…</span>
+            <span className="font-medium">
+              Importando: {importProgress.done.toLocaleString("pt-BR")} de{" "}
+              {(importProgress.total || 0).toLocaleString("pt-BR")} contatos…
+            </span>
             <span className="text-muted-foreground">
-              {importProgress.done} / {importProgress.total || "?"}
-              {importProgress.skipped ? ` · ${importProgress.skipped} ignorados` : ""}
+              {importProgress.total
+                ? Math.round((importProgress.done / importProgress.total) * 100)
+                : 0}
+              %
+              {importProgress.inserted ? ` · ${importProgress.inserted.toLocaleString("pt-BR")} inseridos` : ""}
+              {importProgress.skipped ? ` · ${importProgress.skipped.toLocaleString("pt-BR")} ignorados` : ""}
             </span>
           </div>
           <Progress value={importProgress.total ? (importProgress.done / importProgress.total) * 100 : 0} />
+          <p className="text-xs text-muted-foreground">
+            Não feche esta aba — o envio continua em lotes de 500 até concluir.
+          </p>
         </Card>
       )}
 
