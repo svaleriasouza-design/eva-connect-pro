@@ -14,6 +14,7 @@ import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import { Progress } from "@/components/ui/progress";
+import { ensureCompanies, normalizeCompanyName } from "@/lib/companies";
 
 export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
