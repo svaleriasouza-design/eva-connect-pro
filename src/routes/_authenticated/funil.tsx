@@ -51,6 +51,16 @@ function Funil() {
                     <Link to="/crm/$id" params={{ id: c.id }} className="block">
                       <div className="font-medium text-sm">{c.name}</div>
                       <div className="text-xs text-muted-foreground">{c.company_name ?? "—"}</div>
+                      <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                        <div>📞 {c.whatsapp ?? c.phone ?? "—"}</div>
+                        <div>Últ. contato: {c.last_contact_at ? new Date(c.last_contact_at).toLocaleDateString("pt-BR") : "—"}</div>
+                        <div>Próx. ação: {c.next_action ?? "—"}</div>
+                      </div>
+                      <div className="mt-2">
+                        <Badge variant={c.cadence_active ? "default" : "secondary"} className="text-[10px]">
+                          {c.cadence_active ? `Cadência Dia ${c.cadence_day ?? 0}/5` : "Fora da cadência"}
+                        </Badge>
+                      </div>
                     </Link>
                   </Card>
                 ))}
