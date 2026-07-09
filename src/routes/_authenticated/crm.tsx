@@ -14,6 +14,7 @@ import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import { Progress } from "@/components/ui/progress";
+import { ensureCompanies, normalizeCompanyName } from "@/lib/companies";
 
 export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
@@ -87,13 +88,16 @@ export function CrmList() {
             const whatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
             const email = pick(r, ["E-mail", "Email", "email"]);
             if (!whatsapp && !email) return null;
+            const contactName = name || "Sem nome";
+            const companyName = razaoSocial || pick(r, ["company", "empresa"]) || contactName;
             return {
-              name: name || "Sem nome",
+              name: contactName,
               phone: whatsapp || pick(r, ["Telefone", "phone", "telefone"]),
               whatsapp,
               email,
-              company_name: razaoSocial || pick(r, ["company", "empresa"]),
+              company_name: companyName,
               city: pick(r, ["Cidade", "city"]),
+              funnel_stage: "novo_lead",
             };
           })
           .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -102,13 +106,30 @@ export function CrmList() {
               return finish("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).", true);
             }
 
+            // Cria/vincula empresas em lote antes de inserir contatos.
+            const companyExtras: Record<string, any> = {};
+            mapped.forEach((r) => {
+              const norm = normalizeCompanyName(r.company_name);
+              if (!companyExtras[norm]) {
+                companyExtras[norm] = { city: r.city, phone: r.phone, email: r.email };
+              }
+            });
+            const companyMap = await ensureCompanies(
+              mapped.map((r) => r.company_name),
+              companyExtras,
+            );
+            const withCompany = mapped.map((r) => ({
+              ...r,
+              company_id: companyMap.get(normalizeCompanyName(r.company_name)) ?? null,
+            }));
+
             const BATCH = 500;
-            setImportProgress({ done: 0, total: mapped.length, inserted: 0, skipped: 0 });
+            setImportProgress({ done: 0, total: withCompany.length, inserted: 0, skipped: 0 });
             let inserted = 0;
             let skipped = 0;
 
-            for (let i = 0; i < mapped.length; i += BATCH) {
-          const batch = mapped.slice(i, i + BATCH);
+            for (let i = 0; i < withCompany.length; i += BATCH) {
+          const batch = withCompany.slice(i, i + BATCH);
           try {
             const { error } = await supabase.from("contacts").insert(batch);
             if (error) {
@@ -131,14 +152,15 @@ export function CrmList() {
             skipped += batch.length;
           }
           setImportProgress({
-            done: Math.min(i + BATCH, mapped.length),
-            total: mapped.length,
+            done: Math.min(i + BATCH, withCompany.length),
+            total: withCompany.length,
             inserted,
             skipped,
           });
             }
 
             qc.invalidateQueries({ queryKey: ["contacts"] });
+            qc.invalidateQueries({ queryKey: ["companies"] });
             finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
           } catch (e: any) {
             console.error("Import error:", e);
