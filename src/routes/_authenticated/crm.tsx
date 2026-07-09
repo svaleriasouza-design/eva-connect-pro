@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime } from "@/lib/db";
+import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime, fetchAllRows } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -26,7 +26,7 @@ export function CrmList() {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts"],
-    queryFn: async () => (await supabase.from("contacts").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: () => fetchAllRows("contacts", "*", { column: "created_at", ascending: false }),
   });
 
   const filtered = useMemo(() => {
