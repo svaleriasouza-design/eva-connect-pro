@@ -70,7 +70,7 @@ export function CrmList() {
       Papa.parse<Record<string, any>>(file, {
         header: true,
         skipEmptyLines: true,
-        worker: true,
+        encoding: "UTF-8",
         complete: async (results) => {
           try {
             const rows = Array.isArray(results?.data) ? results.data : [];
