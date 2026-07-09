@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime } from "@/lib/db";
+import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime, fetchAllRows } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
