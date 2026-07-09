@@ -26,7 +26,7 @@ export function CrmList() {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts"],
-    queryFn: async () => (await supabase.from("contacts").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: () => fetchAllRows("contacts", "*", { column: "created_at", ascending: false }),
   });
 
   const filtered = useMemo(() => {
