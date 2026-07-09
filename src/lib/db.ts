@@ -37,7 +37,7 @@ export async function fetchAllRows<T = any>(
   let from = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    let q: any = supabase.from(table).select(select).range(from, from + pageSize - 1);
+    let q: any = (supabase as any).from(table).select(select).range(from, from + pageSize - 1);
     if (order) q = q.order(order.column, { ascending: order.ascending ?? false });
     const { data, error } = await q;
     if (error) throw error;
