@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, FUNNEL_STAGES } from "@/lib/db";
+import { supabase, FUNNEL_STAGES, fetchAllRows } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ function Funil() {
   const qc = useQueryClient();
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts"],
-    queryFn: async () => (await supabase.from("contacts").select("*").order("updated_at", { ascending: false })).data ?? [],
+    queryFn: () => fetchAllRows("contacts", "*", { column: "updated_at", ascending: false }),
   });
 
   async function move(id: string, stage: string) {
