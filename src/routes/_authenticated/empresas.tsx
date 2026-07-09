@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase, formatDate } from "@/lib/db";
+import { syncCompaniesFromContacts } from "@/lib/companies";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +16,28 @@ export const Route = createFileRoute("/_authenticated/empresas")({ component: Em
 
 function Empresas() {
   const qc = useQueryClient();
+  useEffect(() => {
+    syncCompaniesFromContacts().then((res) => {
+      if (res.created > 0 || res.linked > 0) {
+        qc.invalidateQueries({ queryKey: ["companies"] });
+        qc.invalidateQueries({ queryKey: ["empresas-contacts"] });
+      }
+    });
+  }, [qc]);
   const { data: companies = [] } = useQuery({
     queryKey: ["companies"],
     queryFn: async () => (await supabase.from("companies").select("*").order("created_at", { ascending: false })).data ?? [],
+  });
+  const { data: contactCounts = {} } = useQuery({
+    queryKey: ["empresas-contacts"],
+    queryFn: async () => {
+      const { data } = await supabase.from("contacts").select("company_id");
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((c: any) => {
+        if (c.company_id) counts[c.company_id] = (counts[c.company_id] ?? 0) + 1;
+      });
+      return counts;
+    },
   });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<any>({});
@@ -78,6 +98,7 @@ function Empresas() {
               <div>Responsável: {c.responsible ?? "—"}</div>
               <div>Colaboradores: {c.employees ?? "—"}</div>
               <div>Próx. reunião: {formatDate(c.next_meeting)}</div>
+              <div>Contatos vinculados: {(contactCounts as any)[c.id] ?? 0}</div>
             </div>
           </Card>
         ))}
