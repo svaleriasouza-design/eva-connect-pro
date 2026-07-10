@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { generateText } from "ai";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const EvaInput = z.object({
   messages: z.array(z.object({ role: z.enum(["user", "assistant", "system"]), content: z.string() })),
@@ -9,6 +10,7 @@ const EvaInput = z.object({
 });
 
 export const askEva = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => EvaInput.parse(raw))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
