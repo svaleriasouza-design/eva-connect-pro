@@ -1,17 +1,35 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, FUNNEL_STAGES, fetchAllRows } from "@/lib/db";
+import { supabase, FUNNEL_STAGES } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/funil")({ component: Funil });
 
 function Funil() {
   const qc = useQueryClient();
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: () => fetchAllRows("contacts", "*", { column: "updated_at", ascending: false }),
+  const { data: stageData = {}, isLoading } = useQuery({
+    queryKey: ["funil-por-etapa"],
+    queryFn: async () => {
+      const results = await Promise.all(
+        FUNNEL_STAGES.map(async (s) => {
+          const [{ data }, { count }] = await Promise.all([
+            supabase
+              .from("contacts")
+              .select("id, name, company_name, whatsapp, phone, last_contact_at, next_action, cadence_active, cadence_day")
+              .eq("funnel_stage", s.key)
+              .order("updated_at", { ascending: false })
+              .limit(100),
+            supabase.from("contacts").select("id", { count: "exact", head: true }).eq("funnel_stage", s.key),
+          ]);
+          return [s.key, { items: data ?? [], total: count ?? 0 }] as const;
+        }),
+      );
+      return Object.fromEntries(results) as Record<string, { items: any[]; total: number }>;
+    },
+    staleTime: 30_000,
   });
 
   async function move(id: string, stage: string) {
@@ -28,7 +46,9 @@ function Funil() {
       </div>
       <div className="grid grid-flow-col auto-cols-[280px] gap-3 overflow-x-auto pb-3">
         {FUNNEL_STAGES.map((stage) => {
-          const items = contacts.filter((c: any) => c.funnel_stage === stage.key);
+          const entry = stageData[stage.key] ?? { items: [], total: 0 };
+          const items = entry.items;
+          const total = entry.total;
           return (
             <div
               key={stage.key}
@@ -38,9 +58,10 @@ function Funil() {
             >
               <div className="mb-2 flex items-center justify-between px-1">
                 <div className="text-xs font-semibold uppercase text-muted-foreground">{stage.label}</div>
-                <Badge variant="secondary">{items.length}</Badge>
+                <Badge variant="secondary">{total.toLocaleString("pt-BR")}</Badge>
               </div>
               <div className="flex flex-col gap-2">
+                {isLoading && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
                 {items.map((c: any) => (
                   <Card
                     key={c.id}
@@ -64,7 +85,12 @@ function Funil() {
                     </Link>
                   </Card>
                 ))}
-                {items.length === 0 && <div className="text-xs text-muted-foreground text-center py-4">Vazio</div>}
+                {!isLoading && items.length === 0 && <div className="text-xs text-muted-foreground text-center py-4">Vazio</div>}
+                {total > items.length && (
+                  <div className="text-[10px] text-muted-foreground text-center py-1">
+                    Exibindo {items.length} de {total.toLocaleString("pt-BR")} — use o CRM para ver todos.
+                  </div>
+                )}
               </div>
             </div>
           );
