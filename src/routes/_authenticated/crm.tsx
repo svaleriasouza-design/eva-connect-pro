@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase, FUNNEL_STAGES, ORIGENS, formatDateTime, fetchAllRows } from "@/lib/db";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -24,18 +25,40 @@ export function CrmList() {
   const [stage, setStage] = useState<string>("all");
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: () => fetchAllRows("contacts", "*", { column: "created_at", ascending: false }),
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 200;
+
+  const { data: total = 0 } = useQuery({
+    queryKey: ["contacts-count", q, stage],
+    queryFn: async () => {
+      let query: any = supabase.from("contacts").select("id", { count: "exact", head: true });
+      if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
+      const { count } = await query;
+      return count ?? 0;
+    },
   });
 
-  const filtered = useMemo(() => {
-    return contacts.filter((c: any) => {
-      if (stage !== "all" && c.funnel_stage !== stage) return false;
-      if (q && !`${c.name} ${c.company_name ?? ""} ${c.email ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
-      return true;
-    });
-  }, [contacts, q, stage]);
+  const { data: contacts = [], isLoading } = useQuery({
+    queryKey: ["contacts-page", q, stage, page],
+    queryFn: async () => {
+      let query: any = supabase.from("contacts")
+        .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at")
+        .order("created_at", { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+      if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
+      const { data } = await query;
+      return data ?? [];
+    },
+    placeholderData: (prev) => prev,
+  });
+
+  const filtered = contacts;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // fetchAllRows / useMemo kept for CSV import path
+  void useMemo;
+  void fetchAllRows;
 
   async function importCsv(file: File) {
     const finish = (msg?: string, isError = false) => {
@@ -193,7 +216,7 @@ export function CrmList() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">CRM</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} contatos</p>
+          <p className="text-sm text-muted-foreground">{total.toLocaleString("pt-BR")} contatos</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <label className="cursor-pointer">
@@ -243,9 +266,9 @@ export function CrmList() {
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, empresa, e-mail…" className="pl-9" />
+          <Input value={q} onChange={(e) => { setPage(0); setQ(e.target.value); }} placeholder="Buscar por nome, empresa, e-mail…" className="pl-9" />
         </div>
-        <Select value={stage} onValueChange={setStage}>
+        <Select value={stage} onValueChange={(v) => { setPage(0); setStage(v); }}>
           <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as etapas</SelectItem>
@@ -267,6 +290,11 @@ export function CrmList() {
             </tr>
           </thead>
           <tbody>
+            {isLoading && filtered.length === 0 && Array.from({ length: 12 }).map((_, i) => (
+              <tr key={i} className="border-t">
+                {Array.from({ length: 6 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
+              </tr>
+            ))}
             {filtered.map((c: any) => (
               <tr key={c.id} className="border-t hover:bg-muted/30">
                 <td className="p-3 font-medium"><Link to="/crm/$id" params={{ id: c.id }} className="hover:text-primary">{c.name}</Link></td>
@@ -283,12 +311,22 @@ export function CrmList() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhum contato ainda. Crie o primeiro clicando em <b>Novo Cliente</b>.</td></tr>
             )}
           </tbody>
         </table>
       </Card>
+
+      {pages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-muted-foreground">Página {page + 1} de {pages}</div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
