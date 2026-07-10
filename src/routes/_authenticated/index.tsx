@@ -45,64 +45,74 @@ function StatCard({ label, value, icon: Icon, tone = "primary", hint }: {
 function Dashboard() {
   const [cadenceOpen, setCadenceOpen] = useState(false);
 
-  const { data } = useQuery({
+  const { data, isLoading: dashLoading } = useQuery({
     queryKey: ["dashboard-central"],
     queryFn: async () => {
       const startDay = new Date(); startDay.setHours(0, 0, 0, 0);
       const endDay = new Date(); endDay.setHours(23, 59, 59, 999);
       const fifteen = new Date(); fifteen.setDate(fifteen.getDate() - 15);
-      const three = new Date(); three.setDate(three.getDate() - 3);
+      const startIso = startDay.toISOString();
+      const endIso = endDay.toISOString();
+      const fifteenIso = fifteen.toISOString();
 
-      const [contacts, companies, tasksAll, meetingsToday, meetingsClosed, priorities] = await Promise.all([
-        supabase.from("contacts").select("id, funnel_stage, last_contact_at, cadence_active, do_not_contact, name, status, updated_at"),
-        supabase.from("companies").select("id, next_meeting"),
-        supabase.from("tasks").select("id, title, due_at, done, contact_id"),
-        supabase.from("events").select("id, title, starts_at, contact_id, status, kind")
-          .gte("starts_at", startDay.toISOString()).lte("starts_at", endDay.toISOString()).order("starts_at"),
-        supabase.from("events").select("id, status, starts_at, kind")
-          .eq("kind", "reuniao").gte("starts_at", startDay.toISOString()).lte("starts_at", endDay.toISOString()).eq("status", "confirmed"),
-        supabase.from("contacts")
-          .select("id, name, funnel_stage, last_contact_at, cadence_active, cadence_day, do_not_contact")
-          .order("last_contact_at", { ascending: true, nullsFirst: true })
-          .limit(30),
+      const cnt = async (q: any) => (await q).count ?? 0;
+      const head = () => supabase.from("contacts").select("id", { count: "exact", head: true });
+
+      const [
+        active, proposals, inCadence, newLeads, meetingsScheduled, inbox,
+        forgottenCompanies, overdueFollowups, meetingsToday, noShows, companiesCount,
+        meetingsList, priorities, overdueList, respondeuList, semContatoList,
+      ] = await Promise.all([
+        cnt(head().eq("funnel_stage", "cliente_ativo")),
+        cnt(head().eq("funnel_stage", "proposta_enviada")),
+        cnt(head().eq("cadence_active", true).eq("do_not_contact", false)),
+        cnt(head().eq("funnel_stage", "novo_lead")),
+        cnt(head().eq("funnel_stage", "reuniao_agendada")),
+        cnt(head().eq("status", "aguardando_resposta")),
+        cnt(supabase.from("companies").select("id", { count: "exact", head: true }).is("next_meeting", null)),
+        cnt(supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due_at", startIso)),
+        cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
+        cnt(supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "reuniao").gte("starts_at", startIso).lte("starts_at", endIso).eq("status", "no_show")),
+        cnt(supabase.from("companies").select("id", { count: "exact", head: true })),
+        supabase.from("events").select("id, title, starts_at, status, kind")
+          .gte("starts_at", startIso).lte("starts_at", endIso).order("starts_at"),
+        supabase.from("contacts").select("id, name, funnel_stage, last_contact_at")
+          .eq("funnel_stage", "proposta_enviada").order("updated_at", { ascending: false }).limit(5),
+        supabase.from("tasks").select("id, title, due_at, contact_id")
+          .eq("done", false).lt("due_at", startIso).order("due_at", { ascending: true }).limit(5),
+        supabase.from("contacts").select("id, name, last_contact_at")
+          .gte("last_contact_at", startIso).lte("last_contact_at", endIso)
+          .order("last_contact_at", { ascending: false }).limit(5),
+        supabase.from("contacts").select("id, name, last_contact_at")
+          .eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
+          .order("last_contact_at", { ascending: true }).limit(5),
       ]);
 
-      const c = contacts.data ?? [];
-      const active = c.filter((x) => x.funnel_stage === "cliente_ativo").length;
-      const proposals = c.filter((x) => x.funnel_stage === "proposta_enviada").length;
-      const inCadence = c.filter((x) => x.cadence_active && !x.do_not_contact).length;
-      const forgottenCompanies = (companies.data ?? []).filter((x) => !x.next_meeting).length;
-      const tasks = tasksAll.data ?? [];
-      const overdueTasks = tasks.filter((t) => !t.done && t.due_at && new Date(t.due_at) < startDay);
-      const noShows = (meetingsToday.data ?? []).filter((m) => m.status === "no_show").length;
-      const inbox = c.filter((x) => x.status === "aguardando_resposta").length;
-
-      // Prioridades EVA
-      const prio = priorities.data ?? [];
-      const semContatoLongo = prio.filter((x) => !x.do_not_contact && (!x.last_contact_at || new Date(x.last_contact_at) < fifteen)).slice(0, 5);
-      const respondeuHoje = prio.filter((x) => x.last_contact_at && new Date(x.last_contact_at) >= startDay).slice(0, 5);
-      const propostaAberta = c.filter((x) => x.funnel_stage === "proposta_enviada").slice(0, 5);
-      const foraCadencia = prio.filter((x) => x.cadence_active && x.last_contact_at && new Date(x.last_contact_at) >= three && x.funnel_stage === "resposta").slice(0, 5);
-
-      const reunioesHoje = (meetingsClosed.data ?? []).length;
+      const meetingsData = meetingsList.data ?? [];
+      const reunioesHoje = meetingsData.filter((m: any) => m.kind === "reuniao" && m.status === "confirmed").length;
 
       return {
         stats: {
-          inbox,
-          inCadence,
-          meetingsToday: (meetingsToday.data ?? []).length,
-          overdueFollowups: overdueTasks.length,
-          proposals,
-          noShows,
-          forgottenCompanies,
-          active,
+          inbox, inCadence, meetingsToday, overdueFollowups: overdueFollowups,
+          proposals, noShows, forgottenCompanies, active,
+          newLeads, meetingsScheduled, companies: companiesCount,
         },
-        meetings: meetingsToday.data ?? [],
+        meetings: meetingsData,
         reunioesHoje,
-        prioridades: { semContatoLongo, respondeuHoje, propostaAberta, foraCadencia, tasks: overdueTasks.slice(0, 5) },
+        prioridades: {
+          semContatoLongo: semContatoList.data ?? [],
+          respondeuHoje: respondeuList.data ?? [],
+          propostaAberta: priorities.data ?? [],
+          foraCadencia: [],
+          tasks: overdueList.data ?? [],
+        },
       };
     },
+    staleTime: 30_000,
   });
+
+  // silencia warning se dashLoading não usado abaixo
+  void dashLoading;
 
   const { data: dueCount = 0 } = useQuery({
     queryKey: ["cadence-due-count"],

@@ -71,14 +71,19 @@ export type Database = {
       companies: {
         Row: {
           city: string | null
+          contacts_count: number
           contracts: string | null
           created_at: string
           diagnosis: string | null
           email: string | null
           employees: number | null
+          funnel_stage: string | null
           id: string
+          last_contact_at: string | null
           last_meeting: string | null
           name: string
+          next_action: string | null
+          next_action_at: string | null
           next_meeting: string | null
           notes: string | null
           phone: string | null
@@ -87,19 +92,26 @@ export type Database = {
           responsible: string | null
           results: string | null
           segment: string | null
+          status: string | null
           trainings: string | null
           updated_at: string
+          whatsapp: string | null
         }
         Insert: {
           city?: string | null
+          contacts_count?: number
           contracts?: string | null
           created_at?: string
           diagnosis?: string | null
           email?: string | null
           employees?: number | null
+          funnel_stage?: string | null
           id?: string
+          last_contact_at?: string | null
           last_meeting?: string | null
           name: string
+          next_action?: string | null
+          next_action_at?: string | null
           next_meeting?: string | null
           notes?: string | null
           phone?: string | null
@@ -108,19 +120,26 @@ export type Database = {
           responsible?: string | null
           results?: string | null
           segment?: string | null
+          status?: string | null
           trainings?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
         Update: {
           city?: string | null
+          contacts_count?: number
           contracts?: string | null
           created_at?: string
           diagnosis?: string | null
           email?: string | null
           employees?: number | null
+          funnel_stage?: string | null
           id?: string
+          last_contact_at?: string | null
           last_meeting?: string | null
           name?: string
+          next_action?: string | null
+          next_action_at?: string | null
           next_meeting?: string | null
           notes?: string | null
           phone?: string | null
@@ -129,8 +148,10 @@ export type Database = {
           responsible?: string | null
           results?: string | null
           segment?: string | null
+          status?: string | null
           trainings?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
         Relationships: []
       }
@@ -371,7 +392,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      funnel_stage_rank: { Args: { stage: string }; Returns: number }
       norm_company_name: { Args: { txt: string }; Returns: string }
+      recompute_company_aggregates: {
+        Args: { _company_id: string }
+        Returns: undefined
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
