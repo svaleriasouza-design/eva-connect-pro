@@ -1,48 +1,139 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { testMetaConfigFn } from "@/lib/whatsapp.functions";
+import {
+  getMetaSettingsFn,
+  saveMetaSettingsFn,
+  testMetaConnectionFn,
+} from "@/lib/settings.functions";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle2, XCircle } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Copy, CheckCircle2, XCircle, Eye, EyeOff, Shuffle, Save, PlugZap, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
+type FormState = {
+  phone_number_id: string;
+  access_token: string;
+  app_secret: string;
+  verify_token: string;
+  graph_version: string;
+};
+
+const EMPTY: FormState = {
+  phone_number_id: "",
+  access_token: "",
+  app_secret: "",
+  verify_token: "",
+  graph_version: "v21.0",
+};
+
+function randomToken(len = 32) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
 function Configs() {
-  const testFn = useServerFn(testMetaConfigFn);
-  const { data: meta, isLoading } = useQuery({
-    queryKey: ["meta-config"],
-    queryFn: () => testFn(),
+  const qc = useQueryClient();
+  const getFn = useServerFn(getMetaSettingsFn);
+  const saveFn = useServerFn(saveMetaSettingsFn);
+  const testFn = useServerFn(testMetaConnectionFn);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["meta-settings"],
+    queryFn: () => getFn(),
   });
-  const [origin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
+
+  const [form, setForm] = useState<FormState>(EMPTY);
+  const [show, setShow] = useState({ access: false, secret: false });
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      setForm({
+        phone_number_id: data.phone_number_id || "",
+        access_token: data.access_token || "",
+        app_secret: data.app_secret || "",
+        verify_token: data.verify_token || "",
+        graph_version: data.graph_version || "v21.0",
+      });
+    }
+  }, [data]);
+
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
   const webhookUrl = `${origin}/api/public/meta/webhook`;
 
-  function copy(v: string) {
-    navigator.clipboard.writeText(v);
+  const status = useMemo(
+    () => ({
+      phone: form.phone_number_id.trim().length > 0,
+      access: form.access_token.trim().length > 0,
+      secret: form.app_secret.trim().length > 0,
+      verify: form.verify_token.trim().length > 0,
+    }),
+    [form],
+  );
+
+  function set<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function copy(v: string) {
+    await navigator.clipboard.writeText(v);
     toast.success("Copiado");
+  }
+
+  async function onSave() {
+    setSaving(true);
+    const res = await saveFn({ data: form });
+    setSaving(false);
+    if (res.ok) {
+      toast.success("Configurações salvas");
+      qc.invalidateQueries({ queryKey: ["meta-settings"] });
+      qc.invalidateQueries({ queryKey: ["meta-config"] });
+    } else {
+      toast.error(res.error || "Falha ao salvar");
+    }
+  }
+
+  async function onTest() {
+    setTesting(true);
+    const res = await testFn();
+    setTesting(false);
+    if (res.ok) {
+      toast.success(`Conexão OK · ${res.name ?? ""} ${res.phone ? `(${res.phone})` : ""}`.trim());
+    } else {
+      toast.error(res.error || "Falha no teste");
+    }
   }
 
   return (
     <div className="p-6 max-w-3xl space-y-4">
-      <div><h1 className="text-2xl font-semibold">Configurações</h1><p className="text-sm text-muted-foreground">Perfis de acesso e preferências.</p></div>
+      <div>
+        <h1 className="text-2xl font-semibold">Configurações</h1>
+        <p className="text-sm text-muted-foreground">Credenciais e integrações.</p>
+      </div>
 
       <Card>
         <CardHeader><CardTitle>WhatsApp — Meta Cloud API</CardTitle></CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-4 text-sm">
           <div className="rounded-md border p-3 space-y-2">
             <div className="font-medium">Status da integração</div>
-            {isLoading ? (
-              <div className="text-muted-foreground">Verificando…</div>
-            ) : (
-              <ul className="space-y-1">
-                <StatusLine ok={!!meta?.configured} label="Credenciais de envio (Phone Number ID + Access Token)" />
-                <StatusLine ok={!!meta?.hasVerifyToken} label="Verify Token do webhook" />
-                <StatusLine ok={!!meta?.hasAppSecret} label="App Secret (validação de assinatura)" />
-                <li className="text-xs text-muted-foreground pl-6">Graph API: {meta?.graphVersion}</li>
-              </ul>
-            )}
+            <ul className="space-y-1">
+              <StatusLine ok={status.phone} label="ID do Número de Telefone" />
+              <StatusLine ok={status.access} label="Token de Acesso Permanente" />
+              <StatusLine ok={status.secret} label="App Secret (validação de assinatura)" />
+              <StatusLine ok={status.verify} label="Token de Verificação do Webhook" />
+              <li className="text-xs text-muted-foreground pl-6">Graph API: {form.graph_version || "v21.0"}</li>
+            </ul>
           </div>
 
           <div className="rounded-md border p-3 space-y-2">
@@ -52,30 +143,104 @@ function Configs() {
               <Button size="sm" variant="outline" onClick={() => copy(webhookUrl)}><Copy className="h-3 w-3" /></Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              No painel da Meta &rarr; Configuração do WhatsApp &rarr; Webhook, use esta URL e o mesmo valor de <code>META_WA_VERIFY_TOKEN</code>. Assine os campos <code>messages</code>.
+              No painel Meta &rarr; Configuração do WhatsApp &rarr; Webhook, use esta URL e o mesmo Token de Verificação abaixo. Assine o campo <code>messages</code>.
             </p>
           </div>
 
-          <div className="rounded-md border p-3 space-y-1 text-xs text-muted-foreground">
-            <div className="font-medium text-foreground text-sm">Variáveis a configurar no backend</div>
-            <p>• <code>META_WA_PHONE_NUMBER_ID</code> — ID do número no WhatsApp Business.</p>
-            <p>• <code>META_WA_ACCESS_TOKEN</code> — Access Token permanente (System User).</p>
-            <p>• <code>META_WA_VERIFY_TOKEN</code> — string que você define, cola no painel Meta.</p>
-            <p>• <code>META_WA_APP_SECRET</code> — App Secret (valida assinatura do webhook).</p>
-            <p>• <code>META_WA_GRAPH_VERSION</code> (opcional) — default <code>v21.0</code>.</p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="phone">ID do Número de Telefone</Label>
+              <Input
+                id="phone"
+                placeholder="Ex.: 1234567890"
+                value={form.phone_number_id}
+                onChange={(e) => set("phone_number_id", e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="access">Token de Acesso Permanente</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="access"
+                  type={show.access ? "text" : "password"}
+                  placeholder="EAAG..."
+                  value={form.access_token}
+                  onChange={(e) => set("access_token", e.target.value)}
+                  disabled={isLoading}
+                />
+                <Button type="button" variant="outline" size="icon" onClick={() => setShow((s) => ({ ...s, access: !s.access }))}>
+                  {show.access ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="secret">App Secret</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="secret"
+                  type={show.secret ? "text" : "password"}
+                  placeholder="App Secret do app Meta"
+                  value={form.app_secret}
+                  onChange={(e) => set("app_secret", e.target.value)}
+                  disabled={isLoading}
+                />
+                <Button type="button" variant="outline" size="icon" onClick={() => setShow((s) => ({ ...s, secret: !s.secret }))}>
+                  {show.secret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="verify">Token de Verificação do Webhook</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="verify"
+                  placeholder="String que você define"
+                  value={form.verify_token}
+                  onChange={(e) => set("verify_token", e.target.value)}
+                  disabled={isLoading}
+                />
+                <Button type="button" variant="outline" onClick={() => set("verify_token", randomToken(32))}>
+                  <Shuffle className="mr-1 h-4 w-4" /> Gerar
+                </Button>
+                <Button type="button" variant="outline" size="icon" onClick={() => copy(form.verify_token)} disabled={!form.verify_token}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="ver">Versão da Graph API</Label>
+              <Input
+                id="ver"
+                placeholder="v21.0"
+                value={form.graph_version}
+                onChange={(e) => set("graph_version", e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onSave} disabled={saving || isLoading}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Salvar configurações
+            </Button>
+            <Button variant="outline" onClick={onTest} disabled={testing || isLoading || !status.phone || !status.access}>
+              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
+              Testar conexão
+            </Button>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Salve primeiro para que o teste use os valores atualizados. As credenciais ficam armazenadas no backend do app e nunca são expostas no frontend.
+          </p>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Perfis de acesso (v2)</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>• <b>Administrador</b> — acesso total.</p>
-          <p>• <b>Secretária</b> — CRM, Agenda, WhatsApp, Histórico.</p>
-          <p>• <b>Terapeuta</b> — apenas seus clientes, Agenda e Histórico.</p>
-          <p className="pt-2">Nesta primeira versão o sistema opera sem login (usuária única: Valéria). A camada de perfis chega na v2.</p>
-        </CardContent>
-      </Card>
       <Card>
         <CardHeader><CardTitle>Sobre a EVA</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">

@@ -14,7 +14,9 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
-        const expected = process.env.META_WA_VERIFY_TOKEN;
+        const { loadMetaConfig } = await import("@/lib/whatsapp.server");
+        const cfg = await loadMetaConfig();
+        const expected = cfg.verifyToken;
         if (mode === "subscribe" && expected && token === expected && challenge) {
           return new Response(challenge, {
             status: 200,
@@ -29,9 +31,9 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const rawBody = await request.text();
         const signature = request.headers.get("x-hub-signature-256");
 
-        // Só exige assinatura se APP_SECRET estiver configurado.
-        if (process.env.META_WA_APP_SECRET) {
-          const { verifyMetaSignature } = await import("@/lib/whatsapp.server");
+        const { verifyMetaSignature, loadMetaConfig } = await import("@/lib/whatsapp.server");
+        const cfg = await loadMetaConfig();
+        if (cfg.appSecret) {
           const ok = await verifyMetaSignature(rawBody, signature);
           if (!ok) return new Response("invalid signature", { status: 401 });
         }
