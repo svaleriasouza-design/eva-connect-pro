@@ -55,11 +55,14 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
 export const testMetaConfigFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const { metaConfigured } = await import("./whatsapp.server");
+    const { loadMetaConfig } = await import("./whatsapp.server");
+    const cfg = await loadMetaConfig();
     return {
-      configured: metaConfigured(),
-      hasVerifyToken: Boolean(process.env.META_WA_VERIFY_TOKEN),
-      hasAppSecret: Boolean(process.env.META_WA_APP_SECRET),
-      graphVersion: process.env.META_WA_GRAPH_VERSION || "v21.0",
+      configured: Boolean(cfg.phoneNumberId && cfg.accessToken),
+      hasPhoneNumberId: Boolean(cfg.phoneNumberId),
+      hasAccessToken: Boolean(cfg.accessToken),
+      hasVerifyToken: Boolean(cfg.verifyToken),
+      hasAppSecret: Boolean(cfg.appSecret),
+      graphVersion: cfg.graphVersion,
     };
   });
