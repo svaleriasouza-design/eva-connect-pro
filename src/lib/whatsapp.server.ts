@@ -13,9 +13,39 @@ export type MetaSendResult = {
   raw?: unknown;
 };
 
-function graphBase() {
-  const v = process.env.META_WA_GRAPH_VERSION || "v21.0";
-  return `https://graph.facebook.com/${v}`;
+export type MetaConfig = {
+  phoneNumberId: string;
+  accessToken: string;
+  appSecret: string;
+  verifyToken: string;
+  graphVersion: string;
+};
+
+export async function loadMetaConfig(): Promise<MetaConfig> {
+  let row: any = {};
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("meta_wa_settings" as any)
+      .select("phone_number_id, access_token, app_secret, verify_token, graph_version")
+      .eq("id", true)
+      .maybeSingle();
+    row = data ?? {};
+  } catch {
+    row = {};
+  }
+  return {
+    phoneNumberId: row.phone_number_id || process.env.META_WA_PHONE_NUMBER_ID || "",
+    accessToken: row.access_token || process.env.META_WA_ACCESS_TOKEN || "",
+    appSecret: row.app_secret || process.env.META_WA_APP_SECRET || "",
+    verifyToken: row.verify_token || process.env.META_WA_VERIFY_TOKEN || "",
+    graphVersion: row.graph_version || process.env.META_WA_GRAPH_VERSION || "v21.0",
+  };
+}
+
+export async function metaConfiguredAsync() {
+  const cfg = await loadMetaConfig();
+  return Boolean(cfg.phoneNumberId && cfg.accessToken);
 }
 
 export function metaConfigured() {
@@ -28,12 +58,13 @@ function normalizePhone(raw: string) {
 }
 
 export async function sendWhatsappText(to: string, body: string): Promise<MetaSendResult> {
-  const phoneId = process.env.META_WA_PHONE_NUMBER_ID;
-  const token = process.env.META_WA_ACCESS_TOKEN;
+  const cfg = await loadMetaConfig();
+  const phoneId = cfg.phoneNumberId;
+  const token = cfg.accessToken;
   if (!phoneId || !token) {
     return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
   }
-  const url = `${graphBase()}/${phoneId}/messages`;
+  const url = `https://graph.facebook.com/${cfg.graphVersion}/${phoneId}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -73,12 +104,13 @@ export async function sendWhatsappTemplate(
   languageCode = "pt_BR",
   bodyParams: string[] = [],
 ): Promise<MetaSendResult> {
-  const phoneId = process.env.META_WA_PHONE_NUMBER_ID;
-  const token = process.env.META_WA_ACCESS_TOKEN;
+  const cfg = await loadMetaConfig();
+  const phoneId = cfg.phoneNumberId;
+  const token = cfg.accessToken;
   if (!phoneId || !token) {
     return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
   }
-  const url = `${graphBase()}/${phoneId}/messages`;
+  const url = `https://graph.facebook.com/${cfg.graphVersion}/${phoneId}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: normalizePhone(to),
@@ -114,7 +146,8 @@ export async function sendWhatsappTemplate(
 // HMAC-SHA256 do corpo bruto usando META_WA_APP_SECRET.
 // Meta envia o header `X-Hub-Signature-256: sha256=<hex>`.
 export async function verifyMetaSignature(rawBody: string, headerValue: string | null): Promise<boolean> {
-  const secret = process.env.META_WA_APP_SECRET;
+  const cfg = await loadMetaConfig();
+  const secret = cfg.appSecret;
   if (!secret) return false;
   if (!headerValue) return false;
   const provided = headerValue.startsWith("sha256=") ? headerValue.slice(7) : headerValue;
