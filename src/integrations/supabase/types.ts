@@ -343,6 +343,39 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_wa_settings: {
+        Row: {
+          access_token: string | null
+          app_secret: string | null
+          created_at: string
+          graph_version: string | null
+          id: boolean
+          phone_number_id: string | null
+          updated_at: string
+          verify_token: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          app_secret?: string | null
+          created_at?: string
+          graph_version?: string | null
+          id?: boolean
+          phone_number_id?: string | null
+          updated_at?: string
+          verify_token?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          app_secret?: string | null
+          created_at?: string
+          graph_version?: string | null
+          id?: boolean
+          phone_number_id?: string | null
+          updated_at?: string
+          verify_token?: string | null
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           contact_id: string | null
