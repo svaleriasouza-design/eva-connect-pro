@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, MessageCircle, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2 } from "lucide-react";
+import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
 
@@ -114,11 +115,7 @@ function Ficha() {
           <div className="text-sm text-muted-foreground">{contact.company_name ?? "Sem empresa"} · {contact.city ?? "—"}</div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {contact.whatsapp && (
-            <a href={`https://wa.me/${contact.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" onClick={() => logActivity("whatsapp","Enviou WhatsApp")}>
-              <Button size="sm" variant="outline"><MessageCircle className="mr-1 h-4 w-4" /> WhatsApp</Button>
-            </a>
-          )}
+          <WhatsAppQuickSend contactId={contact.id} to={contact.whatsapp ?? contact.phone} contactName={contact.name} label="WhatsApp" />
           <Link to="/agenda"><Button size="sm" variant="outline"><Calendar className="mr-1 h-4 w-4" /> Agendar</Button></Link>
           <Link to="/tarefas"><Button size="sm" variant="outline"><CheckSquare className="mr-1 h-4 w-4" /> Tarefa</Button></Link>
           <Button size="sm" onClick={nextBestAction} disabled={nextLoading}>
