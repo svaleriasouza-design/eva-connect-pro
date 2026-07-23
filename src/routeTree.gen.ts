@@ -21,10 +21,12 @@ import { Route as AuthenticatedEvaRouteImport } from './routes/_authenticated/ev
 import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authenticated/cadencias'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
+import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -86,6 +88,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCadenciasRoute = AuthenticatedCadenciasRouteImport.update({
+  id: '/cadencias',
+  path: '/cadencias',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -106,12 +113,19 @@ const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   path: '/api/public/meta/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksCadenceRunRoute =
+  ApiPublicHooksCadenceRunRouteImport.update({
+    id: '/api/public/hooks/cadence-run',
+    path: '/api/public/hooks/cadence-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
+  '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/crm': typeof AuthenticatedCrmRouteWithChildren
   '/empresas': typeof AuthenticatedEmpresasRoute
@@ -122,12 +136,14 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
+  '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/eva': typeof AuthenticatedEvaRoute
@@ -138,6 +154,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesById {
@@ -146,6 +163,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
+  '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRouteWithChildren
   '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
@@ -157,6 +175,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRouteTypes {
@@ -166,6 +185,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/agenda'
+    | '/cadencias'
     | '/configuracoes'
     | '/crm'
     | '/empresas'
@@ -176,12 +196,14 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/crm/$id'
     | '/crm/'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
     | '/reset-password'
     | '/agenda'
+    | '/cadencias'
     | '/configuracoes'
     | '/empresas'
     | '/eva'
@@ -192,6 +214,7 @@ export interface FileRouteTypes {
     | '/'
     | '/crm/$id'
     | '/crm'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   id:
     | '__root__'
@@ -199,6 +222,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/agenda'
+    | '/_authenticated/cadencias'
     | '/_authenticated/configuracoes'
     | '/_authenticated/crm'
     | '/_authenticated/empresas'
@@ -210,6 +234,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/crm/$id'
     | '/_authenticated/crm/'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -217,6 +242,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
 }
 
@@ -306,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cadencias': {
+      id: '/_authenticated/cadencias'
+      path: '/cadencias'
+      fullPath: '/cadencias'
+      preLoaderRoute: typeof AuthenticatedCadenciasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agenda': {
       id: '/_authenticated/agenda'
       path: '/agenda'
@@ -334,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/cadence-run': {
+      id: '/api/public/hooks/cadence-run'
+      path: '/api/public/hooks/cadence-run'
+      fullPath: '/api/public/hooks/cadence-run'
+      preLoaderRoute: typeof ApiPublicHooksCadenceRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -352,6 +392,7 @@ const AuthenticatedCrmRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
+  AuthenticatedCadenciasRoute: typeof AuthenticatedCadenciasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRouteWithChildren
   AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
@@ -365,6 +406,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
+  AuthenticatedCadenciasRoute: AuthenticatedCadenciasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRouteWithChildren,
   AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
@@ -383,18 +425,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

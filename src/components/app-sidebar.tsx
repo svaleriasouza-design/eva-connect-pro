@@ -30,6 +30,7 @@ const items = [
   { title: "CRM", url: "/crm", icon: Users },
   { title: "Empresas", url: "/empresas", icon: Building2 },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
+  { title: "Cadências", url: "/cadencias", icon: KanbanSquare },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Funil", url: "/funil", icon: KanbanSquare },

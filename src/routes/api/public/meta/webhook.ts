@@ -84,10 +84,12 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 const last10 = from.slice(-10);
                 const { data: contacts } = await supabaseAdmin
                   .from("contacts")
-                  .select("id, whatsapp, phone, cadence_active")
+                  .select("id, name, whatsapp, phone, cadence_active, cadence_day")
                   .or(`whatsapp.ilike.%${last10},phone.ilike.%${last10}`)
                   .limit(1);
-                const contact = contacts?.[0];
+                const contact = contacts?.[0] as
+                  | { id: string; name: string; whatsapp: string | null; phone: string | null; cadence_active: boolean | null; cadence_day: number | null }
+                  | undefined;
 
                 await supabaseAdmin.from("activities").insert({
                   contact_id: contact?.id ?? null,
@@ -110,6 +112,20 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     title: "Saiu da cadência (respondeu)",
                     content: "Contato respondeu — cadência interrompida automaticamente.",
                   });
+
+                  // Resposta automática pela EVA (se habilitada nas configurações)
+                  try {
+                    const { autoReplyToInbound } = await import("@/lib/cadence-runner.server");
+                    await autoReplyToInbound({
+                      contactId: contact.id,
+                      contactName: contact.name ?? "",
+                      to: from,
+                      incomingText: text,
+                      currentDay: contact.cadence_day ?? 1,
+                    });
+                  } catch (err) {
+                    console.error("[eva auto-reply] failed", err);
+                  }
                 }
               }
             }

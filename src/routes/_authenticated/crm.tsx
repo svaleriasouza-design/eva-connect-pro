@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Upload, Download, MessageCircle } from "lucide-react";
+import { Plus, Search, Upload, Download } from "lucide-react";
+import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import { Progress } from "@/components/ui/progress";
@@ -303,11 +304,7 @@ export function CrmList() {
                 <td className="p-3"><Badge variant="secondary">{FUNNEL_STAGES.find(s => s.key === c.funnel_stage)?.label ?? c.funnel_stage}</Badge></td>
                 <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.last_contact_at)}</td>
                 <td className="p-3 text-right">
-                  {c.whatsapp && (
-                    <a href={`https://wa.me/${c.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                      <MessageCircle className="h-3 w-3" /> WhatsApp
-                    </a>
-                  )}
+                  <WhatsAppQuickSend contactId={c.id} to={c.whatsapp} contactName={c.name} />
                 </td>
               </tr>
             ))}

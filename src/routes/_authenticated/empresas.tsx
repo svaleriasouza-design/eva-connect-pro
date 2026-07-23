@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Building2, MessageCircle, Mail } from "lucide-react";
+import { Plus, Search, Building2, Mail } from "lucide-react";
+import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresas")({ component: Empresas });
@@ -105,13 +106,7 @@ function Empresas() {
                     <div className="text-[11px] text-muted-foreground">{c.contacts_count ?? 0} contato(s)</div>
                   </td>
                   <td className="p-3 text-muted-foreground">{c.responsible ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">
-                    {c.whatsapp ? (
-                      <a onClick={(e) => e.stopPropagation()} href={`https://wa.me/${c.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                        <MessageCircle className="h-3 w-3" /> {c.whatsapp}
-                      </a>
-                    ) : "—"}
-                  </td>
+                  <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
                   <td className="p-3 text-muted-foreground">
                     {c.email ? <a onClick={(e) => e.stopPropagation()} href={`mailto:${c.email}`} className="inline-flex items-center gap-1 hover:underline"><Mail className="h-3 w-3" /> {c.email}</a> : "—"}
                   </td>

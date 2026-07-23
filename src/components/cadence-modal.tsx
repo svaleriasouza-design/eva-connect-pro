@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fetchDueCadence, waUrl, type DueContact } from "@/lib/cadence";
+import { fetchDueCadence, type DueContact } from "@/lib/cadence";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
-import { Loader2, MessageCircle, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, MessageCircle, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -131,9 +131,7 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
                     ) : isFailed ? (
                       <span className="inline-flex items-center gap-1 text-xs text-destructive"><AlertCircle className="h-3 w-3" /> Falhou</span>
                     ) : (
-                      <a href={waUrl(c.whatsapp ?? c.phone, c.message)} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                        Prévia <ExternalLink className="h-3 w-3" />
-                      </a>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> Pendente</span>
                     )}
                   </div>
                 </div>
