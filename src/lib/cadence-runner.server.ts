@@ -112,7 +112,7 @@ export async function runCadenceBatch(
   }
 
   const stampField = slot === "morning" ? "last_morning_run_at" : "last_afternoon_run_at";
-  await admin.from("cadence_settings" as any).update({ [stampField]: nowIso }).eq("id", true);
+  await (admin as any).from("cadence_settings").update({ [stampField]: nowIso }).eq("id", true);
 
   return result;
 }
