@@ -68,6 +68,69 @@ export type Database = {
           },
         ]
       }
+      cadence_settings: {
+        Row: {
+          afternoon_time: string
+          auto_reply_enabled: boolean
+          automation_enabled: boolean
+          batch_size: number
+          id: boolean
+          morning_time: string
+          timezone: string
+          updated_at: string
+          weekdays_only: boolean
+        }
+        Insert: {
+          afternoon_time?: string
+          auto_reply_enabled?: boolean
+          automation_enabled?: boolean
+          batch_size?: number
+          id?: boolean
+          morning_time?: string
+          timezone?: string
+          updated_at?: string
+          weekdays_only?: boolean
+        }
+        Update: {
+          afternoon_time?: string
+          auto_reply_enabled?: boolean
+          automation_enabled?: boolean
+          batch_size?: number
+          id?: boolean
+          morning_time?: string
+          timezone?: string
+          updated_at?: string
+          weekdays_only?: boolean
+        }
+        Relationships: []
+      }
+      cadence_steps: {
+        Row: {
+          active: boolean
+          ai_instructions: string
+          created_at: string
+          day: number
+          script: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          ai_instructions?: string
+          created_at?: string
+          day: number
+          script?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          ai_instructions?: string
+          created_at?: string
+          day?: number
+          script?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           city: string | null
