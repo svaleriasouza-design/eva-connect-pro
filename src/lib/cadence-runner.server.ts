@@ -43,8 +43,8 @@ export async function runCadenceBatch(
   const admin = await loadAdmin();
   const result: BatchResult = { slot, attempted: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
 
-  const { data: steps } = await admin
-    .from("cadence_steps" as any)
+  const { data: steps } = await (admin as any)
+    .from("cadence_steps")
     .select("day, script, active")
     .eq("active", true)
     .order("day", { ascending: true });
@@ -57,7 +57,7 @@ export async function runCadenceBatch(
   today.setHours(0, 0, 0, 0);
   const todayIso = today.toISOString();
 
-  const { data: candidates } = await admin
+  const { data: candidates } = await (admin as any)
     .from("contacts")
     .select("id, name, whatsapp, phone, cadence_day, last_contact_at")
     .eq("cadence_active", true)
@@ -97,7 +97,7 @@ export async function runCadenceBatch(
     });
     if (send.ok) {
       result.sent++;
-      await admin
+      await (admin as any)
         .from("contacts")
         .update({
           cadence_day: nextDay,
@@ -130,8 +130,8 @@ export async function autoReplyToInbound(params: {
 }): Promise<void> {
   const admin = await loadAdmin();
 
-  const { data: settingsRow } = await admin
-    .from("cadence_settings" as any)
+  const { data: settingsRow } = await (admin as any)
+    .from("cadence_settings")
     .select("auto_reply_enabled")
     .eq("id", true)
     .maybeSingle();
@@ -139,8 +139,8 @@ export async function autoReplyToInbound(params: {
   if (!settings.auto_reply_enabled) return;
 
   const day = Math.max(1, params.currentDay || 1);
-  const { data: stepRow } = await admin
-    .from("cadence_steps" as any)
+  const { data: stepRow } = await (admin as any)
+    .from("cadence_steps")
     .select("script, ai_instructions")
     .eq("day", day)
     .maybeSingle();
@@ -190,7 +190,7 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     status_updated_at: now,
   });
   if (send.ok) {
-    await admin
+    await (admin as any)
       .from("contacts")
       .update({ last_contact_at: now })
       .eq("id", params.contactId);
