@@ -25,6 +25,7 @@ import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
+import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -106,6 +107,12 @@ const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   path: '/api/public/meta/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksCadenceRunRoute =
+  ApiPublicHooksCadenceRunRouteImport.update({
+    id: '/api/public/hooks/cadence-run',
+    path: '/api/public/hooks/cadence-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesById {
@@ -157,6 +166,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
+  '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRouteTypes {
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/crm/$id'
     | '/crm/'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/'
     | '/crm/$id'
     | '/crm'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   id:
     | '__root__'
@@ -210,6 +222,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/crm/$id'
     | '/_authenticated/crm/'
+    | '/api/public/hooks/cadence-run'
     | '/api/public/meta/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -217,6 +230,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
 }
 
@@ -334,6 +348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/cadence-run': {
+      id: '/api/public/hooks/cadence-run'
+      path: '/api/public/hooks/cadence-run'
+      fullPath: '/api/public/hooks/cadence-run'
+      preLoaderRoute: typeof ApiPublicHooksCadenceRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -383,6 +404,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
 }
 export const routeTree = rootRouteImport
