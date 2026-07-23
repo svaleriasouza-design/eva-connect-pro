@@ -70,7 +70,14 @@ function Configs() {
   }, [data]);
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const webhookUrl = `${origin}/api/public/meta/webhook`;
+  const isPreviewOrLocal =
+    !origin ||
+    origin.includes("id-preview") ||
+    origin.includes("localhost") ||
+    origin.includes("127.0.0.1");
+  const webhookUrl = isPreviewOrLocal
+    ? "https://eva-connect-pro.lovable.app/api/public/meta/webhook"
+    : `${origin}/api/public/meta/webhook`;
 
   const status = useMemo(
     () => ({
