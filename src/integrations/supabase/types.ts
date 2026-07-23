@@ -75,6 +75,8 @@ export type Database = {
           automation_enabled: boolean
           batch_size: number
           id: boolean
+          last_afternoon_run_at: string | null
+          last_morning_run_at: string | null
           morning_time: string
           timezone: string
           updated_at: string
@@ -86,6 +88,8 @@ export type Database = {
           automation_enabled?: boolean
           batch_size?: number
           id?: boolean
+          last_afternoon_run_at?: string | null
+          last_morning_run_at?: string | null
           morning_time?: string
           timezone?: string
           updated_at?: string
@@ -97,6 +101,8 @@ export type Database = {
           automation_enabled?: boolean
           batch_size?: number
           id?: boolean
+          last_afternoon_run_at?: string | null
+          last_morning_run_at?: string | null
           morning_time?: string
           timezone?: string
           updated_at?: string
