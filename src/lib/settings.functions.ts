@@ -12,8 +12,9 @@ const saveSchema = z.object({
 
 export const getMetaSettingsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
       .from("meta_wa_settings" as any)
       .select("phone_number_id, access_token, app_secret, verify_token, graph_version, updated_at")
       .eq("id", true)
@@ -32,7 +33,7 @@ export const getMetaSettingsFn = createServerFn({ method: "GET" })
 export const saveMetaSettingsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => saveSchema.parse(data))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const payload = {
       id: true,
       phone_number_id: data.phone_number_id || null,
@@ -41,7 +42,8 @@ export const saveMetaSettingsFn = createServerFn({ method: "POST" })
       verify_token: data.verify_token || null,
       graph_version: data.graph_version || "v21.0",
     };
-    const { error } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
       .from("meta_wa_settings" as any)
       .upsert(payload, { onConflict: "id" });
     if (error) return { ok: false as const, error: error.message };
