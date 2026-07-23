@@ -304,11 +304,7 @@ export function CrmList() {
                 <td className="p-3"><Badge variant="secondary">{FUNNEL_STAGES.find(s => s.key === c.funnel_stage)?.label ?? c.funnel_stage}</Badge></td>
                 <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.last_contact_at)}</td>
                 <td className="p-3 text-right">
-                  {c.whatsapp && (
-                    <a href={`https://wa.me/${c.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                      <MessageCircle className="h-3 w-3" /> WhatsApp
-                    </a>
-                  )}
+                  <WhatsAppQuickSend contactId={c.id} to={c.whatsapp} contactName={c.name} />
                 </td>
               </tr>
             ))}

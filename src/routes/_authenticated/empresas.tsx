@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Building2, MessageCircle, Mail } from "lucide-react";
+import { Plus, Search, Building2, Mail } from "lucide-react";
+import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresas")({ component: Empresas });
