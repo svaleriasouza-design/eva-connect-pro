@@ -83,16 +83,32 @@ export const testMetaConnectionFn = createServerFn({ method: "POST" })
 
 export const sendTestMessageFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => testSendSchema.parse(data))
-  .handler(async ({ data }) => {
-    const { sendWhatsappText } = await import("./whatsapp.server");
-    const { normalizePhoneNumber } = await import("./phone");
-    const to = normalizePhoneNumber(data.to);
-    if (!to || to.length < 12) {
-      return { ok: false as const, error: "Número inválido. Use DDD + número (ex.: 11 99999-9999)." };
+  .inputValidator((data: unknown) => {
+    const parsed = testSendSchema.safeParse(data);
+    if (!parsed.success) {
+      return { __invalid: true as const, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
     }
-    const res = await sendWhatsappText(to, data.body);
-    return res.ok
-      ? { ok: true as const, messageId: res.messageId, to }
-      : { ok: false as const, error: res.error ?? "Falha no envio.", to };
+    return parsed.data;
+  })
+  .handler(async ({ data }) => {
+    try {
+      if ((data as any)?.__invalid) {
+        return { ok: false as const, error: (data as any).error as string };
+      }
+      const payload = data as { to: string; body: string };
+      const { sendWhatsappText } = await import("./whatsapp.server");
+      const { normalizePhoneNumber } = await import("./phone");
+      const to = normalizePhoneNumber(payload?.to ?? "");
+      if (!to || to.length < 12) {
+        return { ok: false as const, error: "Número inválido. Use DDD + número (ex.: 11 99999-9999)." };
+      }
+      const res = await sendWhatsappText(to, payload?.body ?? "");
+      if (res?.ok) {
+        return { ok: true as const, messageId: res?.messageId, to };
+      }
+      return { ok: false as const, error: res?.error ?? "Falha no envio.", to, raw: res?.raw ?? null };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false as const, error: `Exceção no servidor: ${msg}` };
+    }
   });
