@@ -52,9 +52,11 @@ export function metaConfigured() {
   return Boolean(process.env.META_WA_PHONE_NUMBER_ID && process.env.META_WA_ACCESS_TOKEN);
 }
 
+import { normalizePhoneNumber } from "./phone";
+
 function normalizePhone(raw: string) {
-  // Meta espera E.164 sem "+"
-  return String(raw).replace(/\D/g, "");
+  // Meta espera E.164 sem "+" — reutiliza o normalizador global (adiciona 55).
+  return normalizePhoneNumber(raw);
 }
 
 export async function sendWhatsappText(to: string, body: string): Promise<MetaSendResult> {
