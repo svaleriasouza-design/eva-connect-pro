@@ -57,15 +57,23 @@ export async function runCadenceBatch(
   today.setHours(0, 0, 0, 0);
   const todayIso = today.toISOString();
 
-  const { data: candidates } = await (admin as any)
+  // Dia 1 (cadence_day = 0) só dispara para leads no estágio "novo_lead".
+  // A partir do Dia 2, mantém a cadência para quem já foi iniciado.
+  const baseQuery = (admin as any)
     .from("contacts")
-    .select("id, name, whatsapp, phone, cadence_day, last_contact_at")
+    .select("id, name, whatsapp, phone, cadence_day, last_contact_at, funnel_stage")
     .eq("cadence_active", true)
     .eq("do_not_contact", false)
     .lt("cadence_day", maxDay)
     .or(`last_contact_at.is.null,last_contact_at.lt.${todayIso}`)
     .order("last_contact_at", { ascending: true, nullsFirst: true })
     .limit(batchSize);
+  const { data: candidatesRaw } = await baseQuery;
+  const candidates = (candidatesRaw ?? []).filter((c: any) => {
+    const day = (c.cadence_day ?? 0) + 1;
+    if (day === 1) return c.funnel_stage === "novo_lead";
+    return true;
+  });
 
   const list = candidates ?? [];
   result.attempted = list.length;

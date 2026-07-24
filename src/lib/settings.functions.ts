@@ -10,6 +10,11 @@ const saveSchema = z.object({
   graph_version: z.string().trim().max(16).optional().nullable(),
 });
 
+const testSendSchema = z.object({
+  to: z.string().min(6),
+  body: z.string().min(1).max(1000),
+});
+
 export const getMetaSettingsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
@@ -74,4 +79,20 @@ export const testMetaConnectionFn = createServerFn({ method: "POST" })
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
+  });
+
+export const sendTestMessageFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => testSendSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { sendWhatsappText } = await import("./whatsapp.server");
+    const { normalizePhoneNumber } = await import("./phone");
+    const to = normalizePhoneNumber(data.to);
+    if (!to || to.length < 12) {
+      return { ok: false as const, error: "Número inválido. Use DDD + número (ex.: 11 99999-9999)." };
+    }
+    const res = await sendWhatsappText(to, data.body);
+    return res.ok
+      ? { ok: true as const, messageId: res.messageId, to }
+      : { ok: false as const, error: res.error ?? "Falha no envio.", to };
   });

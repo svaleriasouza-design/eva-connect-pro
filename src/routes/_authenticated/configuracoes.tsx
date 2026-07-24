@@ -6,13 +6,15 @@ import {
   getMetaSettingsFn,
   saveMetaSettingsFn,
   testMetaConnectionFn,
+  sendTestMessageFn,
 } from "@/lib/settings.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, CheckCircle2, XCircle, Eye, EyeOff, Shuffle, Save, PlugZap, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, XCircle, Eye, EyeOff, Shuffle, Save, PlugZap, Loader2, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
@@ -46,6 +48,7 @@ function Configs() {
   const getFn = useServerFn(getMetaSettingsFn);
   const saveFn = useServerFn(saveMetaSettingsFn);
   const testFn = useServerFn(testMetaConnectionFn);
+  const sendTestFn = useServerFn(sendTestMessageFn);
 
   const { data, isLoading } = useQuery({
     queryKey: ["meta-settings"],
@@ -56,6 +59,10 @@ function Configs() {
   const [show, setShow] = useState({ access: false, secret: false });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testBody, setTestBody] = useState("Mensagem de teste da EVA · Meta Cloud API ✅");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [lastTest, setLastTest] = useState<null | { ok: boolean; info: string }>(null);
 
   useEffect(() => {
     if (data) {
@@ -121,6 +128,24 @@ function Configs() {
       toast.error(res.error || "Falha no teste");
     }
   }
+
+  async function onSendTest() {
+    setSendingTest(true);
+    try {
+      const res = await sendTestFn({ data: { to: testTo, body: testBody } });
+      if (res.ok) {
+        setLastTest({ ok: true, info: `Enviado para ${res.to} · ID ${res.messageId ?? "—"}` });
+        toast.success("Mensagem de teste enviada");
+      } else {
+        setLastTest({ ok: false, info: res.error || "Falha no envio" });
+        toast.error(res.error || "Falha no envio");
+      }
+    } finally {
+      setSendingTest(false);
+    }
+  }
+
+  const testToNormalized = useMemo(() => normalizePhoneNumber(testTo), [testTo]);
 
   return (
     <div className="p-6 max-w-3xl space-y-4">
@@ -245,6 +270,48 @@ function Configs() {
           <p className="text-xs text-muted-foreground">
             Salve primeiro para que o teste use os valores atualizados. As credenciais ficam armazenadas no backend do app e nunca são expostas no frontend.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Diagnóstico Meta · Enviar mensagem de teste</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-xs text-muted-foreground">
+            Envia uma mensagem real via Meta Cloud API para validar credenciais, normalização de número (DDI 55 automático) e roteamento. Nenhum navegador é aberto.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="test-to">Número (com DDD)</Label>
+              <Input
+                id="test-to"
+                placeholder="11 99999-9999"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+              />
+              <div className="text-[11px] text-muted-foreground">
+                Enviaremos para: <code>{testToNormalized || "—"}</code>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="test-body">Mensagem</Label>
+              <Input
+                id="test-body"
+                value={testBody}
+                onChange={(e) => setTestBody(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={onSendTest} disabled={sendingTest || !testToNormalized || !testBody.trim()}>
+              {sendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Enviar mensagem de teste
+            </Button>
+            {lastTest && (
+              <span className={`text-xs ${lastTest.ok ? "text-green-600" : "text-destructive"}`}>
+                {lastTest.ok ? "✅ " : "⚠ "}{lastTest.info}
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
 
