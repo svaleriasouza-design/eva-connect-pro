@@ -61,11 +61,6 @@ export async function fetchDueCadence(): Promise<DueContact[]> {
   });
 }
 
-export function waUrl(number: string | null | undefined, text: string) {
-  const clean = (number ?? "").replace(/\D/g, "");
-  return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
-}
-
 export async function markCadenceSent(contact: DueContact) {
   const now = new Date().toISOString();
   await supabase.from("contacts").update({
