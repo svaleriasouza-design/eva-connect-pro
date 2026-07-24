@@ -60,41 +60,64 @@ function normalizePhone(raw: string) {
 }
 
 export async function sendWhatsappText(to: string, body: string): Promise<MetaSendResult> {
-  const cfg = await loadMetaConfig();
-  const phoneId = cfg.phoneNumberId;
-  const token = cfg.accessToken;
-  if (!phoneId || !token) {
-    return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
-  }
-  const url = `https://graph.facebook.com/${cfg.graphVersion}/${phoneId}/messages`;
-  const payload = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: normalizePhone(to),
-    type: "text",
-    text: { preview_url: false, body },
-  };
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    const json = (await res.json()) as {
-      messages?: Array<{ id: string }>;
-      error?: { message?: string; code?: number };
+    const cfg = await loadMetaConfig();
+    const phoneId = cfg?.phoneNumberId;
+    const token = cfg?.accessToken;
+    if (!phoneId || !token) {
+      return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
+    }
+    const url = `https://graph.facebook.com/${cfg?.graphVersion ?? "v21.0"}/${phoneId}/messages`;
+    const payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: normalizePhone(to ?? ""),
+      type: "text",
+      text: { preview_url: false, body: body ?? "" },
     };
-    if (!res.ok || json.error) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (netErr) {
       return {
         ok: false,
-        error: json.error?.message || `HTTP ${res.status}`,
-        raw: json,
+        error: `Falha de rede ao contatar Graph API: ${netErr instanceof Error ? netErr.message : String(netErr)}`,
       };
     }
-    return { ok: true, messageId: json.messages?.[0]?.id, raw: json };
+    const rawText = await res.text().catch(() => "");
+    let json: any = null;
+    if (rawText) {
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        json = null;
+      }
+    }
+    if (!res.ok || json?.error) {
+      const metaMsg = json?.error?.message;
+      const metaCode = json?.error?.code;
+      const metaSub = json?.error?.error_subcode;
+      const metaType = json?.error?.type;
+      const parts = [
+        metaMsg ? `${metaMsg}` : `HTTP ${res.status}`,
+        metaCode != null ? `code ${metaCode}` : null,
+        metaSub != null ? `subcode ${metaSub}` : null,
+        metaType ? `type ${metaType}` : null,
+      ].filter(Boolean);
+      return {
+        ok: false,
+        error: parts.join(" · "),
+        raw: json ?? rawText,
+      };
+    }
+    return { ok: true, messageId: json?.messages?.[0]?.id, raw: json };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
