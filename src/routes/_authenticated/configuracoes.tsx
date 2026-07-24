@@ -132,14 +132,27 @@ function Configs() {
   async function onSendTest() {
     setSendingTest(true);
     try {
-      const res = await sendTestFn({ data: { to: testTo, body: testBody } });
-      if (res.ok) {
-        setLastTest({ ok: true, info: `Enviado para ${res.to} · ID ${res.messageId ?? "—"}` });
+      let res: any = null;
+      try {
+        res = await sendTestFn({ data: { to: testTo, body: testBody } });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLastTest({ ok: false, info: `Erro de rede/servidor: ${msg}` });
+        toast.error(`Erro de rede/servidor: ${msg}`);
+        return;
+      }
+      if (res?.ok) {
+        setLastTest({ ok: true, info: `Enviado para ${res?.to ?? "—"} · ID ${res?.messageId ?? "—"}` });
         toast.success("Mensagem de teste enviada");
       } else {
-        setLastTest({ ok: false, info: res.error || "Falha no envio" });
-        toast.error(res.error || "Falha no envio");
+        const info = res?.error || "Falha no envio";
+        setLastTest({ ok: false, info });
+        toast.error(info);
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLastTest({ ok: false, info: `Exceção: ${msg}` });
+      toast.error(`Exceção: ${msg}`);
     } finally {
       setSendingTest(false);
     }
