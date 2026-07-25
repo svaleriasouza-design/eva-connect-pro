@@ -87,9 +87,28 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   .select("id, name, whatsapp, phone, cadence_active, cadence_day")
                   .or(`whatsapp.ilike.%${last10},phone.ilike.%${last10}`)
                   .limit(1);
-                const contact = contacts?.[0] as
+                let contact = contacts?.[0] as
                   | { id: string; name: string; whatsapp: string | null; phone: string | null; cadence_active: boolean | null; cadence_day: number | null }
                   | undefined;
+
+                // Se número desconhecido, cria contato automaticamente para aparecer no CRM/WhatsApp.
+                if (!contact && from) {
+                  const displayName = value?.contacts?.[0]?.profile?.name || `WhatsApp ${from}`;
+                  const normalized = from.startsWith("55") ? from : `55${from}`;
+                  const { data: created } = await supabaseAdmin
+                    .from("contacts")
+                    .insert({
+                      name: displayName,
+                      whatsapp: normalized,
+                      phone: normalized,
+                      funnel_stage: "novo_lead",
+                      status: "ativo",
+                      last_contact_at: now,
+                    })
+                    .select("id, name, whatsapp, phone, cadence_active, cadence_day")
+                    .maybeSingle();
+                  contact = (created as any) ?? undefined;
+                }
 
                 await supabaseAdmin.from("activities").insert({
                   contact_id: contact?.id ?? null,
@@ -100,6 +119,14 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   status: "RECEIVED",
                   status_updated_at: now,
                 });
+
+                // Marca timestamp de último contato mesmo sem estar em cadência.
+                if (contact?.id) {
+                  await supabaseAdmin
+                    .from("contacts")
+                    .update({ last_contact_at: now })
+                    .eq("id", contact.id);
+                }
 
                 if (contact?.id && contact.cadence_active) {
                   await supabaseAdmin

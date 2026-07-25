@@ -8,6 +8,8 @@ import {
   deleteCadenceStepFn,
   saveCadenceSettingsFn,
   runCadenceNowFn,
+  startCadenceForAllEligibleFn,
+  getCadenceStatsFn,
   type CadenceStep,
   type CadenceSettings,
 } from "@/lib/cadence.functions";
@@ -19,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare } from "lucide-react";
+import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare, Rocket } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cadencias")({ component: Cadencias });
@@ -43,15 +45,23 @@ function Cadencias() {
   const deleteStep = useServerFn(deleteCadenceStepFn);
   const saveSettings = useServerFn(saveCadenceSettingsFn);
   const runNow = useServerFn(runCadenceNowFn);
+  const startAll = useServerFn(startCadenceForAllEligibleFn);
+  const getStats = useServerFn(getCadenceStatsFn);
 
   const { data, isLoading } = useQuery({
     queryKey: ["cadence-config"],
     queryFn: () => getConfig(),
   });
+  const { data: stats } = useQuery({
+    queryKey: ["cadence-stats"],
+    queryFn: () => getStats(),
+    refetchInterval: 10000,
+  });
 
   const [settings, setSettings] = useState<CadenceSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const [running, setRunning] = useState<null | "morning" | "afternoon">(null);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (data?.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
@@ -97,13 +107,43 @@ function Cadencias() {
     setRunning(slot);
     try {
       const res = await runNow({ data: { slot } });
-      toast.success(`Lote ${slot === "morning" ? "manhã" : "tarde"} executado: ${res.sent}/${res.attempted} enviados`);
+      const label = slot === "morning" ? "manhã" : "tarde";
+      if (res.attempted === 0) {
+        toast.warning(
+          `Lote ${label}: nenhum contato elegível. Clique em "Iniciar cadência para todos os leads" para ativar os novos leads.`,
+          { duration: 6000 },
+        );
+      } else if (res.sent === 0) {
+        toast.error(
+          `Lote ${label}: 0/${res.attempted} enviados · ${res.failed} falhas · ${res.skipped} pulados. ${res.errors[0] ?? ""}`,
+          { duration: 8000 },
+        );
+      } else {
+        toast.success(
+          `Lote ${label}: ${res.sent}/${res.attempted} enviados · ${res.failed} falhas · ${res.skipped} pulados`,
+        );
+      }
       if (res.errors.length) console.warn("[cadence] errors", res.errors);
       await qc.invalidateQueries();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao rodar lote");
     } finally {
       setRunning(null);
+    }
+  }
+
+  async function onStartAll() {
+    if (!confirm(`Iniciar a cadência para todos os leads elegíveis (${stats?.eligible ?? "?"} contatos)? Isso ativa o disparo automático nos horários configurados.`)) return;
+    setStarting(true);
+    try {
+      const res = await startAll({ data: undefined as any });
+      toast.success(`${res.activated} contatos entraram na cadência.`);
+      await qc.invalidateQueries({ queryKey: ["cadence-stats"] });
+      await qc.invalidateQueries();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao iniciar cadência");
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -126,6 +166,18 @@ function Cadencias() {
             </Badge>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-3">
+              <div className="text-xs">
+                <span className="font-semibold">{stats?.active ?? "…"}</span> na cadência ·{" "}
+                <span className="font-semibold">{stats?.eligible ?? "…"}</span> elegíveis ·{" "}
+                <span className="font-semibold">{stats?.blocked ?? "…"}</span> bloqueados
+              </div>
+              <div className="flex-1" />
+              <Button size="sm" onClick={onStartAll} disabled={starting || (stats?.eligible ?? 0) === 0}>
+                {starting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Rocket className="mr-1 h-4 w-4" />}
+                Iniciar cadência para todos os leads elegíveis
+              </Button>
+            </div>
             <div>
               <Label className="text-xs">Horário do lote da MANHÃ</Label>
               <Input type="time" value={settings.morning_time.slice(0, 5)} onChange={(e) => setSettings({ ...settings, morning_time: e.target.value })} />

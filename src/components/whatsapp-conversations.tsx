@@ -99,7 +99,8 @@ export function WhatsappConversations() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = contacts;
+    // Só contatos com histórico de WhatsApp OU em cadência ativa.
+    let list = contacts.filter((c) => meta.has(c.id) || c.cadence_active);
     if (q) {
       list = list.filter(
         (c) =>
