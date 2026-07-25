@@ -109,6 +109,57 @@ export const activateCadenceFn = createServerFn({ method: "POST" })
     return { ok: true as const, activated: count ?? data.contactIds.length };
   });
 
+export const startCadenceForAllEligibleFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    // Elegíveis: novo_lead, não bloqueados, com WhatsApp/telefone, fora da cadência.
+    const { data: rows, error: selErr } = await sb
+      .from("contacts")
+      .select("id, whatsapp, phone")
+      .eq("funnel_stage", "novo_lead")
+      .eq("do_not_contact", false)
+      .eq("cadence_active", false);
+    if (selErr) throw new Error(selErr.message);
+    const ids = (rows ?? [])
+      .filter((c: any) => {
+        const digits = (c.whatsapp ?? c.phone ?? "").replace(/\D/g, "");
+        return digits.length >= 10;
+      })
+      .map((c: any) => c.id);
+    if (ids.length === 0) return { ok: true as const, activated: 0 };
+    // Update em blocos para não estourar limite de payload.
+    let activated = 0;
+    const chunk = 1000;
+    for (let i = 0; i < ids.length; i += chunk) {
+      const slice = ids.slice(i, i + chunk);
+      const { error } = await sb
+        .from("contacts")
+        .update({ cadence_active: true, cadence_day: 0 })
+        .in("id", slice);
+      if (error) throw new Error(error.message);
+      activated += slice.length;
+    }
+    return { ok: true as const, activated };
+  });
+
+export const getCadenceStatsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    const q = (b: any) => b.select("id", { count: "exact", head: true });
+    const [active, novo, blocked] = await Promise.all([
+      q(sb.from("contacts")).eq("cadence_active", true),
+      q(sb.from("contacts")).eq("funnel_stage", "novo_lead").eq("cadence_active", false).eq("do_not_contact", false),
+      q(sb.from("contacts")).eq("do_not_contact", true),
+    ]);
+    return {
+      active: active.count ?? 0,
+      eligible: novo.count ?? 0,
+      blocked: blocked.count ?? 0,
+    };
+  });
+
 export const runCadenceNowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) =>
