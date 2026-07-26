@@ -58,6 +58,23 @@ export function WhatsappConversations() {
   const sendFn = useServerFn(sendWhatsappMessageFn);
   const threadRef = useRef<HTMLDivElement | null>(null);
 
+  // Realtime: sempre que atividades ou contatos mudarem, invalida as queries.
+  useEffect(() => {
+    const channel = supabase
+      .channel("wa-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, () => {
+        qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
+        qc.invalidateQueries({ queryKey: ["wa-thread"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => {
+        qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
   const { data: contacts = [] } = useQuery<ContactRow[]>({
     queryKey: ["wa-contacts"],
     queryFn: async () => {

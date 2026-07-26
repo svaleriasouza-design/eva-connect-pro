@@ -96,17 +96,19 @@ export const sendTestMessageFn = createServerFn({ method: "POST" })
         return { ok: false as const, error: (data as any).error as string };
       }
       const payload = data as { to: string; body: string };
-      const { sendWhatsappText } = await import("./whatsapp.server");
-      const { normalizePhoneNumber } = await import("./phone");
-      const to = normalizePhoneNumber(payload?.to ?? "");
-      if (!to || to.length < 12) {
-        return { ok: false as const, error: "Número inválido. Use DDD + número (ex.: 11 99999-9999)." };
-      }
-      const res = await sendWhatsappText(to, payload?.body ?? "");
+      const { sendAndLog, findContactByPhone } = await import("./messaging.server");
+      const contact = await findContactByPhone(payload?.to ?? "");
+      const res = await sendAndLog({
+        to: payload?.to ?? "",
+        body: payload?.body ?? "",
+        contactId: contact?.id ?? null,
+        title: "Teste de conexão",
+        tag: "test",
+      });
       if (res?.ok) {
-        return { ok: true as const, messageId: res?.messageId, to };
+        return { ok: true as const, messageId: res?.messageId, to: res.to };
       }
-      return { ok: false as const, error: res?.error ?? "Falha no envio.", to, raw: res?.raw ?? null };
+      return { ok: false as const, error: res?.error ?? "Falha no envio.", to: res.to, raw: res?.raw ?? null };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false as const, error: `Exceção no servidor: ${msg}` };

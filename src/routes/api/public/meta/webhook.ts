@@ -46,7 +46,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { findContactByPhone, logInbound } = await import("@/lib/messaging.server");
+        const { normalizePhoneNumber } = await import("@/lib/phone");
         const now = new Date().toISOString();
+        console.log("[webhook] payload recebido");
 
         try {
           const entries = payload?.entry ?? [];
@@ -61,6 +64,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 const externalId = s?.id as string | undefined;
                 const status = String(s?.status ?? "").toUpperCase();
                 if (!externalId || !status) continue;
+                console.log(`[webhook:status] ${externalId} -> ${status}`);
                 await supabaseAdmin
                   .from("activities")
                   .update({ status, status_updated_at: now })
@@ -71,7 +75,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
               const messages = value?.messages ?? [];
               for (const m of messages) {
                 const fromRaw = String(m?.from ?? "");
-                const from = fromRaw.replace(/\D/g, "");
+                const from = normalizePhoneNumber(fromRaw);
                 const text: string =
                   m?.text?.body ??
                   m?.button?.text ??
@@ -79,28 +83,21 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   m?.interactive?.list_reply?.title ??
                   `[${m?.type ?? "mensagem"}]`;
                 const externalId = m?.id as string | undefined;
+                console.log(`[webhook:in] from=${from} externalId=${externalId ?? "-"}`);
 
-                // Localiza o contato pelo telefone (últimos 10-13 dígitos).
-                const last10 = from.slice(-10);
-                const { data: contacts } = await supabaseAdmin
-                  .from("contacts")
-                  .select("id, name, whatsapp, phone, cadence_active, cadence_day")
-                  .or(`whatsapp.ilike.%${last10},phone.ilike.%${last10}`)
-                  .limit(1);
-                let contact = contacts?.[0] as
-                  | { id: string; name: string; whatsapp: string | null; phone: string | null; cadence_active: boolean | null; cadence_day: number | null }
-                  | undefined;
+                let contact = (await findContactByPhone(from)) as
+                  | { id: string; name: string; whatsapp: string | null; phone: string | null; cadence_active: boolean | null; cadence_day: number | null; funnel_stage?: string | null }
+                  | null;
 
                 // Se número desconhecido, cria contato automaticamente para aparecer no CRM/WhatsApp.
                 if (!contact && from) {
                   const displayName = value?.contacts?.[0]?.profile?.name || `WhatsApp ${from}`;
-                  const normalized = from.startsWith("55") ? from : `55${from}`;
                   const { data: created } = await supabaseAdmin
                     .from("contacts")
                     .insert({
                       name: displayName,
-                      whatsapp: normalized,
-                      phone: normalized,
+                      whatsapp: from,
+                      phone: from,
                       funnel_stage: "novo_lead",
                       status: "ativo",
                       last_contact_at: now,
@@ -108,25 +105,15 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     .select("id, name, whatsapp, phone, cadence_active, cadence_day")
                     .maybeSingle();
                   contact = (created as any) ?? undefined;
+                  console.log(`[webhook:in] contato criado automaticamente id=${contact?.id ?? "-"}`);
                 }
 
-                await supabaseAdmin.from("activities").insert({
-                  contact_id: contact?.id ?? null,
-                  kind: "whatsapp_in",
-                  title: contact ? "Resposta recebida" : `Mensagem de ${from}`,
-                  content: text,
-                  external_id: externalId ?? null,
-                  status: "RECEIVED",
-                  status_updated_at: now,
+                await logInbound({
+                  contactId: contact?.id ?? null,
+                  from,
+                  text,
+                  externalId,
                 });
-
-                // Marca timestamp de último contato mesmo sem estar em cadência.
-                if (contact?.id) {
-                  await supabaseAdmin
-                    .from("contacts")
-                    .update({ last_contact_at: now })
-                    .eq("id", contact.id);
-                }
 
                 if (contact?.id && contact.cadence_active) {
                   await supabaseAdmin
@@ -139,6 +126,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     title: "Saiu da cadência (respondeu)",
                     content: "Contato respondeu — cadência interrompida automaticamente.",
                   });
+                  console.log(`[webhook:in] cadência interrompida contact=${contact.id}`);
 
                   // Resposta automática pela EVA (se habilitada nas configurações)
                   try {

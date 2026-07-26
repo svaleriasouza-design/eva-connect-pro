@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase, FUNNEL_STAGES, formatDateTime } from "@/lib/db";
 import { askEva } from "@/lib/eva.functions";
@@ -37,6 +37,21 @@ function Ficha() {
     queryKey: ["activities", id],
     queryFn: async () => (await supabase.from("activities").select("*").eq("contact_id", id).order("created_at", { ascending: false })).data ?? [],
   });
+
+  // Realtime: atualiza timeline e ficha assim que houver mensagem nova.
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`crm-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `contact_id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["activities", id] });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "contacts", filter: `id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["contact", id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, qc]);
 
   const [form, setForm] = useState<any>(null);
   const state = form ?? contact ?? {};
