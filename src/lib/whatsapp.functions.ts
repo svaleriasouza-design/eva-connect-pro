@@ -7,37 +7,25 @@ const sendSchema = z.object({
   to: z.string().min(6),
   body: z.string().min(1),
   cadenceDay: z.number().int().min(1).max(5).optional(),
+  tag: z.string().max(64).optional(),
 });
 
 export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => sendSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { sendWhatsappText, metaConfigured } = await import("./whatsapp.server");
-    if (!metaConfigured()) {
-      return {
-        ok: false as const,
-        error:
-          "Meta Cloud API não configurada. Adicione META_WA_PHONE_NUMBER_ID e META_WA_ACCESS_TOKEN nas variáveis do backend.",
-      };
-    }
-    const result = await sendWhatsappText(data.to, data.body);
-
-    const now = new Date().toISOString();
-    const { supabase } = context;
-
-    await supabase.from("activities").insert({
-      contact_id: data.contactId,
-      kind: "whatsapp_out",
+    const { sendAndLog } = await import("./messaging.server");
+    const result = await sendAndLog({
+      to: data.to,
+      body: data.body,
+      contactId: data.contactId,
       title: data.cadenceDay ? `Mensagem Dia ${data.cadenceDay} enviada` : "Mensagem enviada",
-      content: data.body,
-      external_id: result.messageId ?? null,
-      status: result.ok ? "SENT" : "FAILED",
-      status_updated_at: now,
+      tag: data.tag ?? (data.cadenceDay ? `cadence-day-${data.cadenceDay}` : "crm-manual"),
     });
 
     if (result.ok && data.cadenceDay) {
-      await supabase
+      const now = new Date().toISOString();
+      await context.supabase
         .from("contacts")
         .update({
           cadence_day: data.cadenceDay,
