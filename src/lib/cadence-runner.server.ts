@@ -2,7 +2,7 @@
 // resposta automática usando as instruções cadastradas por dia.
 // Server-only.
 
-import { sendWhatsappText } from "./whatsapp.server";
+import { sendAndLog } from "./messaging.server";
 
 type AdminClient = Awaited<ReturnType<typeof loadAdmin>>;
 
@@ -93,15 +93,12 @@ export async function runCadenceBatch(
     }
     const body = renderScript(tpl, { nome: firstName(c.name ?? "") });
 
-    const send = await sendWhatsappText(to, body);
-    await admin.from("activities").insert({
-      contact_id: c.id,
-      kind: "whatsapp_out",
+    const send = await sendAndLog({
+      to,
+      body,
+      contactId: c.id,
       title: `Cadência Dia ${nextDay} (${slot === "morning" ? "manhã" : "tarde"})`,
-      content: body,
-      external_id: send.messageId ?? null,
-      status: send.ok ? "SENT" : "FAILED",
-      status_updated_at: nowIso,
+      tag: `cadence-day-${nextDay}-${slot}`,
     });
     if (send.ok) {
       result.sent++;
@@ -186,23 +183,13 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   }
   if (!reply) return;
 
-  const send = await sendWhatsappText(params.to, reply);
-  const now = new Date().toISOString();
-  await admin.from("activities").insert({
-    contact_id: params.contactId,
-    kind: "whatsapp_out",
+  await sendAndLog({
+    to: params.to,
+    body: reply,
+    contactId: params.contactId,
     title: "EVA respondeu automaticamente",
-    content: reply,
-    external_id: send.messageId ?? null,
-    status: send.ok ? "SENT" : "FAILED",
-    status_updated_at: now,
+    tag: "eva-auto-reply",
   });
-  if (send.ok) {
-    await (admin as any)
-      .from("contacts")
-      .update({ last_contact_at: now })
-      .eq("id", params.contactId);
-  }
 }
 
 export async function _adminForTests(): Promise<AdminClient> {
