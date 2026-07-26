@@ -114,33 +114,19 @@ export const startCadenceForAllEligibleFn = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
     // Elegíveis: novo_lead, não bloqueados, com WhatsApp/telefone, fora da cadência.
-    const { data: rows, error: selErr } = await sb
+    // IMPORTANTE: fazemos o update direto no banco (sem pré-buscar), evitando o
+    // teto default de 1000 linhas do PostgREST que estava retornando 1000 registros
+    // sem telefone (pós-deduplicação) e derrubando a ativação para 0.
+    const { data: updated, error } = await sb
       .from("contacts")
-      .select("id, whatsapp, phone")
+      .update({ cadence_active: true, cadence_day: 0 })
       .eq("funnel_stage", "novo_lead")
       .eq("do_not_contact", false)
-      .eq("cadence_active", false);
-    if (selErr) throw new Error(selErr.message);
-    const ids = (rows ?? [])
-      .filter((c: any) => {
-        const digits = (c.whatsapp ?? c.phone ?? "").replace(/\D/g, "");
-        return digits.length >= 10;
-      })
-      .map((c: any) => c.id);
-    if (ids.length === 0) return { ok: true as const, activated: 0 };
-    // Update em blocos para não estourar limite de payload.
-    let activated = 0;
-    const chunk = 1000;
-    for (let i = 0; i < ids.length; i += chunk) {
-      const slice = ids.slice(i, i + chunk);
-      const { error } = await sb
-        .from("contacts")
-        .update({ cadence_active: true, cadence_day: 0 })
-        .in("id", slice);
-      if (error) throw new Error(error.message);
-      activated += slice.length;
-    }
-    return { ok: true as const, activated };
+      .eq("cadence_active", false)
+      .or("whatsapp.neq.,phone.neq.")
+      .select("id");
+    if (error) throw new Error(error.message);
+    return { ok: true as const, activated: updated?.length ?? 0 };
   });
 
 export const getCadenceStatsFn = createServerFn({ method: "GET" })
@@ -150,7 +136,11 @@ export const getCadenceStatsFn = createServerFn({ method: "GET" })
     const q = (b: any) => b.select("id", { count: "exact", head: true });
     const [active, novo, blocked] = await Promise.all([
       q(sb.from("contacts")).eq("cadence_active", true),
-      q(sb.from("contacts")).eq("funnel_stage", "novo_lead").eq("cadence_active", false).eq("do_not_contact", false),
+      q(sb.from("contacts"))
+        .eq("funnel_stage", "novo_lead")
+        .eq("cadence_active", false)
+        .eq("do_not_contact", false)
+        .or("whatsapp.neq.,phone.neq."),
       q(sb.from("contacts")).eq("do_not_contact", true),
     ]);
     return {
