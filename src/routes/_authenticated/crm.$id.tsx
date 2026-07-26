@@ -38,6 +38,21 @@ function Ficha() {
     queryFn: async () => (await supabase.from("activities").select("*").eq("contact_id", id).order("created_at", { ascending: false })).data ?? [],
   });
 
+  // Realtime: atualiza timeline e ficha assim que houver mensagem nova.
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`crm-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `contact_id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["activities", id] });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "contacts", filter: `id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["contact", id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, qc]);
+
   const [form, setForm] = useState<any>(null);
   const state = form ?? contact ?? {};
   const upd = (k: string) => (e: any) => setForm({ ...state, [k]: e?.target?.value ?? e });
