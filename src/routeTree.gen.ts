@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PoliticaRouteImport } from './routes/politica'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -31,6 +32,11 @@ import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/publi
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PoliticaRoute = PoliticaRouteImport.update({
+  id: '/politica',
+  path: '/politica',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -123,6 +129,7 @@ const ApiPublicHooksCadenceRunRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/politica'
     | '/reset-password'
     | '/agenda'
     | '/cadencias'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/politica'
     | '/reset-password'
     | '/agenda'
     | '/cadencias'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/politica'
     | '/reset-password'
     | '/_authenticated/agenda'
     | '/_authenticated/cadencias'
@@ -241,6 +253,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PoliticaRoute: typeof PoliticaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -253,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/politica': {
+      id: '/politica'
+      path: '/politica'
+      fullPath: '/politica'
+      preLoaderRoute: typeof PoliticaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -424,6 +444,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  PoliticaRoute: PoliticaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
