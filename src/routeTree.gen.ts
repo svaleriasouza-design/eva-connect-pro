@@ -27,7 +27,6 @@ import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
-import { Route as ApiPublicHooksTplTestRouteImport } from './routes/api/public/hooks/tpl-test'
 import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -120,11 +119,6 @@ const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   path: '/api/public/meta/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksTplTestRoute = ApiPublicHooksTplTestRouteImport.update({
-  id: '/api/public/hooks/tpl-test',
-  path: '/api/public/hooks/tpl-test',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicHooksCadenceRunRoute =
   ApiPublicHooksCadenceRunRouteImport.update({
     id: '/api/public/hooks/cadence-run',
@@ -150,7 +144,6 @@ export interface FileRoutesByFullPath {
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
-  '/api/public/hooks/tpl-test': typeof ApiPublicHooksTplTestRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -170,7 +163,6 @@ export interface FileRoutesByTo {
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
-  '/api/public/hooks/tpl-test': typeof ApiPublicHooksTplTestRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesById {
@@ -193,7 +185,6 @@ export interface FileRoutesById {
   '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
-  '/api/public/hooks/tpl-test': typeof ApiPublicHooksTplTestRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRouteTypes {
@@ -216,7 +207,6 @@ export interface FileRouteTypes {
     | '/crm/$id'
     | '/crm/'
     | '/api/public/hooks/cadence-run'
-    | '/api/public/hooks/tpl-test'
     | '/api/public/meta/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -236,7 +226,6 @@ export interface FileRouteTypes {
     | '/crm/$id'
     | '/crm'
     | '/api/public/hooks/cadence-run'
-    | '/api/public/hooks/tpl-test'
     | '/api/public/meta/webhook'
   id:
     | '__root__'
@@ -258,7 +247,6 @@ export interface FileRouteTypes {
     | '/_authenticated/crm/$id'
     | '/_authenticated/crm/'
     | '/api/public/hooks/cadence-run'
-    | '/api/public/hooks/tpl-test'
     | '/api/public/meta/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -268,7 +256,6 @@ export interface RootRouteChildren {
   PoliticaRoute: typeof PoliticaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
-  ApiPublicHooksTplTestRoute: typeof ApiPublicHooksTplTestRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
 }
 
@@ -400,13 +387,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/tpl-test': {
-      id: '/api/public/hooks/tpl-test'
-      path: '/api/public/hooks/tpl-test'
-      fullPath: '/api/public/hooks/tpl-test'
-      preLoaderRoute: typeof ApiPublicHooksTplTestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/hooks/cadence-run': {
       id: '/api/public/hooks/cadence-run'
       path: '/api/public/hooks/cadence-run'
@@ -467,7 +447,6 @@ const rootRouteChildren: RootRouteChildren = {
   PoliticaRoute: PoliticaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
-  ApiPublicHooksTplTestRoute: ApiPublicHooksTplTestRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
 }
 export const routeTree = rootRouteImport
