@@ -8,6 +8,8 @@ const saveSchema = z.object({
   app_secret: z.string().trim().max(512).optional().nullable(),
   verify_token: z.string().trim().max(256).optional().nullable(),
   graph_version: z.string().trim().max(16).optional().nullable(),
+  default_template_name: z.string().trim().max(128).optional().nullable(),
+  default_template_lang: z.string().trim().max(16).optional().nullable(),
 });
 
 const testSendSchema = z.object({
@@ -21,7 +23,9 @@ export const getMetaSettingsFn = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("meta_wa_settings" as any)
-      .select("phone_number_id, access_token, app_secret, verify_token, graph_version, updated_at")
+      .select(
+        "phone_number_id, access_token, app_secret, verify_token, graph_version, default_template_name, default_template_lang, updated_at",
+      )
       .eq("id", true)
       .maybeSingle();
     const row = (data ?? {}) as any;
@@ -31,6 +35,8 @@ export const getMetaSettingsFn = createServerFn({ method: "GET" })
       app_secret: row.app_secret ?? "",
       verify_token: row.verify_token ?? "",
       graph_version: row.graph_version ?? "v21.0",
+      default_template_name: row.default_template_name ?? "hello_world",
+      default_template_lang: row.default_template_lang ?? "en_US",
       updated_at: row.updated_at ?? null,
     };
   });
@@ -46,6 +52,8 @@ export const saveMetaSettingsFn = createServerFn({ method: "POST" })
       app_secret: data.app_secret || null,
       verify_token: data.verify_token || null,
       graph_version: data.graph_version || "v21.0",
+      default_template_name: data.default_template_name || "hello_world",
+      default_template_lang: data.default_template_lang || "en_US",
     };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin

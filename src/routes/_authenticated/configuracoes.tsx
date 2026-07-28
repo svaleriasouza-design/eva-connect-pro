@@ -24,6 +24,8 @@ type FormState = {
   app_secret: string;
   verify_token: string;
   graph_version: string;
+  default_template_name: string;
+  default_template_lang: string;
 };
 
 const EMPTY: FormState = {
@@ -32,6 +34,8 @@ const EMPTY: FormState = {
   app_secret: "",
   verify_token: "",
   graph_version: "v21.0",
+  default_template_name: "hello_world",
+  default_template_lang: "en_US",
 };
 
 function randomToken(len = 32) {
@@ -72,6 +76,8 @@ function Configs() {
         app_secret: data.app_secret || "",
         verify_token: data.verify_token || "",
         graph_version: data.graph_version || "v21.0",
+        default_template_name: (data as any).default_template_name || "hello_world",
+        default_template_lang: (data as any).default_template_lang || "en_US",
       });
     }
   }, [data]);
@@ -264,6 +270,31 @@ function Configs() {
                 placeholder="v21.0"
                 value={form.graph_version}
                 onChange={(e) => set("graph_version", e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="tplname">Template padrão (janela de 24h fechada)</Label>
+              <Input
+                id="tplname"
+                placeholder="hello_world"
+                value={form.default_template_name}
+                onChange={(e) => set("default_template_name", e.target.value)}
+                disabled={isLoading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Nome exato de um template aprovado na Meta. É usado automaticamente quando o contato não respondeu nas últimas 24h.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="tpllang">Idioma do template</Label>
+              <Input
+                id="tpllang"
+                placeholder="en_US ou pt_BR"
+                value={form.default_template_lang}
+                onChange={(e) => set("default_template_lang", e.target.value)}
                 disabled={isLoading}
               />
             </div>

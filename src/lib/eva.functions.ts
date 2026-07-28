@@ -25,7 +25,8 @@ ${data.context ? `\nContexto adicional:\n${data.context}` : ""}`;
 
     const { text } = await generateText({
       model,
-      messages: [{ role: "system", content: system }, ...data.messages],
+      system,
+      messages: data.messages.filter((m) => m.role !== "system"),
     });
     return { text };
   });

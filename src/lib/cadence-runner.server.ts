@@ -132,7 +132,7 @@ export async function autoReplyToInbound(params: {
   to: string;
   incomingText: string;
   currentDay: number;
-}): Promise<void> {
+}): Promise<string> {
   const admin = await loadAdmin();
 
   const { data: settingsRow } = await (admin as any)
@@ -141,7 +141,22 @@ export async function autoReplyToInbound(params: {
     .eq("id", true)
     .maybeSingle();
   const settings = (settingsRow ?? {}) as { auto_reply_enabled?: boolean };
-  if (!settings.auto_reply_enabled) return;
+  if (!settings.auto_reply_enabled) {
+    console.log("[eva auto-reply] desativado nas configurações");
+    return "skipped:auto_reply_disabled";
+  }
+
+  // Lead precisa estar ativo e permitir contato.
+  const { data: contactRow } = await (admin as any)
+    .from("contacts")
+    .select("do_not_contact, status")
+    .eq("id", params.contactId)
+    .maybeSingle();
+  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null };
+  if (contact.do_not_contact || (contact.status ?? "ativo") === "perdido") {
+    console.log(`[eva auto-reply] lead inativo contact=${params.contactId}`);
+    return "skipped:lead_inativo";
+  }
 
   const day = Math.max(1, params.currentDay || 1);
   const { data: stepRow } = await (admin as any)
@@ -151,8 +166,28 @@ export async function autoReplyToInbound(params: {
     .maybeSingle();
   const step = (stepRow ?? {}) as { script?: string; ai_instructions?: string };
 
+  // Fallback: se o dia atual não tiver instrução, usa a primeira instrução cadastrada.
+  let instructions = (step.ai_instructions ?? "").trim();
+  if (!instructions) {
+    const { data: anyStep } = await (admin as any)
+      .from("cadence_steps")
+      .select("ai_instructions")
+      .neq("ai_instructions", "")
+      .order("day", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    instructions = ((anyStep as any)?.ai_instructions ?? "").trim();
+  }
+  if (!instructions) {
+    instructions =
+      "Se o cliente demonstrar interesse, ofereça agendar uma reunião de 15 minutos. Se pedir para não receber mais, encerre educadamente.";
+  }
+
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) return;
+  if (!key) {
+    console.error("[eva auto-reply] LOVABLE_API_KEY ausente");
+    return "error:missing_api_key";
+  }
   const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
   const { generateText } = await import("ai");
   const gateway = createLovableAiGatewayProvider(key);
@@ -163,7 +198,7 @@ Regras: siga estritamente as instruções abaixo. Se a mensagem do cliente for a
 
 Dia atual da cadência: ${day}
 Roteiro enviado neste dia: """${step.script ?? ""}"""
-Instruções de resposta cadastradas: """${step.ai_instructions ?? "Se o cliente demonstrar interesse, ofereça agendar uma reunião de 15 minutos. Se pedir para não receber mais, encerre educadamente."}"""
+Instruções de resposta cadastradas: """${instructions}"""
 
 Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params.contactName}. Nada de "aqui está a resposta:" ou aspas.`;
 
@@ -171,25 +206,28 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   try {
     const { text } = await generateText({
       model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: params.incomingText || "(cliente respondeu)" },
-      ],
+      system,
+      messages: [{ role: "user", content: params.incomingText || "(cliente respondeu)" }],
     });
     reply = (text ?? "").trim();
   } catch (err) {
     console.error("[eva auto-reply] AI error", err);
-    return;
+    return `error:ai:${err instanceof Error ? err.message : String(err)}`;
   }
-  if (!reply) return;
+  if (!reply) {
+    console.warn("[eva auto-reply] IA retornou vazio");
+    return "error:ai_empty";
+  }
 
-  await sendAndLog({
+  const res = await sendAndLog({
     to: params.to,
     body: reply,
     contactId: params.contactId,
     title: "EVA respondeu automaticamente",
     tag: "eva-auto-reply",
   });
+  console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
+  return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;
 }
 
 export async function _adminForTests(): Promise<AdminClient> {
