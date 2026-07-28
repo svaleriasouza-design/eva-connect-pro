@@ -19,6 +19,8 @@ export type MetaConfig = {
   appSecret: string;
   verifyToken: string;
   graphVersion: string;
+  defaultTemplateName: string;
+  defaultTemplateLang: string;
 };
 
 export async function loadMetaConfig(): Promise<MetaConfig> {
@@ -27,7 +29,7 @@ export async function loadMetaConfig(): Promise<MetaConfig> {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("meta_wa_settings" as any)
-      .select("phone_number_id, access_token, app_secret, verify_token, graph_version")
+      .select("phone_number_id, access_token, app_secret, verify_token, graph_version, default_template_name, default_template_lang")
       .eq("id", true)
       .maybeSingle();
     row = data ?? {};
@@ -40,6 +42,8 @@ export async function loadMetaConfig(): Promise<MetaConfig> {
     appSecret: row.app_secret || process.env.META_WA_APP_SECRET || "",
     verifyToken: row.verify_token || process.env.META_WA_VERIFY_TOKEN || "",
     graphVersion: row.graph_version || process.env.META_WA_GRAPH_VERSION || "v21.0",
+    defaultTemplateName: row.default_template_name || process.env.META_WA_TEMPLATE_NAME || "hello_world",
+    defaultTemplateLang: row.default_template_lang || process.env.META_WA_TEMPLATE_LANG || "en_US",
   };
 }
 
