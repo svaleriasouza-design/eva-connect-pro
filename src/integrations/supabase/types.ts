@@ -417,6 +417,8 @@ export type Database = {
           access_token: string | null
           app_secret: string | null
           created_at: string
+          default_template_lang: string | null
+          default_template_name: string | null
           graph_version: string | null
           id: boolean
           phone_number_id: string | null
@@ -427,6 +429,8 @@ export type Database = {
           access_token?: string | null
           app_secret?: string | null
           created_at?: string
+          default_template_lang?: string | null
+          default_template_name?: string | null
           graph_version?: string | null
           id?: boolean
           phone_number_id?: string | null
@@ -437,6 +441,8 @@ export type Database = {
           access_token?: string | null
           app_secret?: string | null
           created_at?: string
+          default_template_lang?: string | null
+          default_template_name?: string | null
           graph_version?: string | null
           id?: boolean
           phone_number_id?: string | null
