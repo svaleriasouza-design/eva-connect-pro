@@ -50,6 +50,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const { normalizePhoneNumber } = await import("@/lib/phone");
         const now = new Date().toISOString();
         console.log("[webhook] payload recebido");
+        const debug: string[] = [];
 
         try {
           const entries = payload?.entry ?? [];
@@ -134,15 +135,17 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 if (contact?.id) {
                   try {
                     const { autoReplyToInbound } = await import("@/lib/cadence-runner.server");
-                    await autoReplyToInbound({
+                    const status = await autoReplyToInbound({
                       contactId: contact.id,
                       contactName: contact.name ?? "",
                       to: from,
                       incomingText: text,
                       currentDay: contact.cadence_day ?? 1,
                     });
+                    debug.push(`autoreply=${status}`);
                   } catch (err) {
                     console.error("[eva auto-reply] failed", err);
+                    debug.push(`autoreply_exception=${err instanceof Error ? err.message : String(err)}`);
                   }
                 }
               }
@@ -150,9 +153,16 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           }
         } catch (err) {
           console.error("[meta webhook] processing error", err);
+          debug.push(`processing_error=${err instanceof Error ? err.message : String(err)}`);
           // Sempre retornamos 200 para a Meta não reenfileirar em loop.
         }
 
+        if (request.headers.get("x-eva-debug") === "1") {
+          return new Response(JSON.stringify({ ok: true, debug }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
         return new Response("ok", { status: 200 });
       },
     },
