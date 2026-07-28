@@ -157,19 +157,33 @@ export async function sendWhatsappTemplate(
         : undefined,
     },
   };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const json = (await res.json()) as {
-    messages?: Array<{ id: string }>;
-    error?: { message?: string };
-  };
-  if (!res.ok || json.error) {
-    return { ok: false, error: json.error?.message || `HTTP ${res.status}`, raw: json };
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (netErr) {
+    return { ok: false, error: `Falha de rede ao contatar Graph API: ${netErr instanceof Error ? netErr.message : String(netErr)}` };
   }
-  return { ok: true, messageId: json.messages?.[0]?.id, raw: json };
+  const rawText = await res.text().catch(() => "");
+  let json: any = null;
+  try {
+    json = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    json = null;
+  }
+  if (!res.ok || json?.error) {
+    const parts = [
+      json?.error?.message ? String(json.error.message) : `HTTP ${res.status}`,
+      json?.error?.code != null ? `code ${json.error.code}` : null,
+      json?.error?.error_subcode != null ? `subcode ${json.error.error_subcode}` : null,
+      `template ${templateName} (${languageCode})`,
+    ].filter(Boolean);
+    return { ok: false, error: parts.join(" · "), raw: json ?? rawText };
+  }
+  return { ok: true, messageId: json?.messages?.[0]?.id, raw: json };
 }
 
 // HMAC-SHA256 do corpo bruto usando META_WA_APP_SECRET.
