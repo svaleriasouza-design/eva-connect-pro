@@ -3,7 +3,7 @@
 // Grava em `activities` — fonte única para WhatsApp, CRM, Histórico e Cadências.
 
 import { normalizePhoneNumber } from "./phone";
-import { sendWhatsappText } from "./whatsapp.server";
+import { sendWhatsappText, sendWhatsappTemplate, loadMetaConfig } from "./whatsapp.server";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -16,6 +16,8 @@ export type SendAndLogInput = {
   contactId?: string | null;
   title?: string;
   tag?: string; // ex.: "cadence-day-1", "crm-manual", "eva-auto", "test"
+  /** Força o uso de template aprovado, mesmo com janela aberta. */
+  forceTemplate?: boolean;
 };
 
 export type SendAndLogResult = {
@@ -25,7 +27,33 @@ export type SendAndLogResult = {
   error?: string;
   activityId?: string;
   raw?: unknown;
+  usedTemplate?: boolean;
 };
+
+/**
+ * Janela de atendimento de 24h: existe se houve mensagem RECEBIDA do contato
+ * nas últimas 24 horas. Sem contato conhecido, procura por telefone no histórico.
+ */
+export async function hasOpenWindow(contactId?: string | null, phone?: string): Promise<boolean> {
+  const db = await admin();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  if (contactId) {
+    const { data } = await db
+      .from("activities")
+      .select("id")
+      .eq("contact_id", contactId)
+      .eq("kind", "whatsapp_in")
+      .gte("created_at", since)
+      .limit(1);
+    if (data && data.length > 0) return true;
+    return false;
+  }
+  if (phone) {
+    const contact = await findContactByPhone(phone);
+    if (contact?.id) return hasOpenWindow(contact.id);
+  }
+  return false;
+}
 
 /**
  * Envia via Meta Cloud API e grava no histórico unificado (`activities`).
@@ -42,7 +70,32 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
     return { ok: false, to, error: "Número inválido (use DDD + número)." };
   }
 
-  const send = await sendWhatsappText(to, input.body ?? "");
+  // Decide entre mensagem livre (janela 24h aberta) e template aprovado.
+  const windowOpen = input.forceTemplate ? false : await hasOpenWindow(input.contactId ?? null, to);
+  let usedTemplate = false;
+  let send = windowOpen
+    ? await sendWhatsappText(to, input.body ?? "")
+    : await (async () => {
+        usedTemplate = true;
+        const cfg = await loadMetaConfig();
+        const name = cfg.defaultTemplateName;
+        const lang = cfg.defaultTemplateLang;
+        const contactName = input.contactId ? await contactFirstName(input.contactId) : "";
+        // Primeiro sem parâmetros; se a Meta exigir variáveis, tenta com o nome.
+        const first = await sendWhatsappTemplate(to, name, lang, []);
+        if (first.ok) return first;
+        const needsParams = /param|variable|132000|132012|132001/i.test(first.error ?? "");
+        if (needsParams) {
+          const second = await sendWhatsappTemplate(to, name, lang, [contactName || "cliente"]);
+          if (second.ok) return second;
+          return second;
+        }
+        return first;
+      })();
+
+  if (!windowOpen && !send.ok) {
+    console.warn(`[msg:out] template "${(await loadMetaConfig()).defaultTemplateName}" falhou: ${send.error}`);
+  }
   const now = new Date().toISOString();
 
   // Grava mensagem no histórico unificado
@@ -53,8 +106,10 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
       .insert({
         contact_id: input.contactId ?? null,
         kind: "whatsapp_out",
-        title: input.title ?? "Mensagem enviada",
-        content: input.body ?? "",
+        title: (input.title ?? "Mensagem enviada") + (usedTemplate ? " (template)" : ""),
+        content: usedTemplate
+          ? `[Template Meta] Janela de 24h fechada — enviado template aprovado.\n\nConteúdo pretendido:\n${input.body ?? ""}`
+          : input.body ?? "",
         external_id: send.messageId ?? null,
         status: send.ok ? "SENT" : "FAILED",
         status_updated_at: now,
@@ -87,7 +142,18 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
     error: send.error,
     activityId,
     raw: send.raw,
+    usedTemplate,
   };
+}
+
+async function contactFirstName(contactId: string): Promise<string> {
+  try {
+    const db = await admin();
+    const { data } = await db.from("contacts").select("name").eq("id", contactId).maybeSingle();
+    return ((data as any)?.name ?? "").trim().split(/\s+/)[0] ?? "";
+  } catch {
+    return "";
+  }
 }
 
 /**
