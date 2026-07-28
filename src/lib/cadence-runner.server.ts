@@ -206,10 +206,8 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   try {
     const { text } = await generateText({
       model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: params.incomingText || "(cliente respondeu)" },
-      ],
+      system,
+      messages: [{ role: "user", content: params.incomingText || "(cliente respondeu)" }],
     });
     reply = (text ?? "").trim();
   } catch (err) {
