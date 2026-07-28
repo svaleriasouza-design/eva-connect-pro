@@ -127,8 +127,11 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     content: "Contato respondeu — cadência interrompida automaticamente.",
                   });
                   console.log(`[webhook:in] cadência interrompida contact=${contact.id}`);
+                }
 
-                  // Resposta automática pela EVA (se habilitada nas configurações)
+                // Resposta automática pela EVA — sempre que houver contato,
+                // independentemente de a cadência estar ativa.
+                if (contact?.id) {
                   try {
                     const { autoReplyToInbound } = await import("@/lib/cadence-runner.server");
                     await autoReplyToInbound({
