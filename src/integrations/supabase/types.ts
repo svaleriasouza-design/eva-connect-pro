@@ -330,45 +330,63 @@ export type Database = {
       }
       events: {
         Row: {
+          attendee_email: string | null
           company_id: string | null
           contact_id: string | null
           created_at: string
+          duration_minutes: number
           ends_at: string | null
+          google_event_id: string | null
           id: string
           kind: string
           location: string | null
           meet_link: string | null
           notes: string | null
+          reminder_1h_sent_at: string | null
+          reminder_24h_sent_at: string | null
+          source: string
           starts_at: string
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          attendee_email?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
+          duration_minutes?: number
           ends_at?: string | null
+          google_event_id?: string | null
           id?: string
           kind?: string
           location?: string | null
           meet_link?: string | null
           notes?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
+          source?: string
           starts_at: string
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          attendee_email?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
+          duration_minutes?: number
           ends_at?: string | null
+          google_event_id?: string | null
           id?: string
           kind?: string
           location?: string | null
           meet_link?: string | null
           notes?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
+          source?: string
           starts_at?: string
           status?: string
           title?: string
