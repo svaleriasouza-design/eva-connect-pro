@@ -328,6 +328,44 @@ export type Database = {
           },
         ]
       }
+      eva_scheduling_state: {
+        Row: {
+          awaiting_email: boolean
+          contact_id: string
+          duration_minutes: number
+          online: boolean
+          pending_start: string | null
+          suggested: Json | null
+          updated_at: string
+        }
+        Insert: {
+          awaiting_email?: boolean
+          contact_id: string
+          duration_minutes?: number
+          online?: boolean
+          pending_start?: string | null
+          suggested?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          awaiting_email?: boolean
+          contact_id?: string
+          duration_minutes?: number
+          online?: boolean
+          pending_start?: string | null
+          suggested?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eva_scheduling_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           attendee_email: string | null
