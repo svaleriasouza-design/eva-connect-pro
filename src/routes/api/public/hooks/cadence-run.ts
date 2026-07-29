@@ -18,6 +18,16 @@ export const Route = createFileRoute("/api/public/hooks/cadence-run")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        // Lembretes de reunião (24h e 1h) rodam em toda passagem do cron.
+        let reminders = { sent24: 0, sent1: 0 };
+        try {
+          const { runMeetingReminders } = await import("@/lib/scheduling.server");
+          reminders = await runMeetingReminders();
+        } catch (err) {
+          console.error("[reminders] falha", err);
+        }
+
         const { data: settingsRow } = await (supabaseAdmin as any)
           .from("cadence_settings")
           .select("*")
@@ -35,7 +45,7 @@ export const Route = createFileRoute("/api/public/hooks/cadence-run")({
         } | null;
 
         if (!settings || !settings.automation_enabled) {
-          return Response.json({ ok: true, skipped: "automation_disabled" });
+          return Response.json({ ok: true, skipped: "automation_disabled", reminders });
         }
 
         const tz = settings.timezone || "America/Sao_Paulo";
@@ -56,7 +66,7 @@ export const Route = createFileRoute("/api/public/hooks/cadence-run")({
         const weekday = get("weekday"); // Mon, Tue, ...
         const isWeekend = weekday === "Sat" || weekday === "Sun";
         if (settings.weekdays_only && isWeekend) {
-          return Response.json({ ok: true, skipped: "weekend" });
+          return Response.json({ ok: true, skipped: "weekend", reminders });
         }
 
         const toMinutes = (hhmm: string) => {
@@ -95,12 +105,12 @@ export const Route = createFileRoute("/api/public/hooks/cadence-run")({
         }
 
         if (!slot) {
-          return Response.json({ ok: true, skipped: "out_of_window", now: `${get("hour")}:${get("minute")}` });
+          return Response.json({ ok: true, skipped: "out_of_window", now: `${get("hour")}:${get("minute")}`, reminders });
         }
 
         const { runCadenceBatch } = await import("@/lib/cadence-runner.server");
         const result = await runCadenceBatch(slot, settings.batch_size);
-        return Response.json({ ok: true, ...result });
+        return Response.json({ ok: true, ...result, reminders });
       },
     },
   },
