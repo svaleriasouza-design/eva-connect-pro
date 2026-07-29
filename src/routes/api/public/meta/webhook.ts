@@ -130,9 +130,40 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   console.log(`[webhook:in] cadência interrompida contact=${contact.id}`);
                 }
 
+                // Central de agendamento: intenção de marcar/remarcar/cancelar
+                // tem prioridade sobre a resposta genérica da EVA.
+                let schedulingHandled = false;
+                if (contact?.id) {
+                  try {
+                    const { handleSchedulingMessage } = await import("@/lib/scheduling.server");
+                    const { sendAndLog } = await import("@/lib/messaging.server");
+                    const outcome = await handleSchedulingMessage({
+                      contactId: contact.id,
+                      contactName: contact.name ?? "",
+                      phone: from,
+                      text,
+                    });
+                    debug.push(`scheduling=${outcome.status}`);
+                    if (outcome.handled && outcome.reply) {
+                      schedulingHandled = true;
+                      const sent = await sendAndLog({
+                        to: from,
+                        body: outcome.reply,
+                        contactId: contact.id,
+                        title: "EVA — agendamento",
+                        tag: `eva-scheduling-${outcome.status}`,
+                      });
+                      debug.push(`scheduling_send=${sent.ok ? "ok" : sent.error}`);
+                    }
+                  } catch (err) {
+                    console.error("[eva agenda] failed", err);
+                    debug.push(`scheduling_exception=${err instanceof Error ? err.message : String(err)}`);
+                  }
+                }
+
                 // Resposta automática pela EVA — sempre que houver contato,
                 // independentemente de a cadência estar ativa.
-                if (contact?.id) {
+                if (contact?.id && !schedulingHandled) {
                   try {
                     const { autoReplyToInbound } = await import("@/lib/cadence-runner.server");
                     const status = await autoReplyToInbound({

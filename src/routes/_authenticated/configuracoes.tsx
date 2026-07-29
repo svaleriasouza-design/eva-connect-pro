@@ -15,6 +15,7 @@ import { Copy, CheckCircle2, XCircle, Eye, EyeOff, Shuffle, Save, PlugZap, Loade
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { normalizePhoneNumber } from "@/lib/phone";
+import { GoogleCalendarCard } from "@/components/google-calendar-card";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
@@ -172,6 +173,8 @@ function Configs() {
         <h1 className="text-2xl font-semibold">Configurações</h1>
         <p className="text-sm text-muted-foreground">Credenciais e integrações.</p>
       </div>
+
+      <GoogleCalendarCard />
 
       <Card>
         <CardHeader><CardTitle>WhatsApp — Meta Cloud API</CardTitle></CardHeader>

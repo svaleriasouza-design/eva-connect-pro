@@ -328,47 +328,103 @@ export type Database = {
           },
         ]
       }
+      eva_scheduling_state: {
+        Row: {
+          awaiting_email: boolean
+          contact_id: string
+          duration_minutes: number
+          online: boolean
+          pending_start: string | null
+          suggested: Json | null
+          updated_at: string
+        }
+        Insert: {
+          awaiting_email?: boolean
+          contact_id: string
+          duration_minutes?: number
+          online?: boolean
+          pending_start?: string | null
+          suggested?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          awaiting_email?: boolean
+          contact_id?: string
+          duration_minutes?: number
+          online?: boolean
+          pending_start?: string | null
+          suggested?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eva_scheduling_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
+          attendee_email: string | null
           company_id: string | null
           contact_id: string | null
           created_at: string
+          duration_minutes: number
           ends_at: string | null
+          google_event_id: string | null
           id: string
           kind: string
           location: string | null
           meet_link: string | null
           notes: string | null
+          reminder_1h_sent_at: string | null
+          reminder_24h_sent_at: string | null
+          source: string
           starts_at: string
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          attendee_email?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
+          duration_minutes?: number
           ends_at?: string | null
+          google_event_id?: string | null
           id?: string
           kind?: string
           location?: string | null
           meet_link?: string | null
           notes?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
+          source?: string
           starts_at: string
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          attendee_email?: string | null
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
+          duration_minutes?: number
           ends_at?: string | null
+          google_event_id?: string | null
           id?: string
           kind?: string
           location?: string | null
           meet_link?: string | null
           notes?: string | null
+          reminder_1h_sent_at?: string | null
+          reminder_24h_sent_at?: string | null
+          source?: string
           starts_at?: string
           status?: string
           title?: string

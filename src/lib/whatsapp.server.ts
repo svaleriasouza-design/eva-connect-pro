@@ -140,23 +140,22 @@ export async function sendWhatsappTemplate(
     return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
   }
   const url = `https://graph.facebook.com/${cfg.graphVersion}/${phoneId}/messages`;
-  const payload = {
+  const name = (templateName ?? "").trim().toLowerCase();
+  const payload: any = {
     messaging_product: "whatsapp",
     to: normalizePhone(to),
     type: "template",
     template: {
-      name: templateName,
+      name,
       language: { code: languageCode },
-      components: bodyParams.length
-        ? [
-            {
-              type: "body",
-              parameters: bodyParams.map((text) => ({ type: "text", text })),
-            },
-          ]
-        : undefined,
     },
   };
+  // Template estático (sem {{1}}): envia apenas name + language, sem "components".
+  if (bodyParams.length) {
+    payload.template.components = [
+      { type: "body", parameters: bodyParams.map((text) => ({ type: "text", text })) },
+    ];
+  }
   let res: Response;
   try {
     res = await fetch(url, {
@@ -179,7 +178,7 @@ export async function sendWhatsappTemplate(
       json?.error?.message ? String(json.error.message) : `HTTP ${res.status}`,
       json?.error?.code != null ? `code ${json.error.code}` : null,
       json?.error?.error_subcode != null ? `subcode ${json.error.error_subcode}` : null,
-      `template ${templateName} (${languageCode})`,
+      `template ${name} (${languageCode})`,
     ].filter(Boolean);
     return { ok: false, error: parts.join(" · "), raw: json ?? rawText };
   }
