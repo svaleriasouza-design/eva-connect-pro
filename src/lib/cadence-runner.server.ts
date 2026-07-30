@@ -149,10 +149,12 @@ export async function autoReplyToInbound(params: {
   // Lead precisa estar ativo e permitir contato.
   const { data: contactRow } = await (admin as any)
     .from("contacts")
-    .select("do_not_contact, status")
+    .select("do_not_contact, status, is_bot, ai_paused")
     .eq("id", params.contactId)
     .maybeSingle();
-  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null };
+  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null; is_bot?: boolean; ai_paused?: boolean };
+  if (contact.is_bot) return "skipped:bot";
+  if (contact.ai_paused) return "skipped:manual_mode";
   if (contact.do_not_contact || (contact.status ?? "ativo") === "perdido") {
     console.log(`[eva auto-reply] lead inativo contact=${params.contactId}`);
     return "skipped:lead_inativo";

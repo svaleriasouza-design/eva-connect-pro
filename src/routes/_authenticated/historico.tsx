@@ -14,6 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   whatsapp_out: "WhatsApp enviado",
   whatsapp_in: "WhatsApp recebido",
   cadence_stop: "Saiu da cadência",
+  bot_detected: "Robô detectado",
   nota: "Nota",
   reuniao: "Reunião",
   ligacao: "Ligação",

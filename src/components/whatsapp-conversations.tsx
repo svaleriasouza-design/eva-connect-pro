@@ -168,7 +168,7 @@ export function WhatsappConversations() {
         .from("activities")
         .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at")
       .eq("contact_id", selectedId as string)
-        .in("kind", ["whatsapp_out", "whatsapp_in", "cadence_stop", "nota"])
+        .in("kind", ["whatsapp_out", "whatsapp_in", "cadence_stop", "bot_detected", "nota"])
         .order("created_at", { ascending: true })
         .limit(200);
       return (data as ActivityRow[] | null) ?? [];
@@ -341,7 +341,7 @@ export function WhatsappConversations() {
                 <div className="py-10 text-center text-sm text-muted-foreground">Sem histórico ainda. Envie a primeira mensagem.</div>
               )}
               {thread.map((a) => {
-                if (a.kind === "cadence_stop" || a.kind === "nota") {
+                if (a.kind === "cadence_stop" || a.kind === "bot_detected" || a.kind === "nota") {
                   return (
                     <div key={a.id} className="mx-auto max-w-md rounded-md bg-background/60 px-3 py-1 text-center text-[11px] text-muted-foreground">
                       {a.title} · {formatDateTime(a.created_at)}
