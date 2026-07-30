@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle } from "lucide-react";
+import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type ActivityRow = {
@@ -38,7 +38,12 @@ type ContactRow = {
   goal: string | null;
   next_action: string | null;
   last_contact_at: string | null;
+  is_bot: boolean | null;
+  ai_paused: boolean | null;
+  bot_reason: string | null;
 };
+
+type ConvFilter = "todas" | "responderam" | "aguardando" | "manual" | "robos";
 
 function StatusIcon({ status }: { status: string | null }) {
   const s = (status ?? "").toUpperCase();
@@ -53,6 +58,7 @@ export function WhatsappConversations() {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<ConvFilter>("todas");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const sendFn = useServerFn(sendWhatsappMessageFn);
@@ -80,7 +86,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, is_bot, ai_paused, bot_reason")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
@@ -104,12 +110,16 @@ export function WhatsappConversations() {
 
   // Metadata por contato: última msg e se última é entrada não respondida
   const meta = useMemo(() => {
-    const m = new Map<string, { last?: ActivityRow; unread: boolean }>();
+    const m = new Map<string, { last?: ActivityRow; unread: boolean; inbound: number; outbound: number }>();
     for (const a of recentActs) {
       if (!a.contact_id) continue;
-      const cur = m.get(a.contact_id);
-      if (!cur) m.set(a.contact_id, { last: a, unread: a.kind === "whatsapp_in" });
-      // como está em desc, o primeiro visto é o mais recente
+      let cur = m.get(a.contact_id);
+      if (!cur) {
+        cur = { last: a, unread: a.kind === "whatsapp_in", inbound: 0, outbound: 0 };
+        m.set(a.contact_id, cur);
+      }
+      if (a.kind === "whatsapp_in") cur.inbound += 1;
+      if (a.kind === "whatsapp_out") cur.outbound += 1;
     }
     return m;
   }, [recentActs]);
@@ -118,6 +128,15 @@ export function WhatsappConversations() {
     const q = search.trim().toLowerCase();
     // Só contatos com histórico de WhatsApp OU em cadência ativa.
     let list = contacts.filter((c) => meta.has(c.id) || c.cadence_active);
+    list = list.filter((c) => {
+      const m = meta.get(c.id);
+      if (filter === "robos") return Boolean(c.is_bot);
+      if (c.is_bot) return false;
+      if (filter === "manual") return Boolean(c.ai_paused);
+      if (filter === "aguardando") return Boolean(m?.unread);
+      if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
+      return true;
+    });
     if (q) {
       list = list.filter(
         (c) =>
@@ -133,7 +152,7 @@ export function WhatsappConversations() {
       const lb = meta.get(b.id)?.last?.created_at ?? b.last_contact_at ?? "";
       return lb.localeCompare(la);
     });
-  }, [contacts, search, meta]);
+  }, [contacts, search, meta, filter]);
 
   useEffect(() => {
     if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
@@ -161,6 +180,24 @@ export function WhatsappConversations() {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [thread.length, selectedId]);
+
+  async function toggleManual(c: ContactRow) {
+    const next = !c.ai_paused;
+    const { error } = await supabase.from("contacts").update({ ai_paused: next }).eq("id", c.id);
+    if (error) return toast.error(error.message);
+    toast.success(next ? "Você assumiu a conversa — EVA pausada" : "EVA voltou a responder este contato");
+    qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+  }
+
+  async function clearBot(c: ContactRow) {
+    const { error } = await supabase
+      .from("contacts")
+      .update({ is_bot: false, bot_reason: null, do_not_contact: false, status: "ativo" })
+      .eq("id", c.id);
+    if (error) return toast.error(error.message);
+    toast.success("Contato marcado como humano");
+    qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+  }
 
   async function send() {
     if (!selected || !draft.trim()) return;
@@ -198,6 +235,24 @@ export function WhatsappConversations() {
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="pl-8" />
           </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {([
+              ["todas", "Todas"],
+              ["aguardando", "Aguardando resposta"],
+              ["responderam", "Fluíram"],
+              ["manual", "Modo manual"],
+              ["robos", "Robôs"],
+            ] as [ConvFilter, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${filter === key ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:border-primary/50"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <ScrollArea className="flex-1">
           {filtered.length === 0 && (
@@ -229,7 +284,13 @@ export function WhatsappConversations() {
                       <span className="truncate">{preview}</span>
                     </div>
                   </div>
-                  {m?.unread && <CircleDot className="h-3 w-3 shrink-0 text-primary" />}
+                  {c.is_bot ? (
+                    <Bot className="h-3 w-3 shrink-0 text-destructive" />
+                  ) : c.ai_paused ? (
+                    <Hand className="h-3 w-3 shrink-0 text-[color:var(--gold)]" />
+                  ) : (
+                    m?.unread && <CircleDot className="h-3 w-3 shrink-0 text-primary" />
+                  )}
                 </div>
               </button>
             );
@@ -251,11 +312,30 @@ export function WhatsappConversations() {
                 <div className="truncate text-sm font-semibold">{selected.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{selected.whatsapp ?? selected.phone ?? "—"}</div>
               </div>
+              <Button
+                variant={selected.ai_paused ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleManual(selected)}
+              >
+                {selected.ai_paused ? <Hand className="mr-1 h-3 w-3" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                {selected.ai_paused ? "Modo manual" : "EVA respondendo"}
+              </Button>
               <Link to="/crm/$id" params={{ id: selected.id }}>
                 <Button variant="ghost" size="sm">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
               </Link>
             </div>
 
+            {selected.is_bot && (
+              <div className="border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+                Atendimento automático detectado{selected.bot_reason ? `: ${selected.bot_reason}` : ""}. A EVA parou de responder este número.
+                <button type="button" className="ml-2 underline" onClick={() => clearBot(selected)}>Marcar como humano</button>
+              </div>
+            )}
+            {selected.ai_paused && !selected.is_bot && (
+              <div className="border-b bg-[color:var(--gold)]/15 px-4 py-2 text-xs">
+                Você assumiu esta conversa. A EVA não responde automaticamente aqui até você devolver o controle.
+              </div>
+            )}
             <div ref={threadRef} className="flex-1 overflow-y-auto space-y-2 bg-muted/30 p-4">
               {thread.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">Sem histórico ainda. Envie a primeira mensagem.</div>
@@ -330,6 +410,8 @@ export function WhatsappConversations() {
                   <Badge variant="outline" className="text-[10px]">Fora da cadência</Badge>
                 )}
                 {selected.do_not_contact && <Badge variant="destructive" className="text-[10px]">Não contatar</Badge>}
+                {selected.is_bot && <Badge variant="destructive" className="text-[10px]">Robô/URA</Badge>}
+                {selected.ai_paused && <Badge variant="outline" className="text-[10px]">Modo manual</Badge>}
               </div>
 
               <InfoBlock label="Objetivo" value={selected.goal} />
