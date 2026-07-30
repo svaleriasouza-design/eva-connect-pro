@@ -149,10 +149,12 @@ export async function autoReplyToInbound(params: {
   // Lead precisa estar ativo e permitir contato.
   const { data: contactRow } = await (admin as any)
     .from("contacts")
-    .select("do_not_contact, status")
+    .select("do_not_contact, status, is_bot, ai_paused")
     .eq("id", params.contactId)
     .maybeSingle();
-  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null };
+  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null; is_bot?: boolean; ai_paused?: boolean };
+  if (contact.is_bot) return "skipped:bot";
+  if (contact.ai_paused) return "skipped:manual_mode";
   if (contact.do_not_contact || (contact.status ?? "ativo") === "perdido") {
     console.log(`[eva auto-reply] lead inativo contact=${params.contactId}`);
     return "skipped:lead_inativo";
@@ -193,12 +195,24 @@ export async function autoReplyToInbound(params: {
   const gateway = createLovableAiGatewayProvider(key);
   const model = gateway("google/gemini-2.5-flash");
 
-  const system = `Você é a EVA, assistente da Valéria (Bio Impact). Responde WhatsApp em português do Brasil, tom profissional e caloroso, mensagens curtas (até 3 linhas).
-Regras: siga estritamente as instruções abaixo. Se a mensagem do cliente for ambígua, faça UMA pergunta objetiva. Nunca invente preços, datas ou informações que não estão nas instruções. Não use emojis em excesso.
+  const system = `Você é a EVA, SDR (Sales Development Representative) sênior da Valéria — programa Bio Impact. Fala por WhatsApp, em português do Brasil.
+
+COMO UM SDR EXPERIENTE SE COMPORTA:
+- Conduz a conversa: toda mensagem termina com UMA pergunta ou um convite claro (nunca deixa a conversa morrer).
+- Escuta antes de vender: qualifica com perguntas sobre contexto, dor, prioridade e decisão — sem parecer interrogatório.
+- Mensagens curtas (1 a 3 linhas), linguagem humana, sem jargão corporativo, sem textão, no máximo 1 emoji e só quando cair bem.
+- Personaliza usando o que o cliente já disse; nunca repete o script literalmente se ele já respondeu.
+- Trata objeção com empatia + reenquadre + próxima pergunta ("faz sentido", "entendo", e segue). Nunca insiste duas vezes na mesma objeção.
+- Objetivo primário: agendar uma conversa de 15 a 30 minutos. Ao perceber interesse, propõe dia e horário concretos.
+- Se o cliente pedir para parar, agradece, encerra com elegância e não insiste.
+- Nunca inventa preço, prazo, resultado ou informação que não esteja nas instruções.
+- Se a mensagem estiver ambígua, faz UMA pergunta objetiva de esclarecimento.
+- Se a mensagem parecer resposta automática/robô, não continua a venda: responde de forma neutra pedindo falar com a pessoa responsável.
+- O cliente pode ter enviado várias mensagens seguidas: elas vêm agrupadas abaixo e devem ser respondidas de uma vez só, numa única mensagem coerente.
 
 Dia atual da cadência: ${day}
 Roteiro enviado neste dia: """${step.script ?? ""}"""
-Instruções de resposta cadastradas: """${instructions}"""
+Instruções de resposta cadastradas (têm prioridade sobre o estilo acima): """${instructions}"""
 
 Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params.contactName}. Nada de "aqui está a resposta:" ou aspas.`;
 
