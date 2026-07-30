@@ -130,53 +130,23 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   console.log(`[webhook:in] cadência interrompida contact=${contact.id}`);
                 }
 
-                // Central de agendamento: intenção de marcar/remarcar/cancelar
-                // tem prioridade sobre a resposta genérica da EVA.
-                let schedulingHandled = false;
+                // Roteador único: aguarda 8s, agrupa mensagens seguidas,
+                // identifica robôs/URA, e então responde uma única vez.
                 if (contact?.id) {
                   try {
-                    const { handleSchedulingMessage } = await import("@/lib/scheduling.server");
-                    const { sendAndLog } = await import("@/lib/messaging.server");
-                    const outcome = await handleSchedulingMessage({
+                    const { routeInbound } = await import("@/lib/inbound-router.server");
+                    const status = await routeInbound({
                       contactId: contact.id,
                       contactName: contact.name ?? "",
                       phone: from,
-                      text,
-                    });
-                    debug.push(`scheduling=${outcome.status}`);
-                    if (outcome.handled && outcome.reply) {
-                      schedulingHandled = true;
-                      const sent = await sendAndLog({
-                        to: from,
-                        body: outcome.reply,
-                        contactId: contact.id,
-                        title: "EVA — agendamento",
-                        tag: `eva-scheduling-${outcome.status}`,
-                      });
-                      debug.push(`scheduling_send=${sent.ok ? "ok" : sent.error}`);
-                    }
-                  } catch (err) {
-                    console.error("[eva agenda] failed", err);
-                    debug.push(`scheduling_exception=${err instanceof Error ? err.message : String(err)}`);
-                  }
-                }
-
-                // Resposta automática pela EVA — sempre que houver contato,
-                // independentemente de a cadência estar ativa.
-                if (contact?.id && !schedulingHandled) {
-                  try {
-                    const { autoReplyToInbound } = await import("@/lib/cadence-runner.server");
-                    const status = await autoReplyToInbound({
-                      contactId: contact.id,
-                      contactName: contact.name ?? "",
-                      to: from,
                       incomingText: text,
-                      currentDay: contact.cadence_day ?? 1,
+                      cadenceDay: contact.cadence_day ?? 1,
+                      inboundActivityId: externalId,
                     });
-                    debug.push(`autoreply=${status}`);
+                    debug.push(`route=${status}`);
                   } catch (err) {
-                    console.error("[eva auto-reply] failed", err);
-                    debug.push(`autoreply_exception=${err instanceof Error ? err.message : String(err)}`);
+                    console.error("[eva inbound] failed", err);
+                    debug.push(`route_exception=${err instanceof Error ? err.message : String(err)}`);
                   }
                 }
               }
