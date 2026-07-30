@@ -226,7 +226,9 @@ export type Database = {
       }
       contacts: {
         Row: {
+          ai_paused: boolean
           birthdate: string | null
+          bot_reason: string | null
           cadence_active: boolean
           cadence_day: number
           children: string | null
@@ -241,6 +243,7 @@ export type Database = {
           goal: string | null
           id: string
           instagram: string | null
+          is_bot: boolean
           last_contact_at: string | null
           main_pain: string | null
           name: string
@@ -257,7 +260,9 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          ai_paused?: boolean
           birthdate?: string | null
+          bot_reason?: string | null
           cadence_active?: boolean
           cadence_day?: number
           children?: string | null
@@ -272,6 +277,7 @@ export type Database = {
           goal?: string | null
           id?: string
           instagram?: string | null
+          is_bot?: boolean
           last_contact_at?: string | null
           main_pain?: string | null
           name: string
@@ -288,7 +294,9 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          ai_paused?: boolean
           birthdate?: string | null
+          bot_reason?: string | null
           cadence_active?: boolean
           cadence_day?: number
           children?: string | null
@@ -303,6 +311,7 @@ export type Database = {
           goal?: string | null
           id?: string
           instagram?: string | null
+          is_bot?: boolean
           last_contact_at?: string | null
           main_pain?: string | null
           name?: string
