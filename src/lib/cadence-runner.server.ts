@@ -19,6 +19,45 @@ function renderScript(tpl: string, ctx: { nome: string }) {
   return (tpl ?? "").replaceAll("{{nome}}", ctx.nome);
 }
 
+/** Template aprovado da Meta correspondente ao dia da cadência. */
+function templateForDay(day: number) {
+  return `cadencia_dia_${day}`;
+}
+
+/** Encerra a cadência e agenda a reativação em 60 dias. */
+async function endCadence(admin: any, contactId: string, reason: string) {
+  const in60 = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
+  await admin
+    .from("contacts")
+    .update({
+      cadence_active: false,
+      funnel_stage: "reativar_60",
+      next_action: "Reativar em 60 dias",
+      next_action_at: in60,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", contactId);
+  await admin.from("activities").insert({
+    contact_id: contactId,
+    kind: "cadence_stop",
+    title: "Cadência encerrada — Reativar em 60 dias",
+    content: reason,
+    status: "OK",
+    status_updated_at: new Date().toISOString(),
+  });
+}
+
+/** Verifica se o contato respondeu (mensagem recebida) desde o último envio. */
+async function hasReplied(admin: any, contactId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("activities")
+    .select("id")
+    .eq("contact_id", contactId)
+    .eq("kind", "whatsapp_in")
+    .limit(1);
+  return Boolean(data && data.length > 0);
+}
+
 export type BatchResult = {
   slot: "morning" | "afternoon";
   attempted: number;
@@ -98,6 +137,24 @@ export async function runCadenceBatch(
       result.skipped++;
       continue;
     }
+
+    // Revalidação antes de cada disparo: respondeu? robô? ainda em cadência?
+    const { data: fresh } = await (admin as any)
+      .from("contacts")
+      .select("cadence_active, cadence_day, do_not_contact, is_bot")
+      .eq("id", c.id)
+      .maybeSingle();
+    const f = (fresh ?? {}) as any;
+    if (!f.cadence_active || f.do_not_contact || f.is_bot) {
+      result.skipped++;
+      continue;
+    }
+    if (await hasReplied(admin as any, c.id)) {
+      await (admin as any).from("contacts").update({ cadence_active: false }).eq("id", c.id);
+      result.skipped++;
+      continue;
+    }
+
     const nextDay = (c.cadence_day ?? 0) + 1;
     const tpl = scriptByDay.get(nextDay);
     if (!tpl) {
@@ -112,6 +169,7 @@ export async function runCadenceBatch(
       contactId: c.id,
       title: `Cadência Dia ${nextDay} (${slot === "morning" ? "manhã" : "tarde"})`,
       tag: `cadence-day-${nextDay}-${slot}`,
+      templateName: templateForDay(nextDay),
     });
     if (send.ok) {
       result.sent++;
@@ -120,9 +178,12 @@ export async function runCadenceBatch(
         .update({
           cadence_day: nextDay,
           last_contact_at: nowIso,
-          cadence_active: nextDay < maxDay,
+          cadence_active: true,
         })
         .eq("id", c.id);
+      if (nextDay >= maxDay) {
+        await endCadence(admin as any, c.id, `Dia ${nextDay} enviado e sem resposta — reativar em 60 dias.`);
+      }
     } else {
       result.failed++;
       if (send.error) result.errors.push(`${c.name}: ${send.error}`);
