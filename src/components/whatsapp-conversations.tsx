@@ -209,10 +209,17 @@ export function WhatsappConversations() {
     setSending(true);
     try {
       const res = await sendFn({
-        data: { contactId: selected.id, to, body: draft.trim() },
+        data: { contactId: selected.id, to, body: draft.trim(), manual: true },
       });
       if (res.ok) {
-        toast.success("Mensagem enviada");
+        // Ao responder manualmente, você assume a conversa (EVA pausa neste contato).
+        if (!selected.ai_paused) {
+          await supabase.from("contacts").update({ ai_paused: true }).eq("id", selected.id);
+          qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+          toast.success("Mensagem enviada — você assumiu esta conversa");
+        } else {
+          toast.success("Mensagem enviada");
+        }
         setDraft("");
         qc.invalidateQueries({ queryKey: ["wa-thread", selected.id] });
         qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
@@ -312,14 +319,17 @@ export function WhatsappConversations() {
                 <div className="truncate text-sm font-semibold">{selected.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{selected.whatsapp ?? selected.phone ?? "—"}</div>
               </div>
-              <Button
-                variant={selected.ai_paused ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleManual(selected)}
-              >
-                {selected.ai_paused ? <Hand className="mr-1 h-3 w-3" /> : <Sparkles className="mr-1 h-3 w-3" />}
-                {selected.ai_paused ? "Modo manual" : "EVA respondendo"}
-              </Button>
+              {selected.ai_paused ? (
+                <Button variant="default" size="sm" onClick={() => toggleManual(selected)}>
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  Retomar EVA
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => toggleManual(selected)}>
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  EVA respondendo
+                </Button>
+              )}
               <Link to="/crm/$id" params={{ id: selected.id }}>
                 <Button variant="ghost" size="sm">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
               </Link>
@@ -352,6 +362,12 @@ export function WhatsappConversations() {
                 return (
                   <div key={a.id} className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${outgoing ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                      {outgoing && a.title?.startsWith("Mensagem enviada por") && (
+                        <div className="mb-0.5 text-[10px] font-medium opacity-80">{a.title.replace("Mensagem enviada por ", "")}</div>
+                      )}
+                      {outgoing && a.title?.startsWith("EVA respondeu") && (
+                        <div className="mb-0.5 text-[10px] font-medium opacity-80">EVA</div>
+                      )}
                       <div className="whitespace-pre-wrap break-words">{a.content ?? a.title}</div>
                       <div className={`mt-1 flex items-center gap-1 text-[10px] ${outgoing ? "text-primary-foreground/70 justify-end" : "text-muted-foreground"}`}>
                         <span>{formatShort(a.created_at)}</span>
