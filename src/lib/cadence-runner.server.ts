@@ -57,25 +57,38 @@ export async function runCadenceBatch(
   today.setHours(0, 0, 0, 0);
   const todayIso = today.toISOString();
 
-  // Dia 1 (cadence_day = 0) só dispara para leads no estágio "novo_lead".
-  // A partir do Dia 2, mantém a cadência para quem já foi iniciado.
-  const baseQuery = (admin as any)
-    .from("contacts")
-    .select("id, name, whatsapp, phone, cadence_day, last_contact_at, funnel_stage")
-    .eq("cadence_active", true)
-    .eq("do_not_contact", false)
-    .lt("cadence_day", maxDay)
-    .or(`last_contact_at.is.null,last_contact_at.lt.${todayIso}`)
+  const select = "id, name, whatsapp, phone, cadence_day, last_contact_at, funnel_stage";
+  const eligible = (q: any) =>
+    q
+      .eq("cadence_active", true)
+      .eq("do_not_contact", false)
+      .eq("is_bot", false)
+      .lt("cadence_day", maxDay)
+      .or(`last_contact_at.is.null,last_contact_at.lt.${todayIso}`);
+
+  // PRIORIDADE 1 — continuação (Dia 2+): quem já recebeu Dia 1 e ainda não respondeu.
+  const { data: followUpsRaw } = await eligible(
+    (admin as any).from("contacts").select(select).gte("cadence_day", 1),
+  )
+    .order("cadence_day", { ascending: true })
     .order("last_contact_at", { ascending: true, nullsFirst: true })
     .limit(batchSize);
-  const { data: candidatesRaw } = await baseQuery;
-  const candidates = (candidatesRaw ?? []).filter((c: any) => {
-    const day = (c.cadence_day ?? 0) + 1;
-    if (day === 1) return c.funnel_stage === "novo_lead";
-    return true;
-  });
+  const followUps = (followUpsRaw ?? []) as any[];
 
-  const list = candidates ?? [];
+  // PRIORIDADE 2 — novos leads (Dia 1), somente no estágio "novo_lead",
+  // preenchendo apenas a capacidade restante do lote.
+  const remaining = Math.max(0, batchSize - followUps.length);
+  let newLeads: any[] = [];
+  if (remaining > 0) {
+    const { data: newRaw } = await eligible(
+      (admin as any).from("contacts").select(select).eq("cadence_day", 0).eq("funnel_stage", "novo_lead"),
+    )
+      .order("last_contact_at", { ascending: true, nullsFirst: true })
+      .limit(remaining);
+    newLeads = (newRaw ?? []) as any[];
+  }
+
+  const list = [...followUps, ...newLeads];
   result.attempted = list.length;
   const nowIso = new Date().toISOString();
 
