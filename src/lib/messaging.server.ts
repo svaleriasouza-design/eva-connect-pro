@@ -18,6 +18,9 @@ export type SendAndLogInput = {
   tag?: string; // ex.: "cadence-day-1", "crm-manual", "eva-auto", "test"
   /** Força o uso de template aprovado, mesmo com janela aberta. */
   forceTemplate?: boolean;
+  /** Template aprovado a usar quando a janela de 24h estiver fechada. */
+  templateName?: string;
+  templateLang?: string;
 };
 
 export type SendAndLogResult = {
@@ -78,19 +81,26 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
     : await (async () => {
         usedTemplate = true;
         const cfg = await loadMetaConfig();
-        const name = cfg.defaultTemplateName;
-        const lang = cfg.defaultTemplateLang;
+        const name = input.templateName || cfg.defaultTemplateName;
+        const lang = input.templateLang || cfg.defaultTemplateLang;
         const contactName = input.contactId ? await contactFirstName(input.contactId) : "";
-        // Primeiro sem parâmetros; se a Meta exigir variáveis, tenta com o nome.
-        const first = await sendWhatsappTemplate(to, name, lang, []);
-        if (first.ok) return first;
-        const needsParams = /param|variable|132000|132012|132001/i.test(first.error ?? "");
-        if (needsParams) {
-          const second = await sendWhatsappTemplate(to, name, lang, [contactName || "cliente"]);
-          if (second.ok) return second;
-          return second;
+        const attempt = async (tplName: string) => {
+          // Primeiro sem parâmetros; se a Meta exigir variáveis, tenta com o nome.
+          const first = await sendWhatsappTemplate(to, tplName, lang, []);
+          if (first.ok) return first;
+          const needsParams = /param|variable|132000|132012|132001/i.test(first.error ?? "");
+          if (needsParams) return sendWhatsappTemplate(to, tplName, lang, [contactName || "cliente"]);
+          return first;
+        };
+        const primary = await attempt(name);
+        if (primary.ok) return primary;
+        // Template do dia inexistente/não aprovado -> cai para o template padrão.
+        const missing = /132001|does not exist|not found|não existe/i.test(primary.error ?? "");
+        if (missing && name !== cfg.defaultTemplateName) {
+          console.warn(`[msg:out] template "${name}" indisponível — usando "${cfg.defaultTemplateName}"`);
+          return attempt(cfg.defaultTemplateName);
         }
-        return first;
+        return primary;
       })();
 
   if (!windowOpen && !send.ok) {
