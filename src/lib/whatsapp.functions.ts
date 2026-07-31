@@ -8,6 +8,7 @@ const sendSchema = z.object({
   body: z.string().min(1),
   cadenceDay: z.number().int().min(1).max(5).optional(),
   tag: z.string().max(64).optional(),
+  manual: z.boolean().optional(),
 });
 
 export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
@@ -15,12 +16,21 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => sendSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { sendAndLog } = await import("./messaging.server");
+    const sender =
+      ((context.claims as any)?.user_metadata?.name as string | undefined) ||
+      ((context.claims as any)?.email as string | undefined) ||
+      "atendente";
+    const manualTitle = `Mensagem enviada por ${sender}`;
     const result = await sendAndLog({
       to: data.to,
       body: data.body,
       contactId: data.contactId,
-      title: data.cadenceDay ? `Mensagem Dia ${data.cadenceDay} enviada` : "Mensagem enviada",
-      tag: data.tag ?? (data.cadenceDay ? `cadence-day-${data.cadenceDay}` : "crm-manual"),
+      title: data.cadenceDay
+        ? `Mensagem Dia ${data.cadenceDay} enviada`
+        : data.manual
+          ? manualTitle
+          : "Mensagem enviada",
+      tag: data.tag ?? (data.cadenceDay ? `cadence-day-${data.cadenceDay}` : data.manual ? "humano-manual" : "crm-manual"),
     });
 
     if (result.ok && data.cadenceDay) {
