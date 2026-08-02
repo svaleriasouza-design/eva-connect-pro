@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
 import { supabase, formatDateTime } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Hand } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/historico")({ component: Historico });
 
@@ -23,9 +23,23 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 function Historico() {
+  const qc = useQueryClient();
   const [contactId, setContactId] = useState<string>("all");
   const [kind, setKind] = useState<string>("all");
   const [q, setQ] = useState("");
+
+  // Tempo real: novas mensagens e envios manuais aparecem sem recarregar.
+  useEffect(() => {
+    const channel = supabase
+      .channel("hist-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, () => {
+        qc.invalidateQueries({ queryKey: ["all-activities"] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["hist-contacts"],
@@ -45,6 +59,7 @@ function Historico() {
       const { data } = await query;
       return data ?? [];
     },
+    refetchInterval: 15000,
   });
 
   const filtered = useMemo(() => {
@@ -98,6 +113,12 @@ function Historico() {
               <span>{formatDateTime(a.created_at)}</span>
             </div>
             <div className="font-medium mt-1">{a.title}</div>
+            {a.send_mode === "manual" && a.sent_by_name && (
+              <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-[color:var(--gold)]">
+                <Hand className="h-3 w-3" />
+                Envio manual por {a.sent_by_name} · {formatDateTime(a.created_at)}
+              </div>
+            )}
             {a.content && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</div>}
             {a.contact && <Link to="/crm/$id" params={{ id: a.contact.id }} className="mt-1 inline-block text-xs text-primary hover:underline">— {a.contact.name}</Link>}
           </Card>
