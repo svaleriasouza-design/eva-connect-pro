@@ -10,6 +10,7 @@ import {
   Sparkles,
   CheckSquare,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,6 +25,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import evaLogo from "@/assets/eva-logo.png";
+import { useAccess } from "@/hooks/use-access";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -39,11 +41,17 @@ const items = [
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ] as const;
 
+const adminItems = [
+  { title: "Usuários", url: "/usuarios", icon: ShieldCheck },
+] as const;
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (u: string) => (u === "/" ? path === "/" : path.startsWith(u));
+  const { isAdmin, access } = useAccess();
+  const visible = isAdmin ? [...items, ...adminItems] : items;
 
   return (
     <Sidebar collapsible="icon">
@@ -63,7 +71,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {visible.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url} className="flex items-center gap-2">
@@ -76,6 +84,11 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {!collapsed && access && (
+          <div className="px-3 pb-3 text-[10px] text-sidebar-foreground/60">
+            {access.name} · {access.isAdmin ? "Administrador" : access.canSend ? "Operador" : "Leitor"}
+          </div>
+        )}
       </SidebarContent>
     </Sidebar>
   );
