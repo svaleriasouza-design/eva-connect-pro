@@ -21,6 +21,11 @@ export type SendAndLogInput = {
   /** Template aprovado a usar quando a janela de 24h estiver fechada. */
   templateName?: string;
   templateLang?: string;
+  /** Autor do envio (usuário logado) quando for envio manual. */
+  sentBy?: string | null;
+  sentByName?: string | null;
+  /** "manual" | "eva" | "cadencia" | "teste" */
+  sendMode?: string;
 };
 
 export type SendAndLogResult = {
@@ -123,6 +128,9 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
         external_id: send.messageId ?? null,
         status: send.ok ? "SENT" : "FAILED",
         status_updated_at: now,
+        sent_by: input.sentBy ?? null,
+        sent_by_name: input.sentByName ?? null,
+        send_mode: input.sendMode ?? (input.sentBy ? "manual" : "eva"),
       })
       .select("id")
       .maybeSingle();
