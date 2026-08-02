@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
+import { useAccess } from "@/hooks/use-access";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ type ActivityRow = {
   status: string | null;
   status_updated_at: string | null;
   created_at: string;
+  sent_by_name?: string | null;
+  send_mode?: string | null;
 };
 
 type ContactRow = {
@@ -63,6 +66,7 @@ export function WhatsappConversations() {
   const [sending, setSending] = useState(false);
   const sendFn = useServerFn(sendWhatsappMessageFn);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const { canSend } = useAccess();
 
   // Realtime: sempre que atividades ou contatos mudarem, invalida as queries.
   useEffect(() => {
@@ -71,6 +75,7 @@ export function WhatsappConversations() {
       .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, () => {
         qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
         qc.invalidateQueries({ queryKey: ["wa-thread"] });
+        qc.invalidateQueries({ queryKey: ["all-activities"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => {
         qc.invalidateQueries({ queryKey: ["wa-contacts"] });
@@ -99,7 +104,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at")
+        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at, sent_by_name, send_mode")
         .in("kind", ["whatsapp_out", "whatsapp_in"])
         .order("created_at", { ascending: false })
         .limit(500);
@@ -166,7 +171,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at")
+        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at, sent_by_name, send_mode")
       .eq("contact_id", selectedId as string)
         .in("kind", ["whatsapp_out", "whatsapp_in", "cadence_stop", "bot_detected", "nota"])
         .order("created_at", { ascending: true })
@@ -201,6 +206,10 @@ export function WhatsappConversations() {
 
   async function send() {
     if (!selected || !draft.trim()) return;
+    if (!canSend) {
+      toast.error("Seu acesso é somente leitura. Peça a um administrador o papel de Operador.");
+      return;
+    }
     const to = selected.whatsapp ?? selected.phone;
     if (!to) {
       toast.error("Contato sem WhatsApp/telefone.");
