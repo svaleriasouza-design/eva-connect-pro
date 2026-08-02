@@ -134,6 +134,30 @@ export async function routeInbound(params: {
   if (contact.is_bot) return "skipped:bot";
   if (contact.ai_paused) return "skipped:manual_mode";
 
+  // Pedido explícito para não receber mais mensagens: encerra com elegância.
+  const { isExplicitOptOut } = await import("./optout");
+  if (isExplicitOptOut(grouped)) {
+    const { sendAndLog } = await import("./messaging.server");
+    await db
+      .from("contacts")
+      .update({ do_not_contact: true, cadence_active: false, status: "perdido" })
+      .eq("id", params.contactId);
+    await db.from("activities").insert({
+      contact_id: params.contactId,
+      kind: "nota",
+      title: "Opt-out solicitado pelo cliente",
+      content: `O cliente pediu para não receber mais mensagens. Cadência encerrada e contato marcado como não contatar.\n\nMensagem: ${grouped.slice(0, 500)}`,
+    });
+    await sendAndLog({
+      to: params.phone,
+      body: "Tudo bem, entendo! Agradeço o retorno e não vou mais incomodar. Se um dia fizer sentido, estou à disposição.",
+      contactId: params.contactId,
+      title: "EVA — encerramento por solicitação",
+      tag: "eva-optout",
+    });
+    return "opt_out";
+  }
+
   // Detecção de robô
   const reason = detectBotHeuristic(grouped) ?? (await detectBotAI(grouped));
   if (reason) {
@@ -160,6 +184,18 @@ export async function routeInbound(params: {
         tag: `eva-scheduling-${outcome.status}`,
       });
       return `scheduling:${outcome.status}:${sent.ok ? "sent" : sent.error}`;
+    }
+    // Agenda indisponível, mas o cliente quer marcar/remarcar: nunca cai na
+    // resposta genérica (que já se despediu por engano no passado).
+    if (outcome.status === "calendar_not_connected") {
+      const sent = await sendAndLog({
+        to: params.phone,
+        body: "Combinado! Me confirma o dia e o horário que preferir que eu já reservo na agenda e te envio o convite com o link da reunião.",
+        contactId: params.contactId,
+        title: "EVA — agendamento (agenda indisponível)",
+        tag: "eva-scheduling-fallback",
+      });
+      return `scheduling:fallback:${sent.ok ? "sent" : sent.error}`;
     }
   } catch (err) {
     console.error("[inbound-router] scheduling failed", err);
