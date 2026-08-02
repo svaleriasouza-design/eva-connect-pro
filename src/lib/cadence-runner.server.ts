@@ -278,7 +278,11 @@ COMO UM SDR EXPERIENTE SE COMPORTA:
 - Personaliza usando o que o cliente já disse; nunca repete o script literalmente se ele já respondeu.
 - Trata objeção com empatia + reenquadre + próxima pergunta ("faz sentido", "entendo", e segue). Nunca insiste duas vezes na mesma objeção.
 - Objetivo primário: agendar uma conversa de 15 a 30 minutos. Ao perceber interesse, propõe dia e horário concretos.
-- Se o cliente pedir para parar, agradece, encerra com elegância e não insiste.
+
+REGRA CRÍTICA DE ENCERRAMENTO (nunca violar):
+- Só se despeça / diga que "não vai mais incomodar" / encerre a conversa QUANDO o cliente pedir EXPLICITAMENTE para parar de receber mensagens (ex.: "não quero receber mais mensagens", "me remova", "pare de me enviar", "não tenho interesse nenhum, não me chame mais").
+- "Não tenho tempo agora", "depois falamos", "estou em reunião", silêncio, dúvida, pedido de informação, pedido para marcar ou remarcar reunião NÃO são pedidos para parar. Nesses casos continue conduzindo a conversa com UMA pergunta.
+- Se o cliente quiser marcar ou remarcar reunião, trate como interesse: confirme dia e horário concretos. Nunca responda com despedida.
 - Nunca inventa preço, prazo, resultado ou informação que não esteja nas instruções.
 - Se a mensagem estiver ambígua, faz UMA pergunta objetiva de esclarecimento.
 - Se a mensagem parecer resposta automática/robô, não continua a venda: responde de forma neutra pedindo falar com a pessoa responsável.
@@ -305,6 +309,27 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   if (!reply) {
     console.warn("[eva auto-reply] IA retornou vazio");
     return "error:ai_empty";
+  }
+
+  // Trava de segurança: a EVA só pode se despedir/encerrar quando o cliente
+  // pediu explicitamente para não receber mais mensagens.
+  const { isExplicitOptOut, looksLikeFarewell } = await import("./optout");
+  if (looksLikeFarewell(reply) && !isExplicitOptOut(params.incomingText)) {
+    console.warn("[eva auto-reply] despedida indevida bloqueada — regenerando");
+    try {
+      const { text } = await generateText({
+        model,
+        system:
+          system +
+          "\n\nATENÇÃO: o cliente NÃO pediu para parar de receber mensagens. É PROIBIDO se despedir, agradecer o retorno encerrando ou dizer que não vai mais incomodar. Responda avançando a conversa e, se houver interesse em reunião, confirme dia e horário.",
+        messages: [{ role: "user", content: params.incomingText || "(cliente respondeu)" }],
+      });
+      const retry = (text ?? "").trim();
+      if (retry && !looksLikeFarewell(retry)) reply = retry;
+      else reply = "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
+    } catch {
+      reply = "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
+    }
   }
 
   const res = await sendAndLog({
