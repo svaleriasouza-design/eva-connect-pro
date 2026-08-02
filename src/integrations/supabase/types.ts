@@ -23,6 +23,9 @@ export type Database = {
           external_id: string | null
           id: string
           kind: string
+          send_mode: string | null
+          sent_by: string | null
+          sent_by_name: string | null
           status: string | null
           status_updated_at: string | null
           title: string
@@ -35,6 +38,9 @@ export type Database = {
           external_id?: string | null
           id?: string
           kind: string
+          send_mode?: string | null
+          sent_by?: string | null
+          sent_by_name?: string | null
           status?: string | null
           status_updated_at?: string | null
           title: string
@@ -47,6 +53,9 @@ export type Database = {
           external_id?: string | null
           id?: string
           kind?: string
+          send_mode?: string | null
+          sent_by?: string | null
+          sent_by_name?: string | null
           status?: string | null
           status_updated_at?: string | null
           title?: string
@@ -516,6 +525,30 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           contact_id: string | null
@@ -560,12 +593,40 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       funnel_stage_rank: { Args: { stage: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       norm_company_name: { Args: { txt: string }; Returns: string }
       recompute_company_aggregates: {
         Args: { _company_id: string }
@@ -576,7 +637,7 @@ export type Database = {
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "operador" | "leitor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -703,6 +764,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "operador", "leitor"],
+    },
   },
 } as const

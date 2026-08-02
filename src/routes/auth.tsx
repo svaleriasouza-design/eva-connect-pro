@@ -19,6 +19,7 @@ function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +43,10 @@ function AuthPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { full_name: fullName.trim() || email.split("@")[0] },
+          },
         });
         if (error) throw error;
         if (data.session) {
@@ -86,12 +90,18 @@ function AuthPage() {
             </CardTitle>
             <CardDescription>
               {mode === "login" && "Acesse sua central comercial."}
-              {mode === "signup" && "Cadastre-se para começar."}
+              {mode === "signup" && "Cadastre-se para acessar. Novos usuários entram como Leitor até um administrador liberar o envio."}
               {mode === "forgot" && "Vamos enviar um link para o seu e-mail."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submit} className="space-y-4">
+              {mode === "signup" && (
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nome completo</Label>
+                  <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} autoComplete="name" />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
                 <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

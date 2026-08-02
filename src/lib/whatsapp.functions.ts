@@ -16,10 +16,13 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => sendSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { sendAndLog } = await import("./messaging.server");
+    const { requireRole, displayNameFor } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"]);
     const sender =
-      ((context.claims as any)?.user_metadata?.name as string | undefined) ||
-      ((context.claims as any)?.email as string | undefined) ||
-      "atendente";
+      await displayNameFor(
+        context.userId,
+        ((context.claims as any)?.email as string | undefined) ?? "atendente",
+      );
     const manualTitle = `Mensagem enviada por ${sender}`;
     const result = await sendAndLog({
       to: data.to,
@@ -31,6 +34,9 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
           ? manualTitle
           : "Mensagem enviada",
       tag: data.tag ?? (data.cadenceDay ? `cadence-day-${data.cadenceDay}` : data.manual ? "humano-manual" : "crm-manual"),
+      sentBy: context.userId,
+      sentByName: sender,
+      sendMode: data.cadenceDay ? "cadencia" : "manual",
     });
 
     if (result.ok && data.cadenceDay) {
