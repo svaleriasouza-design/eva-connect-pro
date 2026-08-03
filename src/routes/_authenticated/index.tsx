@@ -127,7 +127,9 @@ function Dashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Central de Operações ✨</h1>
-          <p className="text-sm text-muted-foreground">Bom dia, Valéria. A EVA já organizou o que importa para hoje.</p>
+          <p className="text-sm text-muted-foreground">
+            {greeting}, {workspace.owner_name || workspace.name}. A EVA já organizou o que importa para hoje.
+          </p>
         </div>
 
         <Button size="lg" onClick={() => setCadenceOpen(true)} className="h-14 gap-3 bg-[color:var(--petrol)] px-6 text-base text-white shadow-lg hover:brightness-110">
