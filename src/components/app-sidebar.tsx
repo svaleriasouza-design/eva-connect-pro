@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import evaLogo from "@/assets/eva-logo.png";
 import { useAccess } from "@/hooks/use-access";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -52,6 +53,7 @@ export function AppSidebar() {
   const isActive = (u: string) => (u === "/" ? path === "/" : path.startsWith(u));
   const { isAdmin, access } = useAccess();
   const visible = isAdmin ? [...items, ...adminItems] : items;
+  const { workspace } = useWorkspace();
 
   return (
     <Sidebar collapsible="icon">
@@ -60,8 +62,8 @@ export function AppSidebar() {
           <img src={evaLogo} alt="EVA IA" width={36} height={36} className="rounded-md bg-white/10 p-1" />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-wide">EVA IA</span>
-              <span className="text-[10px] uppercase text-sidebar-foreground/60">Bio Impact</span>
+              <span className="text-sm font-semibold tracking-wide">{workspace.name}</span>
+              <span className="text-[10px] uppercase text-sidebar-foreground/60">{workspace.tagline}</span>
             </div>
           )}
         </div>

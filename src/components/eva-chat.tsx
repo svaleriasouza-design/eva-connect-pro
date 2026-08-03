@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { askEva } from "@/lib/eva.functions";
 import { toast } from "sonner";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -12,8 +13,9 @@ export function EvaChat({ context, initialOpen = false }: { context?: string; in
   const [open, setOpen] = useState(initialOpen);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const { workspace } = useWorkspace();
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: "Olá, Valéria 👋 Sou a EVA. Como posso te ajudar agora?" },
+    { role: "assistant", content: "Olá 👋 Sou a EVA. Como posso te ajudar agora?" },
   ]);
   const ask = useServerFn(askEva);
 
@@ -54,7 +56,7 @@ export function EvaChat({ context, initialOpen = false }: { context?: string; in
           <Sparkles className="h-4 w-4 text-[color:var(--gold)]" />
           <div className="leading-tight">
             <div className="text-sm font-semibold">EVA</div>
-            <div className="text-[11px] opacity-70">Assistente executiva</div>
+            <div className="text-[11px] opacity-70">{workspace.name}</div>
           </div>
         </div>
         <button onClick={() => setOpen(false)} className="rounded p-1 hover:bg-white/10">

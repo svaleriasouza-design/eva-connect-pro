@@ -7,6 +7,7 @@ import { GlobalSearch } from "@/components/global-search";
 import { Button } from "@/components/ui/button";
 import { LogOut, Search } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -22,6 +23,7 @@ function AuthedLayout() {
   const { user } = Route.useRouteContext();
   const [searchOpen, setSearchOpen] = useState(false);
   const path = useRouterState({ select: (r) => r.location.pathname });
+  const { workspace } = useWorkspace();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,7 +49,7 @@ function AuthedLayout() {
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur">
             <SidebarTrigger />
             <div className="hidden text-sm font-medium tracking-wide text-muted-foreground md:block">
-              EVA IA · Bio Impact
+              {workspace.name} · {workspace.tagline}
             </div>
             <button
               onClick={() => setSearchOpen(true)}
