@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { GoogleCalendarCard } from "@/components/google-calendar-card";
+import { WorkspaceCard } from "@/components/workspace-card";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
@@ -173,6 +174,8 @@ function Configs() {
         <h1 className="text-2xl font-semibold">Configurações</h1>
         <p className="text-sm text-muted-foreground">Credenciais e integrações.</p>
       </div>
+
+      <WorkspaceCard />
 
       <GoogleCalendarCard />
 
