@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Send } from "lucide-react";
 import { toast } from "sonner";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 export const Route = createFileRoute("/_authenticated/eva")({ component: EvaPage });
 
 type M = { role: "user" | "assistant"; content: string };
 
 function EvaPage() {
+  const { workspace } = useWorkspace();
   const [messages, setMessages] = useState<M[]>([
-    { role: "assistant", content: "Olá, Valéria. Estou pronta para te ajudar. Posso resumir conversas, criar propostas, escrever e-mails, preparar reuniões e sugerir a próxima melhor ação. O que você precisa agora?" },
+    { role: "assistant", content: "Olá. Estou pronta para te ajudar. Posso resumir conversas, criar propostas, escrever e-mails, preparar reuniões e sugerir a próxima melhor ação. O que você precisa agora?" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ function EvaPage() {
   const suggestions = [
     "Resuma minha semana comercial",
     "Escreva um e-mail de follow-up após reunião",
-    "Crie uma proposta para uma consultoria Bio Impact",
+    `Crie uma proposta para uma consultoria da ${workspace.name}`,
     "Quais clientes devo priorizar hoje?",
   ];
 
@@ -42,7 +44,7 @@ function EvaPage() {
     <div className="p-6 max-w-3xl mx-auto space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--petrol)] text-[color:var(--gold)]"><Sparkles className="h-5 w-5" /></div>
-        <div><h1 className="text-2xl font-semibold">EVA</h1><p className="text-sm text-muted-foreground">Sua assistente executiva com IA</p></div>
+        <div><h1 className="text-2xl font-semibold">EVA</h1><p className="text-sm text-muted-foreground">Assistente executiva com IA · {workspace.name}</p></div>
       </div>
 
       <div className="flex flex-wrap gap-2">
