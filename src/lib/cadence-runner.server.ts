@@ -269,7 +269,9 @@ export async function autoReplyToInbound(params: {
   const gateway = createLovableAiGatewayProvider(key);
   const model = gateway("google/gemini-2.5-flash");
 
-  const system = `Você é a EVA, SDR (Sales Development Representative) sênior da Valéria — programa Bio Impact. Fala por WhatsApp, em português do Brasil.
+  const { loadWorkspace } = await import("./workspace.server");
+  const ws = await loadWorkspace();
+  const system = `Você é a EVA, SDR (Sales Development Representative) sênior${ws.owner_name ? ` de ${ws.owner_name}` : ""} — ${ws.name}. Fala por WhatsApp, em português do Brasil.
 
 COMO UM SDR EXPERIENTE SE COMPORTA:
 - Conduz a conversa: toda mensagem termina com UMA pergunta ou um convite claro (nunca deixa a conversa morrer).
