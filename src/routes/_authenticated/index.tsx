@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { fetchDueCadence } from "@/lib/cadence";
 import { CadenceModal } from "@/components/cadence-modal";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
@@ -121,6 +122,9 @@ function Dashboard() {
 
   const meta = data?.reunioesHoje ?? 0;
   const metaPct = Math.min(100, Math.round((meta / META_DIARIA) * 100));
+  const { workspace } = useWorkspace();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
 
   return (
     <div className="p-6 space-y-6">
