@@ -14,10 +14,12 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
-        const { loadMetaConfig } = await import("@/lib/whatsapp.server");
-        const cfg = await loadMetaConfig();
-        const expected = cfg.verifyToken;
-        if (mode === "subscribe" && expected && token === expected && challenge) {
+        // O verify token identifica o workspace dono do número na Meta.
+        const { workspaceIdForVerifyToken } = await import("@/lib/workspace-scope.server");
+        const envToken = process.env.META_WA_VERIFY_TOKEN || "";
+        const wsMatch = token ? await workspaceIdForVerifyToken(token) : null;
+        const valid = Boolean(token) && (Boolean(wsMatch) || (envToken && token === envToken));
+        if (mode === "subscribe" && valid && challenge) {
           return new Response(challenge, {
             status: 200,
             headers: { "content-type": "text/plain" },
@@ -31,13 +33,6 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const rawBody = await request.text();
         const signature = request.headers.get("x-hub-signature-256");
 
-        const { verifyMetaSignature, loadMetaConfig } = await import("@/lib/whatsapp.server");
-        const cfg = await loadMetaConfig();
-        if (cfg.appSecret) {
-          const ok = await verifyMetaSignature(rawBody, signature);
-          if (!ok) return new Response("invalid signature", { status: 401 });
-        }
-
         let payload: any;
         try {
           payload = JSON.parse(rawBody);
@@ -45,7 +40,24 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           return new Response("invalid json", { status: 400 });
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        // Isolamento: o número que recebeu a mensagem define o workspace.
+        const { workspaceIdForPhoneNumberId, legacyWorkspaceId, wsDb } = await import(
+          "@/lib/workspace-scope.server"
+        );
+        const phoneNumberId =
+          payload?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? "";
+        const workspaceId =
+          (await workspaceIdForPhoneNumberId(String(phoneNumberId))) ?? (await legacyWorkspaceId());
+        if (!workspaceId) {
+          console.warn("[webhook] nenhum workspace para phone_number_id", phoneNumberId);
+          return new Response("ok", { status: 200 });
+        }
+
+        const { verifyMetaSignature } = await import("@/lib/whatsapp.server");
+        const okSig = await verifyMetaSignature(workspaceId, rawBody, signature);
+        if (signature && !okSig) return new Response("invalid signature", { status: 401 });
+
+        const supabaseAdmin = (await wsDb(workspaceId)) as any;
         const { findContactByPhone, logInbound } = await import("@/lib/messaging.server");
         const { normalizePhoneNumber } = await import("@/lib/phone");
         const now = new Date().toISOString();
@@ -86,7 +98,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 const externalId = m?.id as string | undefined;
                 console.log(`[webhook:in] from=${from} externalId=${externalId ?? "-"}`);
 
-                let contact = (await findContactByPhone(from)) as
+                let contact = (await findContactByPhone(workspaceId, from)) as
                   | { id: string; name: string; whatsapp: string | null; phone: string | null; cadence_active: boolean | null; cadence_day: number | null; funnel_stage?: string | null }
                   | null;
 
@@ -110,6 +122,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 }
 
                 await logInbound({
+                  workspaceId,
                   contactId: contact?.id ?? null,
                   from,
                   text,
@@ -136,6 +149,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   try {
                     const { routeInbound } = await import("@/lib/inbound-router.server");
                     const status = await routeInbound({
+                      workspaceId,
                       contactId: contact.id,
                       contactName: contact.name ?? "",
                       phone: from,
