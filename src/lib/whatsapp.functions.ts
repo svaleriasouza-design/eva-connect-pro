@@ -16,8 +16,10 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => sendSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { sendAndLog } = await import("./messaging.server");
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
     const { requireRole, displayNameFor } = await import("./users.server");
-    await requireRole(context.userId, ["admin", "operador"]);
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
     const sender =
       await displayNameFor(
         context.userId,
@@ -25,6 +27,7 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
       );
     const manualTitle = `Mensagem enviada por ${sender}`;
     const result = await sendAndLog({
+      workspaceId,
       to: data.to,
       body: data.body,
       contactId: data.contactId,
@@ -58,9 +61,10 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
 
 export const testMetaConfigFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { loadMetaConfig } = await import("./whatsapp.server");
-    const cfg = await loadMetaConfig();
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const cfg = await loadMetaConfig(await currentWorkspaceId(context.supabase));
     return {
       configured: Boolean(cfg.phoneNumberId && cfg.accessToken),
       hasPhoneNumberId: Boolean(cfg.phoneNumberId),

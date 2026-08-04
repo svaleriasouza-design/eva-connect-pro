@@ -23,22 +23,26 @@ export type MetaConfig = {
   defaultTemplateLang: string;
 };
 
-export async function loadMetaConfig(): Promise<MetaConfig> {
+/**
+ * Credenciais da Meta SEMPRE por workspace. Número e token nunca caem em
+ * variável de ambiente global — isso evitaria o isolamento entre empresas.
+ */
+export async function loadMetaConfig(workspaceId: string): Promise<MetaConfig> {
   let row: any = {};
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("meta_wa_settings" as any)
+    const { wsDb } = await import("./workspace-scope.server");
+    const db = await wsDb(workspaceId);
+    const { data } = await db
+      .from("meta_wa_settings")
       .select("phone_number_id, access_token, app_secret, verify_token, graph_version, default_template_name, default_template_lang")
-      .eq("id", true)
       .maybeSingle();
     row = data ?? {};
   } catch {
     row = {};
   }
   return {
-    phoneNumberId: row.phone_number_id || process.env.META_WA_PHONE_NUMBER_ID || "",
-    accessToken: row.access_token || process.env.META_WA_ACCESS_TOKEN || "",
+    phoneNumberId: row.phone_number_id || "",
+    accessToken: row.access_token || "",
     appSecret: row.app_secret || process.env.META_WA_APP_SECRET || "",
     verifyToken: row.verify_token || process.env.META_WA_VERIFY_TOKEN || "",
     graphVersion: row.graph_version || process.env.META_WA_GRAPH_VERSION || "v21.0",
@@ -47,13 +51,9 @@ export async function loadMetaConfig(): Promise<MetaConfig> {
   };
 }
 
-export async function metaConfiguredAsync() {
-  const cfg = await loadMetaConfig();
+export async function metaConfiguredAsync(workspaceId: string) {
+  const cfg = await loadMetaConfig(workspaceId);
   return Boolean(cfg.phoneNumberId && cfg.accessToken);
-}
-
-export function metaConfigured() {
-  return Boolean(process.env.META_WA_PHONE_NUMBER_ID && process.env.META_WA_ACCESS_TOKEN);
 }
 
 import { normalizePhoneNumber } from "./phone";
@@ -63,9 +63,9 @@ function normalizePhone(raw: string) {
   return normalizePhoneNumber(raw);
 }
 
-export async function sendWhatsappText(to: string, body: string): Promise<MetaSendResult> {
+export async function sendWhatsappText(workspaceId: string, to: string, body: string): Promise<MetaSendResult> {
   try {
-    const cfg = await loadMetaConfig();
+    const cfg = await loadMetaConfig(workspaceId);
     const phoneId = cfg?.phoneNumberId;
     const token = cfg?.accessToken;
     if (!phoneId || !token) {
@@ -128,12 +128,13 @@ export async function sendWhatsappText(to: string, body: string): Promise<MetaSe
 }
 
 export async function sendWhatsappTemplate(
+  workspaceId: string,
   to: string,
   templateName: string,
   languageCode = "pt_BR",
   bodyParams: string[] = [],
 ): Promise<MetaSendResult> {
-  const cfg = await loadMetaConfig();
+  const cfg = await loadMetaConfig(workspaceId);
   const phoneId = cfg.phoneNumberId;
   const token = cfg.accessToken;
   if (!phoneId || !token) {
@@ -187,9 +188,13 @@ export async function sendWhatsappTemplate(
 
 // HMAC-SHA256 do corpo bruto usando META_WA_APP_SECRET.
 // Meta envia o header `X-Hub-Signature-256: sha256=<hex>`.
-export async function verifyMetaSignature(rawBody: string, headerValue: string | null): Promise<boolean> {
-  const cfg = await loadMetaConfig();
-  const secret = cfg.appSecret;
+export async function verifyMetaSignature(
+  workspaceId: string | null,
+  rawBody: string,
+  headerValue: string | null,
+): Promise<boolean> {
+  const cfg = workspaceId ? await loadMetaConfig(workspaceId) : null;
+  const secret = cfg?.appSecret || process.env.META_WA_APP_SECRET || "";
   if (!secret) return false;
   if (!headerValue) return false;
   const provided = headerValue.startsWith("sha256=") ? headerValue.slice(7) : headerValue;

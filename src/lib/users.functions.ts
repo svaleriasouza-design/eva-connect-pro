@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+async function wid(context: any) {
+  const { currentWorkspaceId } = await import("./workspace-scope.server");
+  return currentWorkspaceId(context.supabase);
+}
+
 const roleSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum(["admin", "operador", "leitor"]),
@@ -11,9 +16,11 @@ export const getMyAccessFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { getRolesFor, displayNameFor } = await import("./users.server");
-    const roles = await getRolesFor(context.userId);
+    const workspaceId = await wid(context);
+    const roles = await getRolesFor(context.userId, workspaceId);
     const email = ((context.claims as any)?.email as string | undefined) ?? "";
     return {
+      workspaceId,
       userId: context.userId,
       email,
       name: await displayNameFor(context.userId, email),
@@ -27,8 +34,9 @@ export const listUsersFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { requireRole, listUsersWithRoles } = await import("./users.server");
-    await requireRole(context.userId, ["admin"]);
-    return listUsersWithRoles();
+    const workspaceId = await wid(context);
+    await requireRole(context.userId, ["admin"], workspaceId);
+    return listUsersWithRoles(workspaceId);
   });
 
 export const setUserRoleFn = createServerFn({ method: "POST" })
@@ -36,10 +44,11 @@ export const setUserRoleFn = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => roleSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { requireRole, setUserRole } = await import("./users.server");
-    await requireRole(context.userId, ["admin"]);
+    const workspaceId = await wid(context);
+    await requireRole(context.userId, ["admin"], workspaceId);
     if (data.userId === context.userId && data.role !== "admin") {
       throw new Error("Você não pode remover seu próprio acesso de administrador.");
     }
-    await setUserRole(data.userId, data.role);
+    await setUserRole(data.userId, data.role, workspaceId);
     return { ok: true as const };
   });

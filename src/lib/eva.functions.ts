@@ -12,13 +12,14 @@ const EvaInput = z.object({
 export const askEva = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => EvaInput.parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY não configurado");
     const gateway = createLovableAiGatewayProvider(key);
     const model = gateway("google/gemini-2.5-flash");
     const { loadWorkspace } = await import("./workspace.server");
-    const ws = await loadWorkspace();
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const ws = await loadWorkspace(await currentWorkspaceId(context.supabase));
     const owner = ws.owner_name || "a equipe";
     const system = `Você é a EVA, uma assistente executiva com IA especializada em prospecção comercial B2B, gestão de clientes e agendamento de reuniões de ${ws.name}.
 Fale em português do Brasil, de forma clara, elegante e profissional.

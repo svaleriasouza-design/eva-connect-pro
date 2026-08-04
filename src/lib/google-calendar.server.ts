@@ -8,8 +8,14 @@ export const DEFAULT_TZ = "America/Sao_Paulo";
 export const WORK_START_HOUR = 9;
 export const WORK_END_HOUR = 18;
 
-export function calendarConfigured() {
-  return Boolean(process.env.LOVABLE_API_KEY && process.env.GOOGLE_CALENDAR_API_KEY);
+/**
+ * A conexão do Google Calendar pertence à conta que autorizou o conector.
+ * Por isolamento, apenas o workspace dono da conexão pode usá-la.
+ */
+export async function calendarConfigured(workspaceId: string) {
+  if (!(process.env.LOVABLE_API_KEY && process.env.GOOGLE_CALENDAR_API_KEY)) return false;
+  const { legacyWorkspaceId } = await import("./workspace-scope.server");
+  return workspaceId === (await legacyWorkspaceId());
 }
 
 type GcalResult<T> = { ok: true; data: T } | { ok: false; error: string };

@@ -6,9 +6,9 @@
 
 const DEBOUNCE_MS = 8000;
 
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin as any;
+async function admin(wid: string) {
+  const { wsDb } = await import("./workspace-scope.server");
+  return (await wsDb(wid)) as any;
 }
 
 const BOT_PATTERNS: { re: RegExp; reason: string }[] = [
@@ -28,8 +28,8 @@ export function detectBotHeuristic(text: string): string | null {
 }
 
 /** Marca o contato como robô, encerra cadência e registra no histórico. */
-async function markAsBot(contactId: string, reason: string) {
-  const db = await admin();
+async function markAsBot(wid: string, contactId: string, reason: string) {
+  const db = await admin(wid);
   await db
     .from("contacts")
     .update({ is_bot: true, bot_reason: reason, cadence_active: false, do_not_contact: true, status: "perdido" })
@@ -77,6 +77,7 @@ export type InboundRouteResult = string;
  * execução mais recente é quem responde (debounce por contato).
  */
 export async function routeInbound(params: {
+  workspaceId: string;
   contactId: string;
   contactName: string;
   phone: string;
@@ -84,7 +85,8 @@ export async function routeInbound(params: {
   cadenceDay: number;
   inboundActivityId?: string;
 }): Promise<InboundRouteResult> {
-  const db = await admin();
+  const wid = params.workspaceId;
+  const db = await admin(wid);
   const startedAt = new Date().toISOString();
 
   await sleep(DEBOUNCE_MS);
@@ -149,6 +151,7 @@ export async function routeInbound(params: {
       content: `O cliente pediu para não receber mais mensagens. Cadência encerrada e contato marcado como não contatar.\n\nMensagem: ${grouped.slice(0, 500)}`,
     });
     await sendAndLog({
+      workspaceId: wid,
       to: params.phone,
       body: "Tudo bem, entendo! Agradeço o retorno e não vou mais incomodar. Se um dia fizer sentido, estou à disposição.",
       contactId: params.contactId,
@@ -161,7 +164,7 @@ export async function routeInbound(params: {
   // Detecção de robô
   const reason = detectBotHeuristic(grouped) ?? (await detectBotAI(grouped));
   if (reason) {
-    await markAsBot(params.contactId, reason);
+    await markAsBot(wid, params.contactId, reason);
     return `bot_detected:${reason}`;
   }
 
@@ -170,6 +173,7 @@ export async function routeInbound(params: {
     const { handleSchedulingMessage } = await import("./scheduling.server");
     const { sendAndLog } = await import("./messaging.server");
     const outcome = await handleSchedulingMessage({
+      workspaceId: wid,
       contactId: params.contactId,
       contactName: params.contactName,
       phone: params.phone,
@@ -177,6 +181,7 @@ export async function routeInbound(params: {
     });
     if (outcome.handled && outcome.reply) {
       const sent = await sendAndLog({
+        workspaceId: wid,
         to: params.phone,
         body: outcome.reply,
         contactId: params.contactId,
@@ -189,6 +194,7 @@ export async function routeInbound(params: {
     // resposta genérica (que já se despediu por engano no passado).
     if (outcome.status === "calendar_not_connected") {
       const sent = await sendAndLog({
+        workspaceId: wid,
         to: params.phone,
         body: "Combinado! Me confirma o dia e o horário que preferir que eu já reservo na agenda e te envio o convite com o link da reunião.",
         contactId: params.contactId,
@@ -203,6 +209,7 @@ export async function routeInbound(params: {
 
   const { autoReplyToInbound } = await import("./cadence-runner.server");
   const status = await autoReplyToInbound({
+    workspaceId: wid,
     contactId: params.contactId,
     contactName: params.contactName,
     to: params.phone,

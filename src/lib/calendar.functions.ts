@@ -2,11 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+async function wid(context: any) {
+  const { currentWorkspaceId } = await import("./workspace-scope.server");
+  return currentWorkspaceId(context.supabase);
+}
+
 export const getCalendarStatusFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { calendarConfigured, listCalendars } = await import("./google-calendar.server");
-    if (!calendarConfigured()) {
+    if (!(await calendarConfigured(await wid(context)))) {
       return { connected: false as const, error: "Google Calendar ainda não conectado." };
     }
     const res = await listCalendars();
@@ -37,9 +42,11 @@ export const scheduleMeetingFn = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: c } = await supabaseAdmin
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { wsDb } = await import("./workspace-scope.server");
+    const db = await wsDb(workspaceId);
+    const { data: c } = await db
       .from("contacts")
       .select("id, name, email, whatsapp, phone")
       .eq("id", data.contactId)
@@ -47,6 +54,7 @@ export const scheduleMeetingFn = createServerFn({ method: "POST" })
     if (!c) return { ok: false as const, error: "Contato não encontrado." };
     const { scheduleMeeting } = await import("./scheduling.server");
     const res = await scheduleMeeting({
+      workspaceId,
       contactId: (c as any).id,
       contactName: (c as any).name,
       phone: (c as any).whatsapp || (c as any).phone || "",
@@ -65,17 +73,17 @@ export const scheduleMeetingFn = createServerFn({ method: "POST" })
 export const rescheduleMeetingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => z.object({ contactId: z.string().uuid(), startIso: z.string().min(10) }).parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { rescheduleMeeting } = await import("./scheduling.server");
-    const res = await rescheduleMeeting(data.contactId, new Date(data.startIso).toISOString());
+    const res = await rescheduleMeeting(await wid(context), data.contactId, new Date(data.startIso).toISOString());
     return res.ok ? { ok: true as const } : { ok: false as const, error: res.error === "busy" ? "Horário ocupado." : res.error };
   });
 
 export const cancelMeetingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => z.object({ contactId: z.string().uuid(), motivo: z.string().max(300).optional() }).parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { cancelMeeting } = await import("./scheduling.server");
-    const res = await cancelMeeting(data.contactId, data.motivo ?? "Cancelado pela Valéria na Agenda da EVA");
+    const res = await cancelMeeting(await wid(context), data.contactId, data.motivo ?? "Cancelado pela Valéria na Agenda da EVA");
     return res.ok ? { ok: true as const } : { ok: false as const, error: res.error };
   });

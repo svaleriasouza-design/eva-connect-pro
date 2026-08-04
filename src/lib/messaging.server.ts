@@ -5,12 +5,16 @@
 import { normalizePhoneNumber } from "./phone";
 import { sendWhatsappText, sendWhatsappTemplate, loadMetaConfig } from "./whatsapp.server";
 
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+import { wsDb } from "./workspace-scope.server";
+
+/** Todo acesso ao banco aqui é escopado ao workspace (isolamento multi-tenant). */
+async function admin(workspaceId: string) {
+  return wsDb(workspaceId);
 }
 
 export type SendAndLogInput = {
+  /** Empresa/ambiente dono do envio. Obrigatório. */
+  workspaceId: string;
   to: string;
   body: string;
   contactId?: string | null;
@@ -42,8 +46,8 @@ export type SendAndLogResult = {
  * Janela de atendimento de 24h: existe se houve mensagem RECEBIDA do contato
  * nas últimas 24 horas. Sem contato conhecido, procura por telefone no histórico.
  */
-export async function hasOpenWindow(contactId?: string | null, phone?: string): Promise<boolean> {
-  const db = await admin();
+export async function hasOpenWindow(workspaceId: string, contactId?: string | null, phone?: string): Promise<boolean> {
+  const db = await admin(workspaceId);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   if (contactId) {
     const { data } = await db
@@ -57,8 +61,8 @@ export async function hasOpenWindow(contactId?: string | null, phone?: string): 
     return false;
   }
   if (phone) {
-    const contact = await findContactByPhone(phone);
-    if (contact?.id) return hasOpenWindow(contact.id);
+    const contact = await findContactByPhone(workspaceId, phone);
+    if (contact?.id) return hasOpenWindow(workspaceId, contact.id);
   }
   return false;
 }
@@ -68,7 +72,8 @@ export async function hasOpenWindow(contactId?: string | null, phone?: string): 
  * Deve ser a única porta de saída do sistema.
  */
 export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResult> {
-  const db = await admin();
+  const wid = input.workspaceId;
+  const db = await admin(wid);
   const to = normalizePhoneNumber(input.to ?? "");
   const tag = input.tag ?? "manual";
   console.log(`[msg:out] tag=${tag} contact=${input.contactId ?? "-"} to=${to} len=${(input.body ?? "").length}`);
@@ -79,22 +84,22 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
   }
 
   // Decide entre mensagem livre (janela 24h aberta) e template aprovado.
-  const windowOpen = input.forceTemplate ? false : await hasOpenWindow(input.contactId ?? null, to);
+  const windowOpen = input.forceTemplate ? false : await hasOpenWindow(wid, input.contactId ?? null, to);
   let usedTemplate = false;
   let send = windowOpen
-    ? await sendWhatsappText(to, input.body ?? "")
+    ? await sendWhatsappText(wid, to, input.body ?? "")
     : await (async () => {
         usedTemplate = true;
-        const cfg = await loadMetaConfig();
+        const cfg = await loadMetaConfig(wid);
         const name = input.templateName || cfg.defaultTemplateName;
         const lang = input.templateLang || cfg.defaultTemplateLang;
-        const contactName = input.contactId ? await contactFirstName(input.contactId) : "";
+        const contactName = input.contactId ? await contactFirstName(wid, input.contactId) : "";
         const attempt = async (tplName: string) => {
           // Primeiro sem parâmetros; se a Meta exigir variáveis, tenta com o nome.
-          const first = await sendWhatsappTemplate(to, tplName, lang, []);
+          const first = await sendWhatsappTemplate(wid, to, tplName, lang, []);
           if (first.ok) return first;
           const needsParams = /param|variable|132000|132012|132001/i.test(first.error ?? "");
-          if (needsParams) return sendWhatsappTemplate(to, tplName, lang, [contactName || "cliente"]);
+          if (needsParams) return sendWhatsappTemplate(wid, to, tplName, lang, [contactName || "cliente"]);
           return first;
         };
         const primary = await attempt(name);
@@ -109,7 +114,7 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
       })();
 
   if (!windowOpen && !send.ok) {
-    console.warn(`[msg:out] template "${(await loadMetaConfig()).defaultTemplateName}" falhou: ${send.error}`);
+    console.warn(`[msg:out] template "${(await loadMetaConfig(wid)).defaultTemplateName}" falhou: ${send.error}`);
   }
   const now = new Date().toISOString();
 
@@ -164,9 +169,9 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
   };
 }
 
-async function contactFirstName(contactId: string): Promise<string> {
+async function contactFirstName(workspaceId: string, contactId: string): Promise<string> {
   try {
-    const db = await admin();
+    const db = await admin(workspaceId);
     const { data } = await db.from("contacts").select("name").eq("id", contactId).maybeSingle();
     return ((data as any)?.name ?? "").trim().split(/\s+/)[0] ?? "";
   } catch {
@@ -178,9 +183,9 @@ async function contactFirstName(contactId: string): Promise<string> {
  * Localiza contato por telefone tentando várias variações do número.
  * Retorna null se não encontrar.
  */
-export async function findContactByPhone(phoneDigits: string) {
+export async function findContactByPhone(workspaceId: string, phoneDigits: string) {
   if (!phoneDigits) return null;
-  const db = await admin();
+  const db = await admin(workspaceId);
   const digits = phoneDigits.replace(/\D/g, "");
   const normalized = normalizePhoneNumber(digits);
   const withoutDdi = normalized.startsWith("55") ? normalized.slice(2) : normalized;
@@ -207,13 +212,14 @@ export async function findContactByPhone(phoneDigits: string) {
  * Grava uma mensagem recebida no histórico e retorna a activity criada.
  */
 export async function logInbound(params: {
+  workspaceId: string;
   contactId: string | null;
   from: string;
   text: string;
   externalId?: string | null;
   title?: string;
 }) {
-  const db = await admin();
+  const db = await admin(params.workspaceId);
   const now = new Date().toISOString();
   console.log(`[msg:in] contact=${params.contactId ?? "-"} from=${params.from} len=${params.text.length}`);
   const { data } = await db

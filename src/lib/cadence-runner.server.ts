@@ -4,12 +4,13 @@
 
 import { sendAndLog } from "./messaging.server";
 
-type AdminClient = Awaited<ReturnType<typeof loadAdmin>>;
-
-async function loadAdmin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+async function loadAdmin(workspaceId: string) {
+  const { wsDb } = await import("./workspace-scope.server");
+  return (await wsDb(workspaceId)) as any;
 }
+
+/** Teto de segurança por execução para a progressão automática (Dia 2+). */
+const FOLLOWUP_CAP = 2000;
 
 function firstName(name: string) {
   return (name ?? "").trim().split(/\s+/)[0] ?? "";
@@ -60,29 +61,51 @@ async function hasReplied(admin: any, contactId: string): Promise<boolean> {
 
 export type BatchResult = {
   slot: "morning" | "afternoon";
+  workspaceId: string;
   attempted: number;
   sent: number;
   failed: number;
   skipped: number;
+  newLeads: number;
+  followUps: number;
+  finished: number;
   errors: string[];
 };
 
 /**
- * Seleciona até `batchSize` contatos elegíveis e dispara a próxima mensagem
- * da cadência para cada um. Um contato é elegível quando:
- *   - cadence_active = true
- *   - do_not_contact = false
- *   - cadence_day < maior dia cadastrado
- *   - último contato anterior às 00:00 de hoje (ou nulo)
+ * Executa uma passagem da operação comercial contínua de um workspace.
+ *
+ * Dois fluxos rodam em paralelo, cada lead com sua própria linha do tempo:
+ *   1. PROSPECÇÃO — Dia 1 para novos leads ("novo_lead"), limitado pela
+ *      quantidade configurada pelo usuário (batchSize).
+ *   2. PROGRESSÃO — Dia 2..N para TODOS os contatos que ainda não responderam,
+ *      sem limite fixo (apenas um teto técnico de segurança).
+ *
+ * Quem responde sai da cadência na hora (webhook/roteador) e passa a ser
+ * conduzido pela IA — sem interferir na evolução dos demais leads.
+ * Quem completa o último dia sem responder é encerrado e marcado para
+ * reativação em 60 dias.
  */
 export async function runCadenceBatch(
+  workspaceId: string,
   slot: "morning" | "afternoon",
   batchSize: number,
 ): Promise<BatchResult> {
-  const admin = await loadAdmin();
-  const result: BatchResult = { slot, attempted: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
+  const admin = await loadAdmin(workspaceId);
+  const result: BatchResult = {
+    slot,
+    workspaceId,
+    attempted: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    newLeads: 0,
+    followUps: 0,
+    finished: 0,
+    errors: [],
+  };
 
-  const { data: steps } = await (admin as any)
+  const { data: steps } = await admin
     .from("cadence_steps")
     .select("day, script, active")
     .eq("active", true)
@@ -102,30 +125,26 @@ export async function runCadenceBatch(
       .eq("cadence_active", true)
       .eq("do_not_contact", false)
       .eq("is_bot", false)
+      .eq("ai_paused", false)
       .lt("cadence_day", maxDay)
       .or(`last_contact_at.is.null,last_contact_at.lt.${todayIso}`);
 
-  // PRIORIDADE 1 — continuação (Dia 2+): quem já recebeu Dia 1 e ainda não respondeu.
+  // FLUXO 1 — progressão automática (Dia 2..N): todos que não responderam.
   const { data: followUpsRaw } = await eligible(
-    (admin as any).from("contacts").select(select).gte("cadence_day", 1),
+    admin.from("contacts").select(select).gte("cadence_day", 1),
   )
-    .order("cadence_day", { ascending: true })
+    .order("cadence_day", { ascending: false })
     .order("last_contact_at", { ascending: true, nullsFirst: true })
-    .limit(batchSize);
+    .limit(FOLLOWUP_CAP);
   const followUps = (followUpsRaw ?? []) as any[];
 
-  // PRIORIDADE 2 — novos leads (Dia 1), somente no estágio "novo_lead",
-  // preenchendo apenas a capacidade restante do lote.
-  const remaining = Math.max(0, batchSize - followUps.length);
-  let newLeads: any[] = [];
-  if (remaining > 0) {
-    const { data: newRaw } = await eligible(
-      (admin as any).from("contacts").select(select).eq("cadence_day", 0).eq("funnel_stage", "novo_lead"),
-    )
-      .order("last_contact_at", { ascending: true, nullsFirst: true })
-      .limit(remaining);
-    newLeads = (newRaw ?? []) as any[];
-  }
+  // FLUXO 2 — prospecção (Dia 1), limitada pela configuração do usuário.
+  const { data: newRaw } = await eligible(
+    admin.from("contacts").select(select).eq("cadence_day", 0).eq("funnel_stage", "novo_lead"),
+  )
+    .order("last_contact_at", { ascending: true, nullsFirst: true })
+    .limit(Math.max(0, batchSize));
+  const newLeads = (newRaw ?? []) as any[];
 
   const list = [...followUps, ...newLeads];
   result.attempted = list.length;
@@ -139,23 +158,23 @@ export async function runCadenceBatch(
     }
 
     // Revalidação antes de cada disparo: respondeu? robô? ainda em cadência?
-    const { data: fresh } = await (admin as any)
+    const { data: fresh } = await admin
       .from("contacts")
-      .select("cadence_active, cadence_day, do_not_contact, is_bot")
+      .select("cadence_active, cadence_day, do_not_contact, is_bot, ai_paused")
       .eq("id", c.id)
       .maybeSingle();
     const f = (fresh ?? {}) as any;
-    if (!f.cadence_active || f.do_not_contact || f.is_bot) {
+    if (!f.cadence_active || f.do_not_contact || f.is_bot || f.ai_paused) {
       result.skipped++;
       continue;
     }
-    if (await hasReplied(admin as any, c.id)) {
-      await (admin as any).from("contacts").update({ cadence_active: false }).eq("id", c.id);
+    if (await hasReplied(admin, c.id)) {
+      await admin.from("contacts").update({ cadence_active: false }).eq("id", c.id);
       result.skipped++;
       continue;
     }
 
-    const nextDay = (c.cadence_day ?? 0) + 1;
+    const nextDay = (f.cadence_day ?? c.cadence_day ?? 0) + 1;
     const tpl = scriptByDay.get(nextDay);
     if (!tpl) {
       result.skipped++;
@@ -164,6 +183,7 @@ export async function runCadenceBatch(
     const body = renderScript(tpl, { nome: firstName(c.name ?? "") });
 
     const send = await sendAndLog({
+      workspaceId,
       to,
       body,
       contactId: c.id,
@@ -173,16 +193,15 @@ export async function runCadenceBatch(
     });
     if (send.ok) {
       result.sent++;
-      await (admin as any)
+      if (nextDay === 1) result.newLeads++;
+      else result.followUps++;
+      await admin
         .from("contacts")
-        .update({
-          cadence_day: nextDay,
-          last_contact_at: nowIso,
-          cadence_active: true,
-        })
+        .update({ cadence_day: nextDay, last_contact_at: nowIso, cadence_active: true })
         .eq("id", c.id);
       if (nextDay >= maxDay) {
-        await endCadence(admin as any, c.id, `Dia ${nextDay} enviado e sem resposta — reativar em 60 dias.`);
+        result.finished++;
+        await endCadence(admin, c.id, `Dia ${nextDay} enviado e sem resposta — reativar em 60 dias.`);
       }
     } else {
       result.failed++;
@@ -191,7 +210,7 @@ export async function runCadenceBatch(
   }
 
   const stampField = slot === "morning" ? "last_morning_run_at" : "last_afternoon_run_at";
-  await (admin as any).from("cadence_settings").update({ [stampField]: nowIso }).eq("id", true);
+  await admin.from("cadence_settings").update({ [stampField]: nowIso });
 
   return result;
 }
@@ -201,18 +220,18 @@ export async function runCadenceBatch(
  * Chamado pelo webhook quando um contato ativo responde.
  */
 export async function autoReplyToInbound(params: {
+  workspaceId: string;
   contactId: string;
   contactName: string;
   to: string;
   incomingText: string;
   currentDay: number;
 }): Promise<string> {
-  const admin = await loadAdmin();
+  const admin = await loadAdmin(params.workspaceId);
 
   const { data: settingsRow } = await (admin as any)
     .from("cadence_settings")
     .select("auto_reply_enabled")
-    .eq("id", true)
     .maybeSingle();
   const settings = (settingsRow ?? {}) as { auto_reply_enabled?: boolean };
   if (!settings.auto_reply_enabled) {
@@ -270,7 +289,7 @@ export async function autoReplyToInbound(params: {
   const model = gateway("google/gemini-2.5-flash");
 
   const { loadWorkspace } = await import("./workspace.server");
-  const ws = await loadWorkspace();
+  const ws = await loadWorkspace(params.workspaceId);
   const system = `Você é a EVA, SDR (Sales Development Representative) sênior${ws.owner_name ? ` de ${ws.owner_name}` : ""} — ${ws.name}. Fala por WhatsApp, em português do Brasil.
 
 COMO UM SDR EXPERIENTE SE COMPORTA:
@@ -335,6 +354,7 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   }
 
   const res = await sendAndLog({
+    workspaceId: params.workspaceId,
     to: params.to,
     body: reply,
     contactId: params.contactId,
@@ -343,8 +363,4 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   });
   console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
   return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;
-}
-
-export async function _adminForTests(): Promise<AdminClient> {
-  return loadAdmin();
 }
