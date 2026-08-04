@@ -23,11 +23,7 @@ export const getCadenceConfigFn = createServerFn({ method: "GET" })
       .from("cadence_steps")
       .select("day, script, ai_instructions, active")
       .order("day", { ascending: true });
-    const { data: settings } = await sb
-      .from("cadence_settings")
-      .select("*")
-      .eq("id", true)
-      .maybeSingle();
+    const { data: settings } = await sb.from("cadence_settings").select("*").maybeSingle();
     return {
       steps: (steps ?? []) as CadenceStep[],
       settings: (settings ?? null) as CadenceSettings | null,
@@ -46,11 +42,13 @@ export const saveCadenceStepFn = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => stepSchema.parse(raw))
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspace_id = await currentWorkspaceId(context.supabase);
     const { error } = await sb
       .from("cadence_steps")
       .upsert(
-        { day: data.day, script: data.script, ai_instructions: data.ai_instructions, active: data.active },
-        { onConflict: "day" },
+        { workspace_id, day: data.day, script: data.script, ai_instructions: data.ai_instructions, active: data.active },
+        { onConflict: "workspace_id,day" },
       );
     if (error) throw new Error(error.message);
     return { ok: true as const };
@@ -81,10 +79,12 @@ export const saveCadenceSettingsFn = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => settingsSchema.parse(raw))
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
     const { error } = await sb
       .from("cadence_settings")
       .update({ ...data })
-      .eq("id", true);
+      .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -162,14 +162,12 @@ export const runCadenceNowFn = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     let size = data.batchSize;
     if (!size) {
-      const { data: settings } = await sb
-        .from("cadence_settings")
-        .select("batch_size")
-        .eq("id", true)
-        .maybeSingle();
+      const { data: settings } = await sb.from("cadence_settings").select("batch_size").maybeSingle();
       size = (settings as any)?.batch_size ?? 10;
     }
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
     const { runCadenceBatch } = await import("./cadence-runner.server");
-    const result = await runCadenceBatch(data.slot, size!);
+    const result = await runCadenceBatch(workspaceId, data.slot, size!);
     return result;
   });

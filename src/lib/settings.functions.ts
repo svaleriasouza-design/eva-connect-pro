@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+async function wid(context: any) {
+  const { currentWorkspaceId } = await import("./workspace-scope.server");
+  return currentWorkspaceId(context.supabase);
+}
+
 const saveSchema = z.object({
   phone_number_id: z.string().trim().max(64).optional().nullable(),
   access_token: z.string().trim().max(4096).optional().nullable(),
@@ -19,14 +24,14 @@ const testSendSchema = z.object({
 
 export const getMetaSettingsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("meta_wa_settings" as any)
+  .handler(async ({ context }) => {
+    const { wsDb } = await import("./workspace-scope.server");
+    const db = await wsDb(await wid(context));
+    const { data } = await db
+      .from("meta_wa_settings")
       .select(
         "phone_number_id, access_token, app_secret, verify_token, graph_version, default_template_name, default_template_lang, updated_at",
       )
-      .eq("id", true)
       .maybeSingle();
     const row = (data ?? {}) as any;
     return {
@@ -44,7 +49,10 @@ export const getMetaSettingsFn = createServerFn({ method: "GET" })
 export const saveMetaSettingsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => saveSchema.parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin"], workspaceId);
     const payload = {
       id: true,
       phone_number_id: data.phone_number_id || null,
@@ -55,19 +63,18 @@ export const saveMetaSettingsFn = createServerFn({ method: "POST" })
       default_template_name: data.default_template_name || "hello_world",
       default_template_lang: data.default_template_lang || "en_US",
     };
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
-      .from("meta_wa_settings" as any)
-      .upsert(payload, { onConflict: "id" });
+    const { wsDb } = await import("./workspace-scope.server");
+    const db = await wsDb(workspaceId);
+    const { error } = await db.from("meta_wa_settings").upsert(payload, { onConflict: "workspace_id" });
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
 
 export const testMetaConnectionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { loadMetaConfig } = await import("./whatsapp.server");
-    const cfg = await loadMetaConfig();
+    const cfg = await loadMetaConfig(await wid(context));
     if (!cfg.phoneNumberId || !cfg.accessToken) {
       return { ok: false as const, error: "Preencha o ID do Número e o Token de Acesso antes de testar." };
     }
@@ -98,15 +105,17 @@ export const sendTestMessageFn = createServerFn({ method: "POST" })
     }
     return parsed.data;
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     try {
+      const workspaceId = await wid(context);
       if ((data as any)?.__invalid) {
         return { ok: false as const, error: (data as any).error as string };
       }
       const payload = data as { to: string; body: string };
       const { sendAndLog, findContactByPhone } = await import("./messaging.server");
-      const contact = await findContactByPhone(payload?.to ?? "");
+      const contact = await findContactByPhone(workspaceId, payload?.to ?? "");
       const res = await sendAndLog({
+        workspaceId,
         to: payload?.to ?? "",
         body: payload?.body ?? "",
         contactId: contact?.id ?? null,
