@@ -14,9 +14,11 @@ import {
   DEFAULT_TZ,
 } from "./google-calendar.server";
 
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin as any;
+import { wsDb } from "./workspace-scope.server";
+
+/** Banco sempre escopado ao workspace do contato (isolamento multi-tenant). */
+async function admin(wid: string) {
+  return (await wsDb(wid)) as any;
 }
 
 export type SchedulingOutcome = { handled: boolean; reply?: string; status: string };
@@ -88,8 +90,8 @@ Regras:
   }
 }
 
-async function recentHistory(contactId: string) {
-  const db = await admin();
+async function recentHistory(wid: string, contactId: string) {
+  const db = await admin(wid);
   const { data } = await db
     .from("activities")
     .select("kind, content, created_at")
@@ -103,39 +105,39 @@ async function recentHistory(contactId: string) {
     .join("\n");
 }
 
-async function logActivity(contactId: string, title: string, content: string, kind = "reuniao") {
-  const db = await admin();
+async function logActivity(wid: string, contactId: string, title: string, content: string, kind = "reuniao") {
+  const db = await admin(wid);
   await db.from("activities").insert({ contact_id: contactId, kind, title, content, status: "OK", status_updated_at: new Date().toISOString() });
 }
 
-async function setStage(contactId: string, stage: string, motivo: string) {
-  const db = await admin();
+async function setStage(wid: string, contactId: string, stage: string, motivo: string) {
+  const db = await admin(wid);
   const { data: before } = await db.from("contacts").select("funnel_stage").eq("id", contactId).maybeSingle();
   if ((before as any)?.funnel_stage === stage) return;
   await db.from("contacts").update({ funnel_stage: stage, updated_at: new Date().toISOString() }).eq("id", contactId);
-  await logActivity(contactId, `Funil: ${(before as any)?.funnel_stage ?? "—"} → ${stage}`, motivo, "nota");
+  await logActivity(wid, contactId, `Funil: ${(before as any)?.funnel_stage ?? "—"} → ${stage}`, motivo, "nota");
 }
 
-async function getState(contactId: string) {
-  const db = await admin();
+async function getState(wid: string, contactId: string) {
+  const db = await admin(wid);
   const { data } = await db.from("eva_scheduling_state").select("*").eq("contact_id", contactId).maybeSingle();
   return (data ?? null) as any;
 }
 
-async function setState(contactId: string, patch: Record<string, unknown>) {
-  const db = await admin();
+async function setState(wid: string, contactId: string, patch: Record<string, unknown>) {
+  const db = await admin(wid);
   await db
     .from("eva_scheduling_state")
     .upsert({ contact_id: contactId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "contact_id" });
 }
 
-async function clearState(contactId: string) {
-  const db = await admin();
+async function clearState(wid: string, contactId: string) {
+  const db = await admin(wid);
   await db.from("eva_scheduling_state").delete().eq("contact_id", contactId);
 }
 
-async function upcomingEvent(contactId: string) {
-  const db = await admin();
+async function upcomingEvent(wid: string, contactId: string) {
+  const db = await admin(wid);
   const { data } = await db
     .from("events")
     .select("*")
@@ -154,6 +156,7 @@ function slotsPhrase(slots: string[]) {
 
 /** Cria de fato o evento (Google + Agenda + CRM + Histórico). */
 export async function scheduleMeeting(params: {
+  workspaceId: string;
   contactId: string;
   contactName: string;
   phone: string;
@@ -163,7 +166,8 @@ export async function scheduleMeeting(params: {
   email?: string | null;
   title?: string;
 }): Promise<{ ok: boolean; error?: string; meetLink?: string; eventId?: string }> {
-  const db = await admin();
+  const wid = params.workspaceId;
+  const db = await admin(wid);
   const duration = params.durationMinutes ?? 30;
   const free = await isSlotFree(params.startIso, duration);
   if (!free.ok) return { ok: false, error: free.error };
@@ -203,6 +207,7 @@ export async function scheduleMeeting(params: {
 
   const f = formatBr(params.startIso);
   await logActivity(
+    wid,
     params.contactId,
     "Reunião agendada pela EVA",
     `${f.completo} · ${duration} min${created.data.meetLink ? `\nMeet: ${created.data.meetLink}` : ""}${params.email ? `\nConvite enviado para ${params.email}` : ""}`,
@@ -211,27 +216,27 @@ export async function scheduleMeeting(params: {
     .from("contacts")
     .update({ next_action: "Reunião agendada", next_action_at: params.startIso })
     .eq("id", params.contactId);
-  await setStage(params.contactId, "reuniao_agendada", "Reunião confirmada no Google Calendar.");
-  await clearState(params.contactId);
+  await setStage(wid, params.contactId, "reuniao_agendada", "Reunião confirmada no Google Calendar.");
+  await clearState(wid, params.contactId);
 
   return { ok: true, meetLink: created.data.meetLink, eventId: (ev as any)?.id };
 }
 
-export async function cancelMeeting(contactId: string, motivo = "Cancelado pelo cliente via WhatsApp") {
-  const db = await admin();
-  const ev = await upcomingEvent(contactId);
+export async function cancelMeeting(wid: string, contactId: string, motivo = "Cancelado pelo cliente via WhatsApp") {
+  const db = await admin(wid);
+  const ev = await upcomingEvent(wid, contactId);
   if (!ev) return { ok: false, error: "no_event" };
   if (ev.google_event_id) await deleteEvent(ev.google_event_id);
   await db.from("events").update({ status: "cancelado" }).eq("id", ev.id);
-  await logActivity(contactId, "Reunião cancelada", `${formatBr(ev.starts_at).completo}\n${motivo}`);
+  await logActivity(wid, contactId, "Reunião cancelada", `${formatBr(ev.starts_at).completo}\n${motivo}`);
   await db.from("contacts").update({ next_action: null, next_action_at: null }).eq("id", contactId);
-  await setStage(contactId, "qualificado", "Reunião cancelada — lead volta para acompanhamento.");
+  await setStage(wid, contactId, "qualificado", "Reunião cancelada — lead volta para acompanhamento.");
   return { ok: true, event: ev };
 }
 
-export async function rescheduleMeeting(contactId: string, startIso: string) {
-  const db = await admin();
-  const ev = await upcomingEvent(contactId);
+export async function rescheduleMeeting(wid: string, contactId: string, startIso: string) {
+  const db = await admin(wid);
+  const ev = await upcomingEvent(wid, contactId);
   if (!ev) return { ok: false, error: "no_event" };
   const duration = ev.duration_minutes ?? 30;
   const free = await isSlotFree(startIso, duration);
@@ -251,9 +256,9 @@ export async function rescheduleMeeting(contactId: string, startIso: string) {
       reminder_1h_sent_at: null,
     })
     .eq("id", ev.id);
-  await logActivity(contactId, "Reunião remarcada", `De ${formatBr(ev.starts_at).completo}\nPara ${formatBr(startIso).completo}`);
+  await logActivity(wid, contactId, "Reunião remarcada", `De ${formatBr(ev.starts_at).completo}\nPara ${formatBr(startIso).completo}`);
   await db.from("contacts").update({ next_action: "Reunião agendada", next_action_at: startIso }).eq("id", contactId);
-  await setStage(contactId, "reuniao_agendada", "Reunião remarcada.");
+  await setStage(wid, contactId, "reuniao_agendada", "Reunião remarcada.");
   return { ok: true, event: { ...ev, starts_at: startIso } };
 }
 
@@ -262,17 +267,19 @@ export async function rescheduleMeeting(contactId: string, startIso: string) {
  * tratou a mensagem como agendamento (nesse caso a resposta já está pronta).
  */
 export async function handleSchedulingMessage(params: {
+  workspaceId: string;
   contactId: string;
   contactName: string;
   phone: string;
   text: string;
 }): Promise<SchedulingOutcome> {
-  const db = await admin();
+  const wid = params.workspaceId;
+  const db = await admin(wid);
   const { data: contactRow } = await db.from("contacts").select("email, name").eq("id", params.contactId).maybeSingle();
   const contact = (contactRow ?? {}) as { email?: string | null; name?: string | null };
-  const state = await getState(params.contactId);
+  const state = await getState(wid, params.contactId);
 
-  const history = await recentHistory(params.contactId);
+  const history = await recentHistory(wid, params.contactId);
   const intent = await detectIntent(
     params.text,
     history,
@@ -284,9 +291,10 @@ export async function handleSchedulingMessage(params: {
   // Se estava esperando e-mail e o cliente mandou um, fecha o agendamento.
   if (state?.awaiting_email && intent.email) {
     await db.from("contacts").update({ email: intent.email }).eq("id", params.contactId);
-    await logActivity(params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
+    await logActivity(wid, params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
     const startIso = state.pending_start as string;
     const res = await scheduleMeeting({
+      workspaceId: wid,
       contactId: params.contactId,
       contactName: contact.name ?? params.contactName,
       phone: params.phone,
@@ -301,18 +309,18 @@ export async function handleSchedulingMessage(params: {
 
   if (intent.intent === "nenhum") return { handled: false, status: "no_intent" };
 
-  if (!calendarConfigured()) {
+  if (!(await calendarConfigured(wid))) {
     return { handled: false, status: "calendar_not_connected" };
   }
 
   if (intent.email && !contact.email) {
     await db.from("contacts").update({ email: intent.email }).eq("id", params.contactId);
     contact.email = intent.email;
-    await logActivity(params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
+    await logActivity(wid, params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
   }
 
   if (intent.intent === "cancelar") {
-    const res = await cancelMeeting(params.contactId);
+    const res = await cancelMeeting(wid, params.contactId);
     if (!res.ok) return { handled: true, reply: "Não localizei nenhuma reunião ativa no seu nome. Quer que eu agende uma?", status: "cancel_no_event" };
     return { handled: true, reply: "Prontinho, sua reunião foi cancelada e removida da agenda. Se quiser remarcar, é só me dizer o melhor dia e horário.", status: "cancelled" };
   }
@@ -324,8 +332,8 @@ export async function handleSchedulingMessage(params: {
     if (!slots.ok || slots.data.length === 0) {
       return { handled: true, reply: "Que ótimo! Me diga o melhor dia e horário para você que eu confirmo na agenda.", status: "ask_time" };
     }
-    await setState(params.contactId, { suggested: slots.data, duration_minutes: duration, online: intent.online !== false, awaiting_email: false, pending_start: null });
-    await setStage(params.contactId, "qualificado", "Lead demonstrou interesse em agendar reunião.");
+    await setState(wid, params.contactId, { suggested: slots.data, duration_minutes: duration, online: intent.online !== false, awaiting_email: false, pending_start: null });
+    await setStage(wid, params.contactId, "qualificado", "Lead demonstrou interesse em agendar reunião.");
     return { handled: true, reply: `Perfeito! Tenho estes horários livres: ${slotsPhrase(slots.data)}. Qual fica melhor para você?`, status: "suggested" };
   }
 
@@ -337,9 +345,9 @@ export async function handleSchedulingMessage(params: {
       const phrase = slots.ok && slots.data.length ? ` Tenho livre: ${slotsPhrase(slots.data)}.` : "";
       return { handled: true, reply: `Claro, podemos remarcar.${phrase} Qual horário prefere?`, status: "reschedule_ask" };
     }
-    const res = await rescheduleMeeting(params.contactId, startIso);
+    const res = await rescheduleMeeting(wid, params.contactId, startIso);
     if (!res.ok && res.error === "no_event") {
-      return await scheduleFlow({ ...params, contact, startIso, duration, online: intent.online !== false });
+      return await scheduleFlow({ ...params, workspaceId: wid, contact, startIso, duration, online: intent.online !== false });
     }
     if (!res.ok) return { handled: true, reply: await busyReply(startIso, duration, res.error), status: `reschedule_failed:${res.error}` };
     const f = formatBr(startIso);
@@ -351,10 +359,11 @@ export async function handleSchedulingMessage(params: {
   }
 
   if (!startIso) return { handled: false, status: "no_datetime" };
-  return await scheduleFlow({ ...params, contact, startIso, duration, online: intent.online !== false });
+  return await scheduleFlow({ ...params, workspaceId: wid, contact, startIso, duration, online: intent.online !== false });
 }
 
 async function scheduleFlow(args: {
+  workspaceId: string;
   contactId: string;
   contactName: string;
   phone: string;
@@ -368,18 +377,19 @@ async function scheduleFlow(args: {
   if (!free.data) {
     const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
     const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
-    await setState(args.contactId, { suggested: slots.ok ? slots.data : null, duration_minutes: args.duration, online: args.online, awaiting_email: false, pending_start: null });
+    await setState(args.workspaceId, args.contactId, { suggested: slots.ok ? slots.data : null, duration_minutes: args.duration, online: args.online, awaiting_email: false, pending_start: null });
     return { handled: true, reply: `Neste horário já existe um compromisso. ${phrase}`, status: "busy" };
   }
 
   if (!args.contact.email) {
-    await setState(args.contactId, { pending_start: args.startIso, duration_minutes: args.duration, online: args.online, awaiting_email: true });
+    await setState(args.workspaceId, args.contactId, { pending_start: args.startIso, duration_minutes: args.duration, online: args.online, awaiting_email: true });
     const f = formatBr(args.startIso);
-    await setStage(args.contactId, "qualificado", "Horário combinado — aguardando e-mail para enviar o convite.");
+    await setStage(args.workspaceId, args.contactId, "qualificado", "Horário combinado — aguardando e-mail para enviar o convite.");
     return { handled: true, reply: `Consegui reservar ${f.data} às ${f.hora}. Qual é o seu melhor e-mail para eu enviar o convite com o link da reunião?`, status: "awaiting_email" };
   }
 
   const res = await scheduleMeeting({
+    workspaceId: args.workspaceId,
     contactId: args.contactId,
     contactName: args.contact.name ?? args.contactName,
     phone: args.phone,
@@ -417,8 +427,8 @@ function confirmText(startIso: string, duration: number, meetLink?: string, emai
 }
 
 /** Lembretes automáticos: 24h antes e 1h antes. Chamado pelo cron. */
-export async function runMeetingReminders(): Promise<{ sent24: number; sent1: number }> {
-  const db = await admin();
+export async function runMeetingReminders(wid: string): Promise<{ sent24: number; sent1: number }> {
+  const db = await admin(wid);
   const { sendAndLog } = await import("./messaging.server");
   const now = Date.now();
   const { data: events } = await db
@@ -442,6 +452,7 @@ export async function runMeetingReminders(): Promise<{ sent24: number; sent1: nu
 
     if (diffMin <= 24 * 60 && diffMin > 23 * 60 && !ev.reminder_24h_sent_at) {
       await sendAndLog({
+        workspaceId: wid,
         to,
         contactId: ev.contact_id,
         title: "Lembrete 24h da reunião",
@@ -452,6 +463,7 @@ export async function runMeetingReminders(): Promise<{ sent24: number; sent1: nu
       sent24++;
     } else if (diffMin <= 60 && diffMin > 0 && !ev.reminder_1h_sent_at) {
       await sendAndLog({
+        workspaceId: wid,
         to,
         contactId: ev.contact_id,
         title: "Lembrete 1h da reunião",
