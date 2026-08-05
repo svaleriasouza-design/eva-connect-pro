@@ -398,10 +398,48 @@ export function CrmList() {
         </Select>
       </div>
 
+      {selected.length > 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-sm">
+            <strong>{selected.length.toLocaleString("pt-BR")}</strong> contato(s) selecionado(s)
+            {!isAdmin && <span className="ml-2 text-muted-foreground">— somente administradores podem excluir.</span>}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected([])}>Limpar seleção</Button>
+            {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Excluir selecionados
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir {selected.length} contato(s)?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Eles saem do CRM, funil e cadências na hora. Os dados ficam guardados no banco, sem aparecer nas
+                      telas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={removeSelected}>Excluir</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
+              <th className="p-3 w-8">
+                <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Selecionar todos" />
+              </th>
               <th className="p-3">Nome</th>
               <th className="p-3">Empresa</th>
               <th className="p-3">WhatsApp</th>
@@ -414,11 +452,18 @@ export function CrmList() {
           <tbody>
             {isLoading && filtered.length === 0 && Array.from({ length: 12 }).map((_, i) => (
               <tr key={i} className="border-t">
-                {Array.from({ length: 7 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
+                {Array.from({ length: 8 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
               </tr>
             ))}
             {filtered.map((c: any) => (
               <tr key={c.id} className="border-t hover:bg-muted/30">
+                <td className="p-3">
+                  <Checkbox
+                    checked={selected.includes(c.id)}
+                    onCheckedChange={() => toggleOne(c.id)}
+                    aria-label={`Selecionar ${c.name}`}
+                  />
+                </td>
                 <td className="p-3 font-medium"><Link to="/crm/$id" params={{ id: c.id }} className="hover:text-primary">{c.name}</Link></td>
                 <td className="p-3 text-muted-foreground">{c.company_name ?? "—"}</td>
                 <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
@@ -431,7 +476,7 @@ export function CrmList() {
               </tr>
             ))}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
+              <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
             )}
           </tbody>
         </table>
