@@ -7,10 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Check, X, Eye, EyeOff } from "lucide-react";
+import { passwordChecks, isPasswordStrong, translateAuthError } from "@/lib/auth-messages";
 import evaLogo from "@/assets/eva-logo.png";
 
-export const Route = createFileRoute("/auth")({ component: AuthPage });
+export const Route = createFileRoute("/auth")({
+  ssr: false,
+  component: AuthPage,
+  head: () => ({
+    meta: [
+      { title: "Entrar ou criar conta · EVA IA" },
+      { name: "description", content: "Acesse a central comercial EVA IA ou crie sua conta para começar a prospectar com a assistente executiva." },
+      { property: "og:title", content: "Entrar ou criar conta · EVA IA" },
+      { property: "og:description", content: "Acesse a central comercial EVA IA ou crie sua conta em poucos segundos." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+});
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -22,6 +36,11 @@ function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const checks = passwordChecks(password);
+  const strongEnough = isPasswordStrong(password);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -31,6 +50,11 @@ function AuthPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "signup" && !strongEnough) {
+      setPasswordTouched(true);
+      toast.error("A senha ainda não atende a todos os requisitos abaixo.");
+      return;
+    }
     setLoading(true);
     try {
       if (mode === "login") {
@@ -64,8 +88,8 @@ function AuthPage() {
         toast.success("Enviamos um e-mail com o link para redefinir sua senha.");
         setMode("login");
       }
-    } catch (err: any) {
-      toast.error(err?.message ?? "Não foi possível continuar");
+    } catch (err) {
+      toast.error(translateAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -99,17 +123,96 @@ function AuthPage() {
               {mode === "signup" && (
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Nome completo</Label>
-                  <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={120} autoComplete="name" />
+                  <Input
+                    id="fullName"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    maxLength={120}
+                    autoComplete="name"
+                    placeholder="Como você quer ser chamada"
+                    onInvalid={(e) => e.currentTarget.setCustomValidity("Informe seu nome completo.")}
+                    onInput={(e) => e.currentTarget.setCustomValidity("")}
+                  />
                 </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="voce@empresa.com.br"
+                  onInvalid={(e) =>
+                    e.currentTarget.setCustomValidity(
+                      e.currentTarget.value ? "Digite um e-mail válido, como voce@empresa.com.br." : "Informe seu e-mail.",
+                    )
+                  }
+                  onInput={(e) => e.currentTarget.setCustomValidity("")}
+                />
               </div>
               {mode !== "forgot" && (
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
-                  <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      className="pr-10"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setPasswordTouched(true);
+                      }}
+                      autoComplete={mode === "login" ? "current-password" : "new-password"}
+                      onInvalid={(e) => e.currentTarget.setCustomValidity("Informe sua senha.")}
+                      onInput={(e) => e.currentTarget.setCustomValidity("")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  {mode === "signup" && (
+                    <div className="rounded-lg border bg-muted/40 p-3">
+                      <div className="mb-2 text-xs font-medium">Sua senha deve conter:</div>
+                      <ul className="space-y-1">
+                        {checks.map((c) => {
+                          const state = !passwordTouched ? "idle" : c.ok ? "ok" : "missing";
+                          return (
+                            <li
+                              key={c.id}
+                              className={
+                                "flex items-center gap-2 text-xs " +
+                                (state === "ok" ? "text-emerald-600" : state === "missing" ? "text-destructive" : "text-muted-foreground")
+                              }
+                            >
+                              {state === "ok" ? (
+                                <Check className="h-3.5 w-3.5 shrink-0" />
+                              ) : state === "missing" ? (
+                                <X className="h-3.5 w-3.5 shrink-0" />
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60" />
+                              )}
+                              <span>{c.label}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Evite senhas comuns (como “senha123” ou seu nome) — elas são recusadas por segurança.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
               {mode === "login" && (
@@ -123,7 +226,7 @@ function AuthPage() {
                   </button>
                 </div>
               )}
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || (mode === "signup" && !strongEnough)}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {mode === "login" && "Entrar"}
                 {mode === "signup" && "Criar conta"}
