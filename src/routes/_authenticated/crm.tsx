@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useServerFn } from "@tanstack/react-start";
-import { deleteContactsFn } from "@/lib/imports.functions";
+import { deleteContactsFn, deleteContactsByFilterFn } from "@/lib/imports.functions";
 import { useAccess } from "@/hooks/use-access";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
@@ -55,6 +55,7 @@ export function CrmList() {
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const deleteContacts = useServerFn(deleteContactsFn);
+  const deleteContactsByFilter = useServerFn(deleteContactsByFilterFn);
 
   const { data: batchOptions = [] } = useQuery({
     queryKey: ["import-batch-options"],
@@ -125,6 +126,26 @@ export function CrmList() {
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
       toast.success("Contatos excluídos.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function removeAllFiltered() {
+    setDeleting(true);
+    try {
+      const res: any = await deleteContactsByFilter({ data: { q, stage, batch } });
+      setSelected([]);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+        qc.invalidateQueries({ queryKey: ["companies"] }),
+        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} contato(s) excluído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
@@ -397,6 +418,36 @@ export function CrmList() {
           </SelectContent>
         </Select>
       </div>
+
+      {isAdmin && total > 0 && selected.length === 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-sm text-muted-foreground">
+            Filtro atual: <strong className="text-foreground">{total.toLocaleString("pt-BR")}</strong> contato(s). Dá
+            para excluir tudo de uma vez, sem precisar marcar página por página.
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Excluir todos do filtro ({total.toLocaleString("pt-BR")})
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir {total.toLocaleString("pt-BR")} contato(s) do filtro atual?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Todos os contatos que aparecem com os filtros atuais (busca, etapa e lote de importação) saem do CRM,
+                  funil e cadências na hora. Os dados ficam guardados no banco e podem ser recuperados.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={removeAllFiltered}>Excluir tudo</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </Card>
+      )}
 
       {selected.length > 0 && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
