@@ -333,6 +333,18 @@ export function CrmList() {
             {FUNNEL_STAGES.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={batch} onValueChange={(v) => { setPage(0); setBatch(v); }}>
+          <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as importações</SelectItem>
+            <SelectItem value="none">Cadastrados manualmente / WhatsApp</SelectItem>
+            {batchOptions.map((b: any) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.file_name} · {formatDateTime(b.created_at)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="overflow-hidden">
@@ -343,6 +355,7 @@ export function CrmList() {
               <th className="p-3">Empresa</th>
               <th className="p-3">WhatsApp</th>
               <th className="p-3">Etapa</th>
+              <th className="p-3">Importado em</th>
               <th className="p-3">Último contato</th>
               <th className="p-3"></th>
             </tr>
@@ -350,7 +363,7 @@ export function CrmList() {
           <tbody>
             {isLoading && filtered.length === 0 && Array.from({ length: 12 }).map((_, i) => (
               <tr key={i} className="border-t">
-                {Array.from({ length: 6 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
+                {Array.from({ length: 7 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
               </tr>
             ))}
             {filtered.map((c: any) => (
@@ -359,6 +372,7 @@ export function CrmList() {
                 <td className="p-3 text-muted-foreground">{c.company_name ?? "—"}</td>
                 <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
                 <td className="p-3"><Badge variant="secondary">{FUNNEL_STAGES.find(s => s.key === c.funnel_stage)?.label ?? c.funnel_stage}</Badge></td>
+                <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.created_at)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.last_contact_at)}</td>
                 <td className="p-3 text-right">
                   <WhatsAppQuickSend contactId={c.id} to={c.whatsapp} contactName={c.name} />
@@ -366,7 +380,7 @@ export function CrmList() {
               </tr>
             ))}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhum contato ainda. Crie o primeiro clicando em <b>Novo Cliente</b>.</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
             )}
           </tbody>
         </table>
