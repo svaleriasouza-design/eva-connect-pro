@@ -17,6 +17,7 @@ export function normalizeCompanyName(name: string) {
 export async function ensureCompanies(
   names: string[],
   extras: Record<string, Partial<{ city: string; phone: string; email: string }>> = {},
+  importBatchId?: string | null,
 ): Promise<Map<string, string>> {
   const uniques = Array.from(
     new Map(
@@ -41,7 +42,7 @@ export async function ensureCompanies(
       map.set(norm, id);
     } else {
       const extra = extras[norm] ?? {};
-      toInsert.push({ name: original, ...extra });
+      toInsert.push({ name: original, ...extra, import_batch_id: importBatchId ?? null });
     }
   }
 

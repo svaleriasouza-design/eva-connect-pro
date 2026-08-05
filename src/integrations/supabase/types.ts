@@ -189,6 +189,7 @@ export type Database = {
           employees: number | null
           funnel_stage: string | null
           id: string
+          import_batch_id: string | null
           last_contact_at: string | null
           last_meeting: string | null
           name: string
@@ -218,6 +219,7 @@ export type Database = {
           employees?: number | null
           funnel_stage?: string | null
           id?: string
+          import_batch_id?: string | null
           last_contact_at?: string | null
           last_meeting?: string | null
           name: string
@@ -247,6 +249,7 @@ export type Database = {
           employees?: number | null
           funnel_stage?: string | null
           id?: string
+          import_batch_id?: string | null
           last_contact_at?: string | null
           last_meeting?: string | null
           name?: string
@@ -267,6 +270,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "companies_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "companies_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -294,6 +304,7 @@ export type Database = {
           funnel_stage: string
           goal: string | null
           id: string
+          import_batch_id: string | null
           instagram: string | null
           is_bot: boolean
           last_contact_at: string | null
@@ -329,6 +340,7 @@ export type Database = {
           funnel_stage?: string
           goal?: string | null
           id?: string
+          import_batch_id?: string | null
           instagram?: string | null
           is_bot?: boolean
           last_contact_at?: string | null
@@ -364,6 +376,7 @@ export type Database = {
           funnel_stage?: string
           goal?: string | null
           id?: string
+          import_batch_id?: string | null
           instagram?: string | null
           is_bot?: boolean
           last_contact_at?: string | null
@@ -388,6 +401,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -531,6 +551,50 @@ export type Database = {
           },
           {
             foreignKeyName: "events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          file_name: string
+          id: string
+          inserted_rows: number
+          total_rows: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          file_name: string
+          id?: string
+          inserted_rows?: number
+          total_rows?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          file_name?: string
+          id?: string
+          inserted_rows?: number
+          total_rows?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_batches_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
