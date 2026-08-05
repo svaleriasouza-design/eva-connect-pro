@@ -419,6 +419,36 @@ export function CrmList() {
         </Select>
       </div>
 
+      {isAdmin && total > 0 && selected.length === 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-sm text-muted-foreground">
+            Filtro atual: <strong className="text-foreground">{total.toLocaleString("pt-BR")}</strong> contato(s). Dá
+            para excluir tudo de uma vez, sem precisar marcar página por página.
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Excluir todos do filtro ({total.toLocaleString("pt-BR")})
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir {total.toLocaleString("pt-BR")} contato(s) do filtro atual?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Todos os contatos que aparecem com os filtros atuais (busca, etapa e lote de importação) saem do CRM,
+                  funil e cadências na hora. Os dados ficam guardados no banco e podem ser recuperados.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={removeAllFiltered}>Excluir tudo</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </Card>
+      )}
+
       {selected.length > 0 && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="text-sm">
