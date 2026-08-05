@@ -4,6 +4,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const batchSchema = z.object({ batchId: z.string().uuid() });
 const idsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) });
+const filterSchema = z.object({
+  q: z.string().max(200).optional(),
+  stage: z.string().max(50).optional(),
+  batch: z.string().max(60).optional(),
+});
 
 async function scope(context: any) {
   const { currentWorkspaceId, wsDb } = await import("./workspace-scope.server");
@@ -94,4 +99,40 @@ export const deleteContactsFn = createServerFn({ method: "POST" })
       .in("id", data.ids)
       .is("deleted_at", null);
     return { ok: true, removed: data.ids.length };
+  });
+
+/** Exclui (lixeira reversível) TODOS os contatos que atendem ao filtro atual do CRM. */
+export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => filterSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { db } = await scope(context);
+    const now = new Date().toISOString();
+    const term = (data.q ?? "").trim();
+    const build = () => {
+      let query: any = db.from("contacts");
+      return query;
+    };
+    const applyFilters = (query: any) => {
+      if (data.stage && data.stage !== "all") query = query.eq("funnel_stage", data.stage);
+      if (data.batch === "none") query = query.is("import_batch_id", null);
+      else if (data.batch && data.batch !== "all") query = query.eq("import_batch_id", data.batch);
+      if (term)
+        query = query.or(
+          `name.ilike.%${term}%,company_name.ilike.%${term}%,email.ilike.%${term}%`,
+        );
+      return query.is("deleted_at", null);
+    };
+
+    let removed = 0;
+    // Atualiza em blocos para não estourar tempo de execução em listas grandes.
+    for (let i = 0; i < 200; i++) {
+      const { data: rows } = await applyFilters(build().select("id")).limit(1000);
+      const ids = ((rows ?? []) as { id: string }[]).map((r) => r.id);
+      if (ids.length === 0) break;
+      await db.from("contacts").update({ deleted_at: now, cadence_active: false }).in("id", ids);
+      removed += ids.length;
+      if (ids.length < 1000) break;
+    }
+    return { ok: true, removed };
   });
