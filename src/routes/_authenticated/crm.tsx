@@ -101,6 +101,37 @@ export function CrmList() {
 
   const filtered = contacts;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const allOnPageSelected = filtered.length > 0 && filtered.every((c: any) => selected.includes(c.id));
+
+  function toggleOne(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  function toggleAllOnPage() {
+    const ids = filtered.map((c: any) => c.id as string);
+    setSelected((s) => (allOnPageSelected ? s.filter((x) => !ids.includes(x)) : Array.from(new Set([...s, ...ids]))));
+  }
+
+  async function removeSelected() {
+    setDeleting(true);
+    try {
+      await deleteContacts({ data: { ids: selected.slice(0, 1000) } });
+      setSelected([]);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+        qc.invalidateQueries({ queryKey: ["companies"] }),
+        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      toast.success("Contatos excluídos.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   // fetchAllRows / useMemo kept for CSV import path
   void useMemo;
   void fetchAllRows;
