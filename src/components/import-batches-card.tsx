@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, formatDateTime } from "@/lib/db";
+import { useServerFn } from "@tanstack/react-start";
+import { formatDateTime } from "@/lib/db";
+import {
+  listImportBatchesFn,
+  undoImportFn,
+  restoreImportFn,
+  purgeImportFn,
+} from "@/lib/imports.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Loader2, FileSpreadsheet } from "lucide-react";
+import { Trash2, Loader2, FileSpreadsheet, Undo2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useAccess } from "@/hooks/use-access";
 
@@ -25,59 +33,44 @@ type Batch = {
   inserted_rows: number;
   created_at: string;
   created_by_name: string | null;
+  deleted_at: string | null;
 };
 
 export function ImportBatchesCard() {
   const qc = useQueryClient();
   const { isAdmin } = useAccess();
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const listBatches = useServerFn(listImportBatchesFn);
+  const undoImport = useServerFn(undoImportFn);
+  const restoreImport = useServerFn(restoreImportFn);
+  const purgeImport = useServerFn(purgeImportFn);
 
   const { data: batches = [] } = useQuery<Batch[]>({
     queryKey: ["import-batches"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("import_batches")
-        .select("id, file_name, total_rows, inserted_rows, created_at, created_by_name")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      return (data ?? []) as Batch[];
-    },
+    queryFn: async () => (await listBatches()) as Batch[],
   });
 
-  async function removeBatch(b: Batch) {
-    setDeleting(b.id);
-    try {
-      // Apaga o histórico e os contatos da importação, depois as empresas criadas por ela.
-      const { data: contactIds } = await supabase
-        .from("contacts")
-        .select("id")
-        .eq("import_batch_id", b.id);
-      const ids = (contactIds ?? []).map((c: any) => c.id);
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200);
-        await supabase.from("activities").delete().in("contact_id", chunk);
-        await supabase.from("tasks").delete().in("contact_id", chunk);
-        await supabase.from("events").delete().in("contact_id", chunk);
-      }
-      const { error: cErr } = await supabase.from("contacts").delete().eq("import_batch_id", b.id);
-      if (cErr) throw new Error(cErr.message);
-      await supabase.from("companies").delete().eq("import_batch_id", b.id);
-      const { error: bErr } = await supabase.from("import_batches").delete().eq("id", b.id);
-      if (bErr) throw new Error(bErr.message);
+  function refresh() {
+    return Promise.all([
+      qc.invalidateQueries({ queryKey: ["import-batches"] }),
+      qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+      qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+      qc.invalidateQueries({ queryKey: ["companies"] }),
+      qc.invalidateQueries({ queryKey: ["funnel"] }),
+      qc.invalidateQueries({ queryKey: ["dashboard"] }),
+    ]);
+  }
 
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["import-batches"] }),
-        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
-        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
-        qc.invalidateQueries({ queryKey: ["companies"] }),
-        qc.invalidateQueries({ queryKey: ["funnel"] }),
-        qc.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-      toast.success(`Importação "${b.file_name}" excluída.`);
+  async function run(id: string, fn: () => Promise<any>, msg: string) {
+    setBusy(id);
+    try {
+      await fn();
+      await refresh();
+      toast.success(msg);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível excluir a importação.");
+      toast.error(e instanceof Error ? e.message : "Não foi possível concluir a ação.");
     } finally {
-      setDeleting(null);
+      setBusy(null);
     }
   }
 
@@ -89,42 +82,95 @@ export function ImportBatchesCard() {
         <FileSpreadsheet className="h-4 w-4" /> Listas importadas
       </div>
       <p className="text-xs text-muted-foreground">
-        Excluiu por engano? Remova a lista inteira aqui — contatos, empresas e histórico criados por ela saem juntos.
+        Importou por engano? Use <strong>Desfazer importação</strong> — os leads e empresas do lote saem das telas na
+        hora, mas ficam guardados e podem ser restaurados. A exclusão definitiva é um segundo passo.
       </p>
       <ul className="divide-y text-sm">
         {batches.map((b) => (
           <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div className="min-w-0">
-              <div className="truncate font-medium">{b.file_name}</div>
+              <div className="flex items-center gap-2 truncate font-medium">
+                {b.file_name}
+                {b.deleted_at && <Badge variant="secondary">Desfeita</Badge>}
+              </div>
               <div className="text-xs text-muted-foreground">
-                {b.inserted_rows.toLocaleString("pt-BR")} contatos · {formatDateTime(b.created_at)}
-                {b.created_by_name ? ` · ${b.created_by_name}` : ""}
+                {b.inserted_rows.toLocaleString("pt-BR")} leads · importada em {formatDateTime(b.created_at)}
+                {b.created_by_name ? ` · por ${b.created_by_name}` : ""}
+                {b.deleted_at ? ` · desfeita em ${formatDateTime(b.deleted_at)}` : ""}
               </div>
             </div>
-            {isAdmin ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={deleting === b.id} className="gap-2">
-                    {deleting === b.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    Excluir lista
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Excluir “{b.file_name}”?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Serão removidos {b.inserted_rows.toLocaleString("pt-BR")} contatos, as empresas criadas por esta
-                      importação e o histórico de mensagens ligado a eles. Esta ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => removeBatch(b)}>Excluir definitivamente</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+            {!isAdmin ? (
+              <span className="text-xs text-muted-foreground">Somente administradores gerenciam listas.</span>
             ) : (
-              <span className="text-xs text-muted-foreground">Somente administradores excluem listas.</span>
+              <div className="flex flex-wrap gap-2">
+                {busy === b.id && <Loader2 className="h-4 w-4 animate-spin self-center" />}
+                {b.deleted_at ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy === b.id}
+                      className="gap-2"
+                      onClick={() =>
+                        run(b.id, () => restoreImport({ data: { batchId: b.id } }), "Importação restaurada.")
+                      }
+                    >
+                      <RotateCcw className="h-4 w-4" /> Restaurar
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={busy === b.id} className="gap-2">
+                          <Trash2 className="h-4 w-4" /> Excluir definitivamente
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir “{b.file_name}” para sempre?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Serão apagados {b.inserted_rows.toLocaleString("pt-BR")} leads, as empresas criadas por esta
+                            importação e todo o histórico de mensagens ligado a eles. Não há como desfazer.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              run(b.id, () => purgeImport({ data: { batchId: b.id } }), "Importação excluída.")
+                            }
+                          >
+                            Excluir definitivamente
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                ) : (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={busy === b.id} className="gap-2">
+                        <Undo2 className="h-4 w-4" /> Desfazer importação
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Desfazer “{b.file_name}”?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {b.inserted_rows.toLocaleString("pt-BR")} leads e as empresas deste lote sairão do CRM, funil e
+                          cadências. Nada é apagado: você pode restaurar depois nesta mesma lista.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => run(b.id, () => undoImport({ data: { batchId: b.id } }), "Importação desfeita.")}
+                        >
+                          Desfazer
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             )}
           </li>
         ))}
