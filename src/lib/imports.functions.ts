@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const batchSchema = z.object({ batchId: z.string().uuid() });
+const idsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) });
 
 async function scope(context: any) {
   const { currentWorkspaceId, wsDb } = await import("./workspace-scope.server");
@@ -78,4 +79,19 @@ export const purgeImportFn = createServerFn({ method: "POST" })
     await db.from("companies").delete().eq("import_batch_id", data.batchId);
     await db.from("import_batches").delete().eq("id", data.batchId);
     return { ok: true, removed: ids.length };
+  });
+
+/** Exclui (lixeira reversível) os contatos selecionados no CRM. */
+export const deleteContactsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => idsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { db } = await scope(context);
+    const now = new Date().toISOString();
+    await db
+      .from("contacts")
+      .update({ deleted_at: now, cadence_active: false })
+      .in("id", data.ids)
+      .is("deleted_at", null);
+    return { ok: true, removed: data.ids.length };
   });
