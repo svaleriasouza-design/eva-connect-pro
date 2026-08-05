@@ -11,7 +11,22 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Upload, Download } from "lucide-react";
+import { Plus, Search, Upload, Download, Trash2, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useServerFn } from "@tanstack/react-start";
+import { deleteContactsFn } from "@/lib/imports.functions";
+import { useAccess } from "@/hooks/use-access";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import {
@@ -36,6 +51,10 @@ export function CrmList() {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 200;
+  const { isAdmin } = useAccess();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const deleteContacts = useServerFn(deleteContactsFn);
 
   const { data: batchOptions = [] } = useQuery({
     queryKey: ["import-batch-options"],
@@ -82,6 +101,37 @@ export function CrmList() {
 
   const filtered = contacts;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const allOnPageSelected = filtered.length > 0 && filtered.every((c: any) => selected.includes(c.id));
+
+  function toggleOne(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  function toggleAllOnPage() {
+    const ids = filtered.map((c: any) => c.id as string);
+    setSelected((s) => (allOnPageSelected ? s.filter((x) => !ids.includes(x)) : Array.from(new Set([...s, ...ids]))));
+  }
+
+  async function removeSelected() {
+    setDeleting(true);
+    try {
+      await deleteContacts({ data: { ids: selected.slice(0, 1000) } });
+      setSelected([]);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+        qc.invalidateQueries({ queryKey: ["companies"] }),
+        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      toast.success("Contatos excluídos.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   // fetchAllRows / useMemo kept for CSV import path
   void useMemo;
   void fetchAllRows;
@@ -348,10 +398,48 @@ export function CrmList() {
         </Select>
       </div>
 
+      {selected.length > 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-sm">
+            <strong>{selected.length.toLocaleString("pt-BR")}</strong> contato(s) selecionado(s)
+            {!isAdmin && <span className="ml-2 text-muted-foreground">— somente administradores podem excluir.</span>}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected([])}>Limpar seleção</Button>
+            {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Excluir selecionados
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir {selected.length} contato(s)?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Eles saem do CRM, funil e cadências na hora. Os dados ficam guardados no banco, sem aparecer nas
+                      telas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={removeSelected}>Excluir</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
+              <th className="p-3 w-8">
+                <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Selecionar todos" />
+              </th>
               <th className="p-3">Nome</th>
               <th className="p-3">Empresa</th>
               <th className="p-3">WhatsApp</th>
@@ -364,11 +452,18 @@ export function CrmList() {
           <tbody>
             {isLoading && filtered.length === 0 && Array.from({ length: 12 }).map((_, i) => (
               <tr key={i} className="border-t">
-                {Array.from({ length: 7 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
+                {Array.from({ length: 8 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
               </tr>
             ))}
             {filtered.map((c: any) => (
               <tr key={c.id} className="border-t hover:bg-muted/30">
+                <td className="p-3">
+                  <Checkbox
+                    checked={selected.includes(c.id)}
+                    onCheckedChange={() => toggleOne(c.id)}
+                    aria-label={`Selecionar ${c.name}`}
+                  />
+                </td>
                 <td className="p-3 font-medium"><Link to="/crm/$id" params={{ id: c.id }} className="hover:text-primary">{c.name}</Link></td>
                 <td className="p-3 text-muted-foreground">{c.company_name ?? "—"}</td>
                 <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
@@ -381,7 +476,7 @@ export function CrmList() {
               </tr>
             ))}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
+              <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
             )}
           </tbody>
         </table>

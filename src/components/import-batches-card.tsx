@@ -74,17 +74,24 @@ export function ImportBatchesCard() {
     }
   }
 
-  if (batches.length === 0) return null;
-
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-medium">
         <FileSpreadsheet className="h-4 w-4" /> Listas importadas
       </div>
+      {batches.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Nenhuma planilha importada por aqui ainda. Listas antigas (importadas antes deste recurso) e contatos de teste
+          podem ser removidos pelo filtro de importação abaixo: selecione as linhas na tabela e use{" "}
+          <strong>Excluir selecionados</strong>.
+        </p>
+      )}
+      {batches.length > 0 && (
       <p className="text-xs text-muted-foreground">
         Importou por engano? Use <strong>Desfazer importação</strong> — os leads e empresas do lote saem das telas na
         hora, mas ficam guardados e podem ser restaurados. A exclusão definitiva é um segundo passo.
       </p>
+      )}
       <ul className="divide-y text-sm">
         {batches.map((b) => (
           <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
