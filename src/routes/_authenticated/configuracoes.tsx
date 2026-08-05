@@ -209,6 +209,12 @@ function Configs() {
               <Label htmlFor="phone">ID do Número de Telefone</Label>
               <Input
                 id="phone"
+                name="phone-eva"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
                 placeholder="Ex.: 1234567890"
                 value={form.phone_number_id}
                 onChange={(e) => set("phone_number_id", e.target.value)}
@@ -221,6 +227,12 @@ function Configs() {
               <div className="flex gap-2">
                 <Input
                   id="access"
+                name="access-eva"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
                   type={show.access ? "text" : "password"}
                   placeholder="EAAG..."
                   value={form.access_token}
@@ -238,6 +250,12 @@ function Configs() {
               <div className="flex gap-2">
                 <Input
                   id="secret"
+                name="secret-eva"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
                   type={show.secret ? "text" : "password"}
                   placeholder="App Secret do app Meta"
                   value={form.app_secret}
@@ -255,6 +273,12 @@ function Configs() {
               <div className="flex gap-2">
                 <Input
                   id="verify"
+                name="verify-eva"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
                   placeholder="String que você define"
                   value={form.verify_token}
                   onChange={(e) => set("verify_token", e.target.value)}
