@@ -43,11 +43,13 @@ export async function loadMetaConfig(workspaceId: string): Promise<MetaConfig> {
   return {
     phoneNumberId: row.phone_number_id || "",
     accessToken: row.access_token || "",
-    appSecret: row.app_secret || process.env.META_WA_APP_SECRET || "",
-    verifyToken: row.verify_token || process.env.META_WA_VERIFY_TOKEN || "",
-    graphVersion: row.graph_version || process.env.META_WA_GRAPH_VERSION || "v21.0",
-    defaultTemplateName: row.default_template_name || process.env.META_WA_TEMPLATE_NAME || "hello_world",
-    defaultTemplateLang: row.default_template_lang || process.env.META_WA_TEMPLATE_LANG || "en_US",
+    // Nada de fallback em variável de ambiente: credenciais são sempre do
+    // workspace, senão uma empresa herdaria o segredo/token de outra.
+    appSecret: row.app_secret || "",
+    verifyToken: row.verify_token || "",
+    graphVersion: row.graph_version || "v21.0",
+    defaultTemplateName: row.default_template_name || "hello_world",
+    defaultTemplateLang: row.default_template_lang || "en_US",
   };
 }
 
