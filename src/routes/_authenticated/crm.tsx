@@ -31,16 +31,32 @@ export function CrmList() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
+  const [batch, setBatch] = useState<string>("all");
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 200;
 
+  const { data: batchOptions = [] } = useQuery({
+    queryKey: ["import-batch-options"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("import_batches")
+        .select("id, file_name, created_at, inserted_rows")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      return data ?? [];
+    },
+  });
+
   const { data: total = 0 } = useQuery({
-    queryKey: ["contacts-count", q, stage],
+    queryKey: ["contacts-count", q, stage, batch],
     queryFn: async () => {
       let query: any = supabase.from("contacts").select("id", { count: "exact", head: true });
       if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (batch === "none") query = query.is("import_batch_id", null);
+      else if (batch !== "all") query = query.eq("import_batch_id", batch);
       if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
       const { count } = await query;
       return count ?? 0;
@@ -48,13 +64,15 @@ export function CrmList() {
   });
 
   const { data: contacts = [], isLoading } = useQuery({
-    queryKey: ["contacts-page", q, stage, page],
+    queryKey: ["contacts-page", q, stage, batch, page],
     queryFn: async () => {
       let query: any = supabase.from("contacts")
-        .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at")
+        .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at, created_at, import_batch_id")
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
       if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (batch === "none") query = query.is("import_batch_id", null);
+      else if (batch !== "all") query = query.eq("import_batch_id", batch);
       if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
       const { data } = await query;
       return data ?? [];
@@ -224,6 +242,7 @@ export function CrmList() {
       qc.invalidateQueries({ queryKey: ["contacts-page"] });
       qc.invalidateQueries({ queryKey: ["contacts-count"] });
       qc.invalidateQueries({ queryKey: ["import-batches"] });
+      qc.invalidateQueries({ queryKey: ["import-batch-options"] });
       qc.invalidateQueries({ queryKey: ["companies"] });
       finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
     } catch (e: any) {
@@ -233,7 +252,7 @@ export function CrmList() {
   }
 
   function exportCsv() {
-    const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at"];
+    const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at","import_batch_id"];
     const csv = [headers.join(",")].concat(
       filtered.map((c: any) => headers.map((h) => JSON.stringify(c[h] ?? "")).join(","))
     ).join("\n");
@@ -315,6 +334,18 @@ export function CrmList() {
             {FUNNEL_STAGES.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={batch} onValueChange={(v) => { setPage(0); setBatch(v); }}>
+          <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as importações</SelectItem>
+            <SelectItem value="none">Cadastrados manualmente / WhatsApp</SelectItem>
+            {batchOptions.map((b: any) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.file_name} · {formatDateTime(b.created_at)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="overflow-hidden">
@@ -325,6 +356,7 @@ export function CrmList() {
               <th className="p-3">Empresa</th>
               <th className="p-3">WhatsApp</th>
               <th className="p-3">Etapa</th>
+              <th className="p-3">Importado em</th>
               <th className="p-3">Último contato</th>
               <th className="p-3"></th>
             </tr>
@@ -332,7 +364,7 @@ export function CrmList() {
           <tbody>
             {isLoading && filtered.length === 0 && Array.from({ length: 12 }).map((_, i) => (
               <tr key={i} className="border-t">
-                {Array.from({ length: 6 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
+                {Array.from({ length: 7 }).map((__, j) => <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>)}
               </tr>
             ))}
             {filtered.map((c: any) => (
@@ -341,6 +373,7 @@ export function CrmList() {
                 <td className="p-3 text-muted-foreground">{c.company_name ?? "—"}</td>
                 <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
                 <td className="p-3"><Badge variant="secondary">{FUNNEL_STAGES.find(s => s.key === c.funnel_stage)?.label ?? c.funnel_stage}</Badge></td>
+                <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.created_at)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.last_contact_at)}</td>
                 <td className="p-3 text-right">
                   <WhatsAppQuickSend contactId={c.id} to={c.whatsapp} contactName={c.name} />
@@ -348,7 +381,7 @@ export function CrmList() {
               </tr>
             ))}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Nenhum contato ainda. Crie o primeiro clicando em <b>Novo Cliente</b>.</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Nenhum contato encontrado com estes filtros. Crie um clicando em <b>Novo Cliente</b>.</td></tr>
             )}
           </tbody>
         </table>

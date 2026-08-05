@@ -184,6 +184,7 @@ export type Database = {
           contacts_count: number
           contracts: string | null
           created_at: string
+          deleted_at: string | null
           diagnosis: string | null
           email: string | null
           employees: number | null
@@ -214,6 +215,7 @@ export type Database = {
           contacts_count?: number
           contracts?: string | null
           created_at?: string
+          deleted_at?: string | null
           diagnosis?: string | null
           email?: string | null
           employees?: number | null
@@ -244,6 +246,7 @@ export type Database = {
           contacts_count?: number
           contracts?: string | null
           created_at?: string
+          deleted_at?: string | null
           diagnosis?: string | null
           email?: string | null
           employees?: number | null
@@ -298,6 +301,7 @@ export type Database = {
           company_id: string | null
           company_name: string | null
           created_at: string
+          deleted_at: string | null
           do_not_contact: boolean
           email: string | null
           facebook: string | null
@@ -334,6 +338,7 @@ export type Database = {
           company_id?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           do_not_contact?: boolean
           email?: string | null
           facebook?: string | null
@@ -370,6 +375,7 @@ export type Database = {
           company_id?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           do_not_contact?: boolean
           email?: string | null
           facebook?: string | null
@@ -563,6 +569,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           created_by_name: string | null
+          deleted_at: string | null
           file_name: string
           id: string
           inserted_rows: number
@@ -574,6 +581,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          deleted_at?: string | null
           file_name: string
           id?: string
           inserted_rows?: number
@@ -585,6 +593,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          deleted_at?: string | null
           file_name?: string
           id?: string
           inserted_rows?: number
