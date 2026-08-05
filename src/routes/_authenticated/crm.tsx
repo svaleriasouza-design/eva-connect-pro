@@ -271,6 +271,13 @@ export function CrmList() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Aceitamos planilhas do Excel/Google Sheets (<strong>.xlsx</strong>) e arquivos <strong>.csv</strong> — não é
+        preciso converter nada. No CSV, o separador (vírgula ou ponto e vírgula) e os acentos são detectados
+        automaticamente. Colunas necessárias, em qualquer ordem: um nome (Nome Fantasia, Razão Social ou Nome) e um
+        contato (WhatsApp, Telefone ou E-mail).
+      </p>
+
       {importing && (
         <Card className="p-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
