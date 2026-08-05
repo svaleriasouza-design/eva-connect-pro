@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import Papa from "papaparse";
 import { Progress } from "@/components/ui/progress";
 import { ensureCompanies, normalizeCompanyName } from "@/lib/companies";
+import { normalizePhoneNumber } from "@/lib/phone";
+import { ImportBatchesCard } from "@/components/import-batches-card";
 
 export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
@@ -109,14 +111,15 @@ export function CrmList() {
             const nomeFantasia = pick(r, ["Nome Fantasia", "nome_fantasia"]);
             const razaoSocial = pick(r, ["Razao Social", "Razão Social", "razao_social"]);
             const name = nomeFantasia || razaoSocial || pick(r, ["name", "nome"]);
-            const whatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
+            const rawWhatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
+            const whatsapp = normalizePhoneNumber(rawWhatsapp) || null;
             const email = pick(r, ["E-mail", "Email", "email"]);
             if (!whatsapp && !email) return null;
             const contactName = name || "Sem nome";
             const companyName = razaoSocial || pick(r, ["company", "empresa"]) || contactName;
             return {
               name: contactName,
-              phone: whatsapp || pick(r, ["Telefone", "phone", "telefone"]),
+              phone: whatsapp || normalizePhoneNumber(pick(r, ["Telefone", "phone", "telefone"])) || null,
               whatsapp,
               email,
               company_name: companyName,
@@ -130,6 +133,25 @@ export function CrmList() {
               return finish("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).", true);
             }
 
+            // Registra o lote da importação para permitir exclusão futura.
+            const { data: authData } = await supabase.auth.getUser();
+            const { data: batchRow, error: batchErr } = await supabase
+              .from("import_batches")
+              .insert({
+                file_name: file.name,
+                total_rows: rows.length,
+                inserted_rows: 0,
+                created_by: authData?.user?.id ?? null,
+                created_by_name:
+                  (authData?.user?.user_metadata as any)?.full_name ?? authData?.user?.email ?? null,
+              })
+              .select("id")
+              .single();
+            if (batchErr) {
+              return finish(`Não foi possível registrar a importação: ${batchErr.message}`, true);
+            }
+            const batchId = (batchRow as any).id as string;
+
             // Cria/vincula empresas em lote antes de inserir contatos.
             const companyExtras: Record<string, any> = {};
             mapped.forEach((r) => {
@@ -141,10 +163,12 @@ export function CrmList() {
             const companyMap = await ensureCompanies(
               mapped.map((r) => r.company_name),
               companyExtras,
+              batchId,
             );
             const withCompany = mapped.map((r) => ({
               ...r,
               company_id: companyMap.get(normalizeCompanyName(r.company_name)) ?? null,
+              import_batch_id: batchId,
             }));
 
             const BATCH = 500;
@@ -183,7 +207,11 @@ export function CrmList() {
           });
             }
 
+            await supabase.from("import_batches").update({ inserted_rows: inserted }).eq("id", batchId);
             qc.invalidateQueries({ queryKey: ["contacts"] });
+            qc.invalidateQueries({ queryKey: ["contacts-page"] });
+            qc.invalidateQueries({ queryKey: ["contacts-count"] });
+            qc.invalidateQueries({ queryKey: ["import-batches"] });
             qc.invalidateQueries({ queryKey: ["companies"] });
             finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
           } catch (e: any) {
