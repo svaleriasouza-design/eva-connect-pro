@@ -228,7 +228,7 @@ function Configs() {
                 <Input
                   id="access"
                 name="access-eva"
-                autoComplete="off"
+                autoComplete="new-password"
                 autoCorrect="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -251,7 +251,7 @@ function Configs() {
                 <Input
                   id="secret"
                 name="secret-eva"
-                autoComplete="off"
+                autoComplete="new-password"
                 autoCorrect="off"
                 spellCheck={false}
                 data-1p-ignore
