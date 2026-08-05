@@ -31,16 +31,32 @@ export function CrmList() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
+  const [batch, setBatch] = useState<string>("all");
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 200;
 
+  const { data: batchOptions = [] } = useQuery({
+    queryKey: ["import-batch-options"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("import_batches")
+        .select("id, file_name, created_at, inserted_rows")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      return data ?? [];
+    },
+  });
+
   const { data: total = 0 } = useQuery({
-    queryKey: ["contacts-count", q, stage],
+    queryKey: ["contacts-count", q, stage, batch],
     queryFn: async () => {
       let query: any = supabase.from("contacts").select("id", { count: "exact", head: true });
       if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (batch === "none") query = query.is("import_batch_id", null);
+      else if (batch !== "all") query = query.eq("import_batch_id", batch);
       if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
       const { count } = await query;
       return count ?? 0;
@@ -48,13 +64,15 @@ export function CrmList() {
   });
 
   const { data: contacts = [], isLoading } = useQuery({
-    queryKey: ["contacts-page", q, stage, page],
+    queryKey: ["contacts-page", q, stage, batch, page],
     queryFn: async () => {
       let query: any = supabase.from("contacts")
-        .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at")
+        .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at, created_at, import_batch_id")
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
       if (stage !== "all") query = query.eq("funnel_stage", stage);
+      if (batch === "none") query = query.is("import_batch_id", null);
+      else if (batch !== "all") query = query.eq("import_batch_id", batch);
       if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
       const { data } = await query;
       return data ?? [];
@@ -233,7 +251,7 @@ export function CrmList() {
   }
 
   function exportCsv() {
-    const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at"];
+    const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at","import_batch_id"];
     const csv = [headers.join(",")].concat(
       filtered.map((c: any) => headers.map((h) => JSON.stringify(c[h] ?? "")).join(","))
     ).join("\n");
