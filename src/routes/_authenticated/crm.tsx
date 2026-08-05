@@ -242,6 +242,7 @@ export function CrmList() {
       qc.invalidateQueries({ queryKey: ["contacts-page"] });
       qc.invalidateQueries({ queryKey: ["contacts-count"] });
       qc.invalidateQueries({ queryKey: ["import-batches"] });
+      qc.invalidateQueries({ queryKey: ["import-batch-options"] });
       qc.invalidateQueries({ queryKey: ["companies"] });
       finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
     } catch (e: any) {

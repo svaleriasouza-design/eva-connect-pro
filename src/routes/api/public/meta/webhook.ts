@@ -104,7 +104,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
 
                 // Se número desconhecido, cria contato automaticamente para aparecer no CRM/WhatsApp.
                 if (!contact && from) {
-                  const displayName = value?.contacts?.[0]?.profile?.name || `WhatsApp ${from}`;
+                  const displayName = value?.contacts?.[0]?.profile?.name || `Contato novo · ${from}`;
                   const { data: created } = await supabaseAdmin
                     .from("contacts")
                     .insert({
@@ -113,6 +113,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                       phone: from,
                       funnel_stage: "novo_lead",
                       status: "ativo",
+                      origin: "WhatsApp (entrada)",
                       last_contact_at: now,
                     })
                     .select("id, name, whatsapp, phone, cadence_active, cadence_day")
