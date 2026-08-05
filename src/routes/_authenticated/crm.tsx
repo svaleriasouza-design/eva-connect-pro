@@ -14,7 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Upload, Download } from "lucide-react";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
-import Papa from "papaparse";
+import {
+  readRowsFromFile,
+  isSupportedImportFile,
+  validateLeadHeaders,
+  pickField,
+} from "@/lib/import-file";
 import { Progress } from "@/components/ui/progress";
 import { ensureCompanies, normalizeCompanyName } from "@/lib/companies";
 import { normalizePhoneNumber } from "@/lib/phone";
@@ -71,161 +76,158 @@ export function CrmList() {
     };
 
     if (!file) return toast.error("Nenhum arquivo selecionado.");
-    if (!/\.csv$/i.test(file.name) && file.type && !file.type.includes("csv")) {
-      return toast.error("Selecione um arquivo .csv");
+    if (!isSupportedImportFile(file)) {
+      return toast.error("Formato não aceito. Envie uma planilha Excel (.xlsx) ou um arquivo CSV (.csv).");
     }
 
     setImporting(true);
     setImportProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
 
-    const pick = (row: Record<string, any>, keys: string[]): string | null => {
-      const norm = (s: string) =>
-        s
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .replace(/[\s_\-.]+/g, "");
-      for (const k of keys) {
-        const found = Object.keys(row).find((rk) => norm(rk) === norm(k));
-        const v = found ? row[found] : undefined;
-        if (v != null && String(v).trim()) return String(v).trim();
-      }
-      return null;
-    };
-
     try {
-      Papa.parse<Record<string, any>>(file, {
-        header: true,
-        skipEmptyLines: true,
-        encoding: "UTF-8",
-        complete: async (results) => {
-          try {
-            const rows = Array.isArray(results?.data) ? results.data : [];
-            if (rows.length === 0) {
-              return finish("Não foi possível ler as linhas do arquivo. Verifique se o CSV não está vazio ou corrompido.", true);
-            }
+      let rows: Record<string, any>[] = [];
+      let headers: string[] = [];
+      try {
+        const read = await readRowsFromFile(file);
+        rows = read.rows;
+        headers = read.headers;
+      } catch (e: any) {
+        return finish(
+          `Não foi possível ler o arquivo: ${e?.message ?? "formato inválido ou arquivo corrompido"}.`,
+          true,
+        );
+      }
 
-            const mapped = rows
-          .map((r) => {
-            if (!r || typeof r !== "object") return null;
-            const nomeFantasia = pick(r, ["Nome Fantasia", "nome_fantasia"]);
-            const razaoSocial = pick(r, ["Razao Social", "Razão Social", "razao_social"]);
-            const name = nomeFantasia || razaoSocial || pick(r, ["name", "nome"]);
-            const rawWhatsapp = pick(r, ["Telefone1 Completo", "telefone1_completo", "WhatsApp", "whatsapp"]);
-            const whatsapp = normalizePhoneNumber(rawWhatsapp) || null;
-            const email = pick(r, ["E-mail", "Email", "email"]);
-            if (!whatsapp && !email) return null;
-            const contactName = name || "Sem nome";
-            const companyName = razaoSocial || pick(r, ["company", "empresa"]) || contactName;
-            return {
-              name: contactName,
-              phone: whatsapp || normalizePhoneNumber(pick(r, ["Telefone", "phone", "telefone"])) || null,
-              whatsapp,
-              email,
-              company_name: companyName,
-              city: pick(r, ["Cidade", "city"]),
-              funnel_stage: "novo_lead",
-            };
-          })
-          .filter((r): r is NonNullable<typeof r> => r !== null);
+      if (rows.length === 0) {
+        return finish(
+          "O arquivo está vazio ou sem linhas de dados. Verifique se a primeira linha contém os nomes das colunas.",
+          true,
+        );
+      }
 
-            if (mapped.length === 0) {
-              return finish("Nenhuma linha válida encontrada (verifique as colunas Nome Fantasia / Razao Social e Telefone1 Completo).", true);
-            }
+      const headerProblem = validateLeadHeaders(headers.length ? headers : Object.keys(rows[0] ?? {}));
+      if (headerProblem) return finish(headerProblem, true);
 
-            // Registra o lote da importação para permitir exclusão futura.
-            const { data: authData } = await supabase.auth.getUser();
-            const { data: batchRow, error: batchErr } = await supabase
-              .from("import_batches")
-              .insert({
-                file_name: file.name,
-                total_rows: rows.length,
-                inserted_rows: 0,
-                created_by: authData?.user?.id ?? null,
-                created_by_name:
-                  (authData?.user?.user_metadata as any)?.full_name ?? authData?.user?.email ?? null,
-              })
-              .select("id")
-              .single();
-            if (batchErr) {
-              return finish(`Não foi possível registrar a importação: ${batchErr.message}`, true);
-            }
-            const batchId = (batchRow as any).id as string;
+      const mapped = rows
+        .map((r) => {
+          if (!r || typeof r !== "object") return null;
+          const nomeFantasia = pickField(r, ["Nome Fantasia", "nome_fantasia"]);
+          const razaoSocial = pickField(r, ["Razao Social", "Razão Social", "razao_social"]);
+          const name = nomeFantasia || razaoSocial || pickField(r, ["name", "nome", "contato"]);
+          const rawWhatsapp = pickField(r, [
+            "Telefone1 Completo",
+            "telefone1_completo",
+            "WhatsApp",
+            "whatsapp",
+            "celular",
+          ]);
+          const whatsapp = normalizePhoneNumber(rawWhatsapp) || null;
+          const email = pickField(r, ["E-mail", "Email", "email"]);
+          if (!whatsapp && !email) return null;
+          const contactName = name || "Sem nome";
+          const companyName = razaoSocial || pickField(r, ["company", "empresa"]) || contactName;
+          return {
+            name: contactName,
+            phone: whatsapp || normalizePhoneNumber(pickField(r, ["Telefone", "phone", "telefone"])) || null,
+            whatsapp,
+            email,
+            company_name: companyName,
+            city: pickField(r, ["Cidade", "city"]),
+            funnel_stage: "novo_lead",
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
 
-            // Cria/vincula empresas em lote antes de inserir contatos.
-            const companyExtras: Record<string, any> = {};
-            mapped.forEach((r) => {
-              const norm = normalizeCompanyName(r.company_name);
-              if (!companyExtras[norm]) {
-                companyExtras[norm] = { city: r.city, phone: r.phone, email: r.email };
-              }
-            });
-            const companyMap = await ensureCompanies(
-              mapped.map((r) => r.company_name),
-              companyExtras,
-              batchId,
-            );
-            const withCompany = mapped.map((r) => ({
-              ...r,
-              company_id: companyMap.get(normalizeCompanyName(r.company_name)) ?? null,
-              import_batch_id: batchId,
-            }));
+      if (mapped.length === 0) {
+        return finish(
+          `Lemos ${rows.length.toLocaleString("pt-BR")} linhas, mas nenhuma tinha WhatsApp/telefone ou e-mail válidos. ` +
+            "Confira as colunas de contato da planilha.",
+          true,
+        );
+      }
 
-            const BATCH = 500;
-            setImportProgress({ done: 0, total: withCompany.length, inserted: 0, skipped: 0 });
-            let inserted = 0;
-            let skipped = 0;
+      // Registra o lote da importação para permitir exclusão futura.
+      const { data: authData } = await supabase.auth.getUser();
+      const { data: batchRow, error: batchErr } = await supabase
+        .from("import_batches")
+        .insert({
+          file_name: file.name,
+          total_rows: rows.length,
+          inserted_rows: 0,
+          created_by: authData?.user?.id ?? null,
+          created_by_name:
+            (authData?.user?.user_metadata as any)?.full_name ?? authData?.user?.email ?? null,
+        })
+        .select("id")
+        .single();
+      if (batchErr) {
+        return finish(`Não foi possível registrar a importação: ${batchErr.message}`, true);
+      }
+      const batchId = (batchRow as any).id as string;
 
-            for (let i = 0; i < withCompany.length; i += BATCH) {
-          const batch = withCompany.slice(i, i + BATCH);
-          try {
-            const { error } = await supabase.from("contacts").insert(batch);
-            if (error) {
-              console.error("Batch insert error:", error);
-              for (const row of batch) {
-                try {
-                  const { error: rowErr } = await supabase.from("contacts").insert(row);
-                  if (rowErr) skipped += 1;
-                  else inserted += 1;
-                } catch (e) {
-                  console.error("Row insert exception:", e);
-                  skipped += 1;
-                }
-              }
-            } else {
-              inserted += batch.length;
-            }
-          } catch (e) {
-            console.error("Batch exception:", e);
-            skipped += batch.length;
-          }
-          setImportProgress({
-            done: Math.min(i + BATCH, withCompany.length),
-            total: withCompany.length,
-            inserted,
-            skipped,
-          });
-            }
-
-            await supabase.from("import_batches").update({ inserted_rows: inserted }).eq("id", batchId);
-            qc.invalidateQueries({ queryKey: ["contacts"] });
-            qc.invalidateQueries({ queryKey: ["contacts-page"] });
-            qc.invalidateQueries({ queryKey: ["contacts-count"] });
-            qc.invalidateQueries({ queryKey: ["import-batches"] });
-            qc.invalidateQueries({ queryKey: ["companies"] });
-            finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
-          } catch (e: any) {
-            console.error("Import error:", e);
-            finish(`Erro na importação: ${e?.message ?? "erro desconhecido"}`, true);
-          }
-        },
-        error: (err) => {
-          console.error("PapaParse error:", err);
-          finish(`Erro ao ler CSV: ${err?.message ?? "falha desconhecida"}`, true);
-        },
+      // Cria/vincula empresas em lote antes de inserir contatos.
+      const companyExtras: Record<string, any> = {};
+      mapped.forEach((r) => {
+        const norm = normalizeCompanyName(r.company_name);
+        if (!companyExtras[norm]) {
+          companyExtras[norm] = { city: r.city, phone: r.phone, email: r.email };
+        }
       });
+      const companyMap = await ensureCompanies(
+        mapped.map((r) => r.company_name),
+        companyExtras,
+        batchId,
+      );
+      const withCompany = mapped.map((r) => ({
+        ...r,
+        company_id: companyMap.get(normalizeCompanyName(r.company_name)) ?? null,
+        import_batch_id: batchId,
+      }));
+
+      const BATCH = 500;
+      setImportProgress({ done: 0, total: withCompany.length, inserted: 0, skipped: 0 });
+      let inserted = 0;
+      let skipped = 0;
+
+      for (let i = 0; i < withCompany.length; i += BATCH) {
+        const batch = withCompany.slice(i, i + BATCH);
+        try {
+          const { error } = await supabase.from("contacts").insert(batch);
+          if (error) {
+            console.error("Batch insert error:", error);
+            for (const row of batch) {
+              try {
+                const { error: rowErr } = await supabase.from("contacts").insert(row);
+                if (rowErr) skipped += 1;
+                else inserted += 1;
+              } catch (e) {
+                console.error("Row insert exception:", e);
+                skipped += 1;
+              }
+            }
+          } else {
+            inserted += batch.length;
+          }
+        } catch (e) {
+          console.error("Batch exception:", e);
+          skipped += batch.length;
+        }
+        setImportProgress({
+          done: Math.min(i + BATCH, withCompany.length),
+          total: withCompany.length,
+          inserted,
+          skipped,
+        });
+      }
+
+      await supabase.from("import_batches").update({ inserted_rows: inserted }).eq("id", batchId);
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      qc.invalidateQueries({ queryKey: ["contacts-page"] });
+      qc.invalidateQueries({ queryKey: ["contacts-count"] });
+      qc.invalidateQueries({ queryKey: ["import-batches"] });
+      qc.invalidateQueries({ queryKey: ["companies"] });
+      finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
     } catch (e: any) {
-      console.error("importCsv exception:", e);
+      console.error("Import error:", e);
       finish(`Erro na importação: ${e?.message ?? "erro desconhecido"}`, true);
     }
   }
@@ -251,7 +253,7 @@ export function CrmList() {
           <label className="cursor-pointer">
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               disabled={importing}
               onChange={(e) => {
@@ -261,7 +263,7 @@ export function CrmList() {
               }}
             />
             <Button variant="outline" asChild disabled={importing}>
-              <span><Upload className="mr-2 h-4 w-4" /> {importing ? "Importando…" : "Importar CSV"}</span>
+              <span><Upload className="mr-2 h-4 w-4" /> {importing ? "Importando…" : "Importar planilha (.xlsx ou .csv)"}</span>
             </Button>
           </label>
           <Button variant="outline" onClick={exportCsv}><Download className="mr-2 h-4 w-4" /> Exportar</Button>
