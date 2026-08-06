@@ -89,15 +89,28 @@ function Cadencias() {
   }
 
   async function submitSettings() {
+    await persistSettings(settings);
+  }
+
+  async function toggleAutomation(v: boolean) {
+    const next = { ...settings, automation_enabled: v };
+    setSettings(next);
+    const ok = await persistSettings(next, v ? "Rotina automática ativada" : "Rotina automática pausada");
+    if (!ok) setSettings(settings);
+  }
+
+  async function persistSettings(value: CadenceSettings, message = "Configurações salvas") {
     setSavingSettings(true);
     try {
-      const { last_morning_run_at, last_afternoon_run_at, ...payload } = settings;
+      const { last_morning_run_at, last_afternoon_run_at, ...payload } = value;
       void last_morning_run_at; void last_afternoon_run_at;
       await saveSettings({ data: payload });
-      toast.success("Configurações salvas");
+      toast.success(message);
       await qc.invalidateQueries({ queryKey: ["cadence-config"] });
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+      return false;
     } finally {
       setSavingSettings(false);
     }
