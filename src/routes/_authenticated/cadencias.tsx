@@ -89,15 +89,28 @@ function Cadencias() {
   }
 
   async function submitSettings() {
+    await persistSettings(settings);
+  }
+
+  async function toggleAutomation(v: boolean) {
+    const next = { ...settings, automation_enabled: v };
+    setSettings(next);
+    const ok = await persistSettings(next, v ? "Rotina automática ativada" : "Rotina automática pausada");
+    if (!ok) setSettings(settings);
+  }
+
+  async function persistSettings(value: CadenceSettings, message = "Configurações salvas") {
     setSavingSettings(true);
     try {
-      const { last_morning_run_at, last_afternoon_run_at, ...payload } = settings;
+      const { last_morning_run_at, last_afternoon_run_at, ...payload } = value;
       void last_morning_run_at; void last_afternoon_run_at;
       await saveSettings({ data: payload });
-      toast.success("Configurações salvas");
+      toast.success(message);
       await qc.invalidateQueries({ queryKey: ["cadence-config"] });
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+      return false;
     } finally {
       setSavingSettings(false);
     }
@@ -194,27 +207,33 @@ function Cadencias() {
               <Label className="text-xs">Fuso horário</Label>
               <Input value={settings.timezone} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} />
             </div>
-            <label className="flex items-center justify-between rounded-md border p-3 text-sm">
+            <div className="flex items-center justify-between rounded-md border p-3 text-sm">
               <div>
                 <div className="font-medium">Somente dias úteis</div>
                 <div className="text-xs text-muted-foreground">Pular sábado e domingo</div>
               </div>
               <Switch checked={settings.weekdays_only} onCheckedChange={(v) => setSettings({ ...settings, weekdays_only: v })} />
-            </label>
-            <label className="flex items-center justify-between rounded-md border p-3 text-sm">
+            </div>
+            <div className="flex items-center justify-between rounded-md border p-3 text-sm">
               <div>
                 <div className="font-medium">EVA responde automaticamente</div>
                 <div className="text-xs text-muted-foreground">Usa as instruções cadastradas por dia</div>
               </div>
               <Switch checked={settings.auto_reply_enabled} onCheckedChange={(v) => setSettings({ ...settings, auto_reply_enabled: v })} />
-            </label>
-            <label className="flex items-center justify-between rounded-md border p-3 text-sm md:col-span-2">
+            </div>
+            <div className="flex items-center justify-between rounded-md border p-3 text-sm md:col-span-2">
               <div>
                 <div className="font-medium">Ativar rotina automática</div>
-                <div className="text-xs text-muted-foreground">Dispara os lotes manhã/tarde nos horários configurados</div>
+                <div className="text-xs text-muted-foreground">
+                  Dispara os lotes manhã/tarde nos horários configurados. A mudança é salva na hora.
+                </div>
               </div>
-              <Switch checked={settings.automation_enabled} onCheckedChange={(v) => setSettings({ ...settings, automation_enabled: v })} />
-            </label>
+              <Switch
+                checked={settings.automation_enabled}
+                disabled={savingSettings}
+                onCheckedChange={(v) => toggleAutomation(v)}
+              />
+            </div>
             <div className="flex items-center gap-2 md:col-span-2">
               <Button onClick={submitSettings} disabled={savingSettings}>
                 {savingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
