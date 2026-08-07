@@ -176,8 +176,9 @@ export async function routeInbound(params: {
     return `bot_detected:${reason}`;
   }
 
-  // Agendamento tem prioridade sobre a resposta genérica.
-  try {
+  // Agendamento tem prioridade sobre a resposta genérica — exceto quando o lead
+  // sinalizou encaminhamento interno (aí insistir em horário soa fora de contexto).
+  if (classified.intent !== "handoff_interno") try {
     const { handleSchedulingMessage } = await import("./scheduling.server");
     const { sendAndLog } = await import("./messaging.server");
     const outcome = await handleSchedulingMessage({
