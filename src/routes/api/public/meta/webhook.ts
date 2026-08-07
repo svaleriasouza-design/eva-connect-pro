@@ -89,13 +89,36 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
               for (const m of messages) {
                 const fromRaw = String(m?.from ?? "");
                 const from = normalizePhoneNumber(fromRaw);
-                const text: string =
+                let text: string =
                   m?.text?.body ??
                   m?.button?.text ??
                   m?.interactive?.button_reply?.title ??
                   m?.interactive?.list_reply?.title ??
                   `[${m?.type ?? "mensagem"}]`;
                 const externalId = m?.id as string | undefined;
+
+                // Mensagem de áudio/voz => transcreve antes de processar.
+                let transcribed = false;
+                const mediaId: string | undefined =
+                  m?.audio?.id ?? m?.voice?.id ?? (m?.type === "audio" ? m?.audio?.id : undefined);
+                if ((m?.type === "audio" || m?.type === "voice") && mediaId) {
+                  try {
+                    const { transcribeMetaAudio } = await import("@/lib/transcribe.server");
+                    const tr = await transcribeMetaAudio(workspaceId, String(mediaId));
+                    if (tr.ok && tr.text) {
+                      text = tr.text;
+                      transcribed = true;
+                      debug.push(`audio_transcrito=${tr.text.length}`);
+                    } else {
+                      text = "[áudio recebido — não foi possível transcrever]";
+                      debug.push(`audio_erro=${tr.error ?? "desconhecido"}`);
+                      console.error("[webhook:audio] transcrição falhou", tr.error);
+                    }
+                  } catch (err) {
+                    text = "[áudio recebido — não foi possível transcrever]";
+                    debug.push(`audio_exception=${err instanceof Error ? err.message : String(err)}`);
+                  }
+                }
                 console.log(`[webhook:in] from=${from} externalId=${externalId ?? "-"}`);
 
                 let contact = (await findContactByPhone(workspaceId, from)) as
@@ -126,8 +149,9 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   workspaceId,
                   contactId: contact?.id ?? null,
                   from,
-                  text,
+                  text: transcribed ? `🎤 Áudio transcrito: ${text}` : text,
                   externalId,
+                  ...(transcribed ? { title: "Áudio recebido (transcrito)" } : {}),
                 });
 
                 if (contact?.id && contact.cadence_active) {
