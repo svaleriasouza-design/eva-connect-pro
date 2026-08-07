@@ -226,6 +226,8 @@ export async function autoReplyToInbound(params: {
   to: string;
   incomingText: string;
   currentDay: number;
+  /** Sinal já classificado da mensagem recebida (ex.: encaminhamento interno). */
+  signal?: "handoff_interno";
 }): Promise<string> {
   const admin = await loadAdmin(params.workspaceId);
 
@@ -301,8 +303,14 @@ COMO UM SDR EXPERIENTE SE COMPORTA:
 - Objetivo primário: agendar uma conversa de 15 a 30 minutos. Ao perceber interesse, propõe dia e horário concretos.
 
 REGRA CRÍTICA DE ENCERRAMENTO (nunca violar):
-- Só se despeça / diga que "não vai mais incomodar" / encerre a conversa QUANDO o cliente pedir EXPLICITAMENTE para parar de receber mensagens (ex.: "não quero receber mais mensagens", "me remova", "pare de me enviar", "não tenho interesse nenhum, não me chame mais").
-- "Não tenho tempo agora", "depois falamos", "estou em reunião", silêncio, dúvida, pedido de informação, pedido para marcar ou remarcar reunião NÃO são pedidos para parar. Nesses casos continue conduzindo a conversa com UMA pergunta.
+- Só se despeça / encerre a conversa quando o cliente recusar o assunto ou pedir para sair da lista (ex.: "não quero receber mais mensagens", "me remova", "não precisamos", "não temos interesse", "já temos fornecedor"). Nesse caso o sistema já encerra automaticamente — você não precisa insistir em reunião de forma alguma.
+- "Não tenho tempo agora", "depois falamos", "estou em reunião", silêncio, dúvida, pedido de informação, pedido para marcar ou remarcar reunião, agradecimento simples ("desde já agradeço") NÃO são pedidos para parar. Nesses casos continue conduzindo a conversa com UMA pergunta.
+
+SINAL DE ENCAMINHAMENTO INTERNO = AVANÇO, NUNCA DESPEDIDA:
+- Quando o cliente disser que vai encaminhar/repassar para outra pessoa, time, setor, responsável ou diretoria, ou que vai avaliar internamente, isso é SINAL POSITIVO de progresso.
+- Nesses casos é PROIBIDO responder com despedida ("desejo sucesso", "agradeço o retorno", "fico à disposição" de forma passiva).
+- Faça o contrário: agradeça em uma linha e AVANCE escolhendo UMA destas ações — (a) perguntar o prazo estimado de retorno, (b) oferecer enviar um resumo/material curto para ele repassar ao time, (c) pedir o nome/contato da pessoa responsável, ou (d) combinar um follow-up em dia específico ("posso te chamar na quinta para saber como ficou?").
+- Se o cliente apenas agradecer depois disso, mantenha a conversa viva combinando o próximo passo concreto — não encerre.
 - Se o cliente quiser marcar ou remarcar reunião, trate como interesse: confirme dia e horário concretos. Nunca responda com despedida.
 - Nunca inventa preço, prazo, resultado ou informação que não esteja nas instruções.
 - Se a mensagem estiver ambígua, faz UMA pergunta objetiva de esclarecimento.
@@ -310,6 +318,7 @@ REGRA CRÍTICA DE ENCERRAMENTO (nunca violar):
 - O cliente pode ter enviado várias mensagens seguidas: elas vêm agrupadas abaixo e devem ser respondidas de uma vez só, numa única mensagem coerente.
 
 Dia atual da cadência: ${day}
+${params.signal === "handoff_interno" ? "SINAL DETECTADO NESTA MENSAGEM: o cliente está encaminhando internamente. Responda mantendo a conversa ativa (prazo de retorno, material para repassar, responsável ou follow-up combinado). É PROIBIDO se despedir.\n" : ""}
 Roteiro enviado neste dia: """${step.script ?? ""}"""
 Instruções de resposta cadastradas (têm prioridade sobre o estilo acima): """${instructions}"""
 
@@ -335,21 +344,26 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   // Trava de segurança: a EVA só pode se despedir/encerrar quando o cliente
   // pediu explicitamente para não receber mais mensagens.
   const { isExplicitOptOut, looksLikeFarewell } = await import("./optout");
-  if (looksLikeFarewell(reply) && !isExplicitOptOut(params.incomingText)) {
+  const farewellAllowed = isExplicitOptOut(params.incomingText) && params.signal !== "handoff_interno";
+  if (looksLikeFarewell(reply) && !farewellAllowed) {
     console.warn("[eva auto-reply] despedida indevida bloqueada — regenerando");
     try {
       const { text } = await generateText({
         model,
         system:
           system +
-          "\n\nATENÇÃO: o cliente NÃO pediu para parar de receber mensagens. É PROIBIDO se despedir, agradecer o retorno encerrando ou dizer que não vai mais incomodar. Responda avançando a conversa e, se houver interesse em reunião, confirme dia e horário.",
+          "\n\nATENÇÃO: o cliente NÃO pediu para parar de receber mensagens. É PROIBIDO se despedir, agradecer o retorno encerrando, desejar sucesso ou dizer que não vai mais incomodar. Responda avançando a conversa com UMA pergunta objetiva (prazo de retorno, material para repassar ao time, responsável pelo assunto, ou um follow-up em dia específico).",
         messages: [{ role: "user", content: params.incomingText || "(cliente respondeu)" }],
       });
       const retry = (text ?? "").trim();
       if (retry && !looksLikeFarewell(retry)) reply = retry;
-      else reply = "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
+      else reply = params.signal === "handoff_interno"
+        ? "Perfeito, obrigado por levar internamente! Quer que eu te envie um resumo de 1 página para facilitar o repasse ao time? E qual prazo você imagina para o retorno — posso te chamar na próxima semana?"
+        : "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
     } catch {
-      reply = "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
+      reply = params.signal === "handoff_interno"
+        ? "Perfeito, obrigado por levar internamente! Quer que eu te envie um resumo curto para facilitar o repasse ao time? Consigo te chamar na próxima semana para saber como ficou?"
+        : "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
     }
   }
 

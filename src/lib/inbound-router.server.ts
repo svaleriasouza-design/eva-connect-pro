@@ -137,23 +137,31 @@ export async function routeInbound(params: {
   if (contact.ai_paused) return "skipped:manual_mode";
 
   // Pedido explícito para não receber mais mensagens: encerra com elegância.
-  const { isExplicitOptOut } = await import("./optout");
-  if (isExplicitOptOut(grouped)) {
+  const { classifyLeadIntent } = await import("./intent.server");
+  const classified = await classifyLeadIntent(grouped);
+  if (classified.intent === "opt_out") {
     const { sendAndLog } = await import("./messaging.server");
     await db
       .from("contacts")
-      .update({ do_not_contact: true, cadence_active: false, status: "perdido" })
+      .update({
+        do_not_contact: true,
+        cadence_active: false,
+        status: "perdido",
+        funnel_stage: "perdido",
+        next_action: null,
+        next_action_at: null,
+      })
       .eq("id", params.contactId);
     await db.from("activities").insert({
       contact_id: params.contactId,
       kind: "nota",
-      title: "Opt-out solicitado pelo cliente",
-      content: `O cliente pediu para não receber mais mensagens. Cadência encerrada e contato marcado como não contatar.\n\nMensagem: ${grouped.slice(0, 500)}`,
+      title: "Recusa / pedido de remoção detectado",
+      content: `Detecção: ${classified.source === "ai" ? "IA" : "padrão de texto"} — ${classified.reason ?? "recusa"}.\nCadência encerrada, lead marcado como "não entrar em contato" e movido para Perdido.\n\nMensagem: ${grouped.slice(0, 500)}`,
     });
     await sendAndLog({
       workspaceId: wid,
       to: params.phone,
-      body: "Tudo bem, entendo! Agradeço o retorno e não vou mais incomodar. Se um dia fizer sentido, estou à disposição.",
+      body: "Entendido, agradeço a sinceridade! Já removi seu contato da nossa lista e não vou mais te enviar mensagens. Desejo sucesso — qualquer coisa, estou por aqui.",
       contactId: params.contactId,
       title: "EVA — encerramento por solicitação",
       tag: "eva-optout",
@@ -168,8 +176,9 @@ export async function routeInbound(params: {
     return `bot_detected:${reason}`;
   }
 
-  // Agendamento tem prioridade sobre a resposta genérica.
-  try {
+  // Agendamento tem prioridade sobre a resposta genérica — exceto quando o lead
+  // sinalizou encaminhamento interno (aí insistir em horário soa fora de contexto).
+  if (classified.intent !== "handoff_interno") try {
     const { handleSchedulingMessage } = await import("./scheduling.server");
     const { sendAndLog } = await import("./messaging.server");
     const outcome = await handleSchedulingMessage({
@@ -215,6 +224,7 @@ export async function routeInbound(params: {
     to: params.phone,
     incomingText: grouped,
     currentDay: params.cadenceDay || 1,
+    signal: classified.intent === "handoff_interno" ? "handoff_interno" : undefined,
   });
   return `autoreply:${status}`;
 }
