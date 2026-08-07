@@ -14,7 +14,7 @@ const OPT_OUT_PATTERNS: RegExp[] = [
   // Pedidos de remoção da lista (formas indiretas e educadas)
   /(pode|poderia|favor|por favor)?\s*(me\s+)?(tir(a|ar|e)|retir(a|ar|e)|exclu(a|ir)|remov(a|er)|apagar?)\s*(o\s+meu\s+contato|meu\s+contato|me)?\s*(da|de)\s*(sua\s+)?(lista|base|mailing|cadastro)/i,
   /(tira|tire|tirar)\s+(eu|meu n[úu]mero|esse n[úu]mero|meu contato)\s*(da lista)?/i,
-  /(n[ãa]o|nao)\s+(precisa|precisamos|precisaremos)\s*(mais)?\b/i,
+  /(n[ãa]o|nao)\s+precisa(mos|remos)?\b(?!\s*(se preocupar|de nada|se incomodar))/i,
   /(n[ãa]o|nao)\s+(temos|tenho|h[áa])\s+(interesse|necessidade|demanda)/i,
   /(n[ãa]o|nao)\s+(é|e)\s+(do\s+)?(nosso|meu)\s+interesse/i,
   /(sem|nenhum)\s+interesse\b/i,
