@@ -23,6 +23,8 @@ const OPT_OUT_PATTERNS: RegExp[] = [
   /(n[ãa]o|nao)\s+(vamos|iremos|pretendemos)\s+(seguir|contratar|prosseguir|dar sequ[êe]ncia)/i,
   /(agradecemos|obrigad[oa]).{0,40}(mas|por[ée]m).{0,40}(n[ãa]o|declin)/i,
   /(descarta|descartar|declinar|declino)\s+(a\s+)?(proposta|contato|oferta)/i,
+  /^\s*(n[ãa]o|nao)\s*(quero|obrigad[oa])?[.!]*\s*$/i,
+  /(n[ãa]o|nao)\s+quero\b(?!\s+(perder|deixar|atrapalhar))/i,
 ];
 
 /** true apenas quando o cliente pediu, de forma explícita, para parar de receber mensagens. */
@@ -69,7 +71,9 @@ const FAREWELL_PATTERNS: RegExp[] = [
   /(fico|estou|permane[çc]o)\s+[àa]\s+disposi[çc][ãa]o.*(caso|se)\s+(um dia|algum dia|precisar|fizer sentido)/i,
   /respeito sua decis[ãa]o/i,
   /agrade[çc]o o retorno.*(n[ãa]o vou|encerr)/i,
-  /desejo sucesso.*(at[ée] (mais|logo)|abra[çc]o)/i,
+  /desejo (muito )?sucesso/i,
+  /(fico|estou)\s+[àa]\s+disposi[çc][ãa]o\s*[.!]*\s*$/i,
+  /agrade[çc]o (o|seu) retorno/i,
 ];
 
 /** Heurística: a resposta gerada parece uma despedida/encerramento de conversa. */
