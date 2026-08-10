@@ -9,6 +9,7 @@ import {
   deleteEvent,
   formatBr,
   isSlotFree,
+  isBusinessSlot,
   suggestSlots,
   updateEvent,
   DEFAULT_TZ,
