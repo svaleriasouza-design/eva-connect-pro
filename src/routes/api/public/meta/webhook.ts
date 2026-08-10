@@ -89,12 +89,15 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
               for (const m of messages) {
                 const fromRaw = String(m?.from ?? "");
                 const from = normalizePhoneNumber(fromRaw);
-                let text: string =
+                const humanText: string | undefined =
                   m?.text?.body ??
                   m?.button?.text ??
                   m?.interactive?.button_reply?.title ??
-                  m?.interactive?.list_reply?.title ??
-                  `[${m?.type ?? "mensagem"}]`;
+                  m?.interactive?.list_reply?.title;
+                // Mensagens sem texto legível (unsupported, reações, stickers, sistema)
+                // NÃO são resposta real: são registradas mas não movem o lead nem acionam a EVA.
+                let text: string = humanText ?? `[${m?.type ?? "mensagem"}]`;
+                let meaningful = Boolean(humanText && humanText.trim());
                 const externalId = m?.id as string | undefined;
 
                 // Mensagem de áudio/voz => transcreve antes de processar.
@@ -108,6 +111,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     if (tr.ok && tr.text) {
                       text = tr.text;
                       transcribed = true;
+                      meaningful = true;
                       debug.push(`audio_transcrito=${tr.text.length}`);
                     } else {
                       text = "[áudio recebido — não foi possível transcrever]";
@@ -152,9 +156,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   text: transcribed ? `🎤 Áudio transcrito: ${text}` : text,
                   externalId,
                   ...(transcribed ? { title: "Áudio recebido (transcrito)" } : {}),
+                  ...(meaningful ? {} : { status: "UNSUPPORTED", title: "Mensagem não suportada (ignorada)" }),
                 });
 
-                if (contact?.id && contact.cadence_active) {
+                if (meaningful && contact?.id && contact.cadence_active) {
                   await supabaseAdmin
                     .from("contacts")
                     .update({ cadence_active: false })
@@ -170,7 +175,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
 
                 // Roteador único: aguarda 8s, agrupa mensagens seguidas,
                 // identifica robôs/URA, e então responde uma única vez.
-                if (contact?.id) {
+                if (meaningful && contact?.id) {
                   try {
                     const { routeInbound } = await import("@/lib/inbound-router.server");
                     const status = await routeInbound({

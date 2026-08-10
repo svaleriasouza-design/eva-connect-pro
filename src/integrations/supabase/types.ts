@@ -20,6 +20,7 @@ export type Database = {
           contact_id: string | null
           content: string | null
           created_at: string
+          error_message: string | null
           external_id: string | null
           id: string
           kind: string
@@ -36,6 +37,7 @@ export type Database = {
           contact_id?: string | null
           content?: string | null
           created_at?: string
+          error_message?: string | null
           external_id?: string | null
           id?: string
           kind: string
@@ -52,6 +54,7 @@ export type Database = {
           contact_id?: string | null
           content?: string | null
           created_at?: string
+          error_message?: string | null
           external_id?: string | null
           id?: string
           kind?: string
