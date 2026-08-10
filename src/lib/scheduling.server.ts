@@ -280,6 +280,28 @@ export async function handleSchedulingMessage(params: {
   const contact = (contactRow ?? {}) as { email?: string | null; name?: string | null };
   const state = await getState(wid, params.contactId);
 
+  // Lead sugeriu sábado e a EVA pediu confirmação: trata sim/não sem custo de IA.
+  if (state?.awaiting_saturday && state?.pending_start) {
+    if (isNegative(params.text)) {
+      await setState(wid, params.contactId, { awaiting_saturday: false, pending_start: null });
+      const slots = await suggestSlots({ durationMinutes: state.duration_minutes ?? 30, limit: 3 });
+      const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
+      return { handled: true, reply: `Sem problema!${phrase} Qual fica melhor para você?`, status: "saturday_declined" };
+    }
+    if (isAffirmative(params.text)) {
+      await setState(wid, params.contactId, { awaiting_saturday: false });
+      return await scheduleFlow({
+        ...params,
+        workspaceId: wid,
+        contact,
+        startIso: state.pending_start as string,
+        duration: state.duration_minutes ?? 30,
+        online: state.online ?? true,
+        allowSaturday: true,
+      });
+    }
+  }
+
   const history = await recentHistory(wid, params.contactId);
   const intent = await detectIntent(
     params.text,
@@ -294,7 +316,7 @@ export async function handleSchedulingMessage(params: {
     await db.from("contacts").update({ email: intent.email }).eq("id", params.contactId);
     await logActivity(wid, params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
     const startIso = state.pending_start as string;
-    const bizPending = isBusinessSlot(startIso, state.duration_minutes ?? 30);
+    const bizPending = isBusinessSlot(startIso, state.duration_minutes ?? 30, DEFAULT_TZ, true);
     if (!bizPending.ok) {
       await setState(wid, params.contactId, { pending_start: null, awaiting_email: false });
       return {
@@ -357,6 +379,10 @@ export async function handleSchedulingMessage(params: {
     }
     const biz = isBusinessSlot(startIso, duration);
     if (!biz.ok) {
+      if (biz.reason === "saturday") {
+        await setState(wid, params.contactId, { pending_start: startIso, duration_minutes: duration, online: intent.online !== false, awaiting_email: false, awaiting_saturday: true });
+        return { handled: true, reply: saturdayAskReply(startIso), status: "saturday_confirm" };
+      }
       return { handled: true, reply: await outOfHoursReply(startIso, duration, biz.reason), status: `reschedule_${biz.reason}` };
     }
     const res = await rescheduleMeeting(wid, params.contactId, startIso);
@@ -385,9 +411,21 @@ async function scheduleFlow(args: {
   startIso: string;
   duration: number;
   online: boolean;
+  allowSaturday?: boolean;
 }): Promise<SchedulingOutcome> {
-  const biz = isBusinessSlot(args.startIso, args.duration);
+  const biz = isBusinessSlot(args.startIso, args.duration, DEFAULT_TZ, args.allowSaturday === true);
   if (!biz.ok) {
+    // Sábado: nunca agenda sozinha — pergunta se pode abrir exceção.
+    if (biz.reason === "saturday") {
+      await setState(args.workspaceId, args.contactId, {
+        pending_start: args.startIso,
+        duration_minutes: args.duration,
+        online: args.online,
+        awaiting_email: false,
+        awaiting_saturday: true,
+      });
+      return { handled: true, reply: saturdayAskReply(args.startIso), status: "saturday_confirm" };
+    }
     const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
     await setState(args.workspaceId, args.contactId, {
       suggested: slots.ok ? slots.data : null,
@@ -395,6 +433,7 @@ async function scheduleFlow(args: {
       online: args.online,
       awaiting_email: false,
       pending_start: null,
+      awaiting_saturday: false,
     });
     return { handled: true, reply: await outOfHoursReply(args.startIso, args.duration, biz.reason), status: `out_of_hours:${biz.reason}` };
   }
@@ -408,7 +447,7 @@ async function scheduleFlow(args: {
   }
 
   if (!args.contact.email) {
-    await setState(args.workspaceId, args.contactId, { pending_start: args.startIso, duration_minutes: args.duration, online: args.online, awaiting_email: true });
+    await setState(args.workspaceId, args.contactId, { pending_start: args.startIso, duration_minutes: args.duration, online: args.online, awaiting_email: true, awaiting_saturday: false });
     const f = formatBr(args.startIso);
     await setStage(args.workspaceId, args.contactId, "qualificado", "Horário combinado — aguardando e-mail para enviar o convite.");
     return { handled: true, reply: `Consegui reservar ${f.data} às ${f.hora}. Qual é o seu melhor e-mail para eu enviar o convite com o link da reunião?`, status: "awaiting_email" };
@@ -429,8 +468,8 @@ async function scheduleFlow(args: {
 }
 
 async function busyReply(startIso: string, duration: number, error?: string) {
-  if (error === "out_of_hours" || error === "weekend") {
-    return await outOfHoursReply(startIso, duration, error === "weekend" ? "weekend" : "after_hours");
+  if (error === "out_of_hours" || error === "weekend" || error === "sunday") {
+    return await outOfHoursReply(startIso, duration, error === "out_of_hours" ? "after_hours" : "sunday");
   }
   if (error === "busy") {
     const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
@@ -440,12 +479,33 @@ async function busyReply(startIso: string, duration: number, error?: string) {
   return "Não consegui concluir o agendamento agora. Pode confirmar o horário novamente em instantes?";
 }
 
-/** Recusa educadamente fim de semana / fora do expediente e oferece dias úteis. */
-async function outOfHoursReply(startIso: string, duration: number, reason: "weekend" | "after_hours" | "invalid") {
+const AFFIRMATIVE = /\b(sim|isso|claro|pode|podemos|confirmo|confirma(do|r)?|fechado|combinado|perfeito|ok|okay|vamos|beleza|blz|certo|s[ií]m?|top|bora)\b/i;
+const NEGATIVE = /\b(n[aã]o|nao|nops|melhor n[aã]o|prefiro n[aã]o|nem|negativo)\b/i;
+
+function isAffirmative(text: string) {
+  const t = (text ?? "").trim();
+  return !NEGATIVE.test(t) && AFFIRMATIVE.test(t);
+}
+
+function isNegative(text: string) {
+  return NEGATIVE.test((text ?? "").trim());
+}
+
+/** Sábado só com autorização explícita do lead. */
+function saturdayAskReply(startIso: string) {
+  const f = formatBr(startIso);
+  return `Nossa agenda padrão é de segunda a sexta, das 9h às 18h, mas consigo abrir uma exceção no sábado. Posso confirmar a reunião para ${f.data} às ${f.hora}?`;
+}
+
+/** Recusa educadamente domingo / fora do expediente e oferece dias úteis. */
+async function outOfHoursReply(startIso: string, duration: number, reason: "sunday" | "saturday" | "weekend" | "after_hours" | "invalid") {
   const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
   const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
-  if (reason === "weekend") {
-    return `Nossos atendimentos acontecem de segunda a sexta, das 9h às 18h.${phrase} Qual fica melhor para você?`;
+  if (reason === "sunday" || reason === "weekend") {
+    return `No domingo não temos atendimento — nossa agenda é de segunda a sexta, das 9h às 18h.${phrase} Qual fica melhor para você?`;
+  }
+  if (reason === "saturday") {
+    return `Aos sábados atendemos apenas em casos especiais.${phrase} Qual fica melhor para você?`;
   }
   if (reason === "after_hours") {
     return `Esse horário está fora do expediente (segunda a sexta, das 9h às 18h).${phrase} Qual prefere?`;
