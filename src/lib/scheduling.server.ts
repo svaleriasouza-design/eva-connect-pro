@@ -294,6 +294,15 @@ export async function handleSchedulingMessage(params: {
     await db.from("contacts").update({ email: intent.email }).eq("id", params.contactId);
     await logActivity(wid, params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
     const startIso = state.pending_start as string;
+    const bizPending = isBusinessSlot(startIso, state.duration_minutes ?? 30);
+    if (!bizPending.ok) {
+      await setState(wid, params.contactId, { pending_start: null, awaiting_email: false });
+      return {
+        handled: true,
+        reply: await outOfHoursReply(startIso, state.duration_minutes ?? 30, bizPending.reason),
+        status: `out_of_hours:${bizPending.reason}`,
+      };
+    }
     const res = await scheduleMeeting({
       workspaceId: wid,
       contactId: params.contactId,
