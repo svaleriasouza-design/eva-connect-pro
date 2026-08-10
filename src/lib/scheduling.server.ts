@@ -9,6 +9,7 @@ import {
   deleteEvent,
   formatBr,
   isSlotFree,
+  isBusinessSlot,
   suggestSlots,
   updateEvent,
   DEFAULT_TZ,
@@ -293,6 +294,15 @@ export async function handleSchedulingMessage(params: {
     await db.from("contacts").update({ email: intent.email }).eq("id", params.contactId);
     await logActivity(wid, params.contactId, "E-mail capturado pela EVA", intent.email, "nota");
     const startIso = state.pending_start as string;
+    const bizPending = isBusinessSlot(startIso, state.duration_minutes ?? 30);
+    if (!bizPending.ok) {
+      await setState(wid, params.contactId, { pending_start: null, awaiting_email: false });
+      return {
+        handled: true,
+        reply: await outOfHoursReply(startIso, state.duration_minutes ?? 30, bizPending.reason),
+        status: `out_of_hours:${bizPending.reason}`,
+      };
+    }
     const res = await scheduleMeeting({
       workspaceId: wid,
       contactId: params.contactId,
@@ -345,6 +355,10 @@ export async function handleSchedulingMessage(params: {
       const phrase = slots.ok && slots.data.length ? ` Tenho livre: ${slotsPhrase(slots.data)}.` : "";
       return { handled: true, reply: `Claro, podemos remarcar.${phrase} Qual horário prefere?`, status: "reschedule_ask" };
     }
+    const biz = isBusinessSlot(startIso, duration);
+    if (!biz.ok) {
+      return { handled: true, reply: await outOfHoursReply(startIso, duration, biz.reason), status: `reschedule_${biz.reason}` };
+    }
     const res = await rescheduleMeeting(wid, params.contactId, startIso);
     if (!res.ok && res.error === "no_event") {
       return await scheduleFlow({ ...params, workspaceId: wid, contact, startIso, duration, online: intent.online !== false });
@@ -372,6 +386,18 @@ async function scheduleFlow(args: {
   duration: number;
   online: boolean;
 }): Promise<SchedulingOutcome> {
+  const biz = isBusinessSlot(args.startIso, args.duration);
+  if (!biz.ok) {
+    const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
+    await setState(args.workspaceId, args.contactId, {
+      suggested: slots.ok ? slots.data : null,
+      duration_minutes: args.duration,
+      online: args.online,
+      awaiting_email: false,
+      pending_start: null,
+    });
+    return { handled: true, reply: await outOfHoursReply(args.startIso, args.duration, biz.reason), status: `out_of_hours:${biz.reason}` };
+  }
   const free = await isSlotFree(args.startIso, args.duration);
   if (!free.ok) return { handled: true, reply: "Tive um problema para consultar a agenda agora. Pode confirmar o horário novamente em instantes?", status: `calendar_error:${free.error}` };
   if (!free.data) {
@@ -403,12 +429,28 @@ async function scheduleFlow(args: {
 }
 
 async function busyReply(startIso: string, duration: number, error?: string) {
+  if (error === "out_of_hours" || error === "weekend") {
+    return await outOfHoursReply(startIso, duration, error === "weekend" ? "weekend" : "after_hours");
+  }
   if (error === "busy") {
     const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
     const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
     return `Neste horário já existe um compromisso. ${phrase}`;
   }
   return "Não consegui concluir o agendamento agora. Pode confirmar o horário novamente em instantes?";
+}
+
+/** Recusa educadamente fim de semana / fora do expediente e oferece dias úteis. */
+async function outOfHoursReply(startIso: string, duration: number, reason: "weekend" | "after_hours" | "invalid") {
+  const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
+  const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
+  if (reason === "weekend") {
+    return `Nossos atendimentos acontecem de segunda a sexta, das 9h às 18h.${phrase} Qual fica melhor para você?`;
+  }
+  if (reason === "after_hours") {
+    return `Esse horário está fora do expediente (segunda a sexta, das 9h às 18h).${phrase} Qual prefere?`;
+  }
+  return `Não consegui entender a data.${phrase} Pode me confirmar o dia e a hora?`;
 }
 
 function confirmText(startIso: string, duration: number, meetLink?: string, email?: string | null) {
