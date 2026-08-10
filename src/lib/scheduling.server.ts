@@ -431,6 +431,28 @@ async function busyReply(startIso: string, duration: number, error?: string) {
   return "Não consegui concluir o agendamento agora. Pode confirmar o horário novamente em instantes?";
 }
 
+/** Recusa educadamente fim de semana / fora do expediente e oferece dias úteis. */
+async function outOfHoursReply(startIso: string, duration: number, reason: "weekend" | "after_hours" | "invalid") {
+  const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
+  const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
+  if (reason === "weekend") {
+    return `Nossos atendimentos acontecem de segunda a sexta, das 9h às 18h.${phrase} Qual fica melhor para você?`;
+  }
+  if (reason === "after_hours") {
+    return `Esse horário está fora do expediente (segunda a sexta, das 9h às 18h).${phrase} Qual prefere?`;
+  }
+  return `Não consegui entender a data.${phrase} Pode me confirmar o dia e a hora?`;
+}
+
+async function busyReplyUnused(startIso: string, duration: number, error?: string) {
+  if (error === "busy") {
+    const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
+    const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
+    return `Neste horário já existe um compromisso. ${phrase}`;
+  }
+  return "Não consegui concluir o agendamento agora. Pode confirmar o horário novamente em instantes?";
+}
+
 function confirmText(startIso: string, duration: number, meetLink?: string, email?: string | null) {
   const f = formatBr(startIso);
   return [
