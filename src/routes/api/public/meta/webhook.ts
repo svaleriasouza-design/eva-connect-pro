@@ -156,9 +156,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   text: transcribed ? `🎤 Áudio transcrito: ${text}` : text,
                   externalId,
                   ...(transcribed ? { title: "Áudio recebido (transcrito)" } : {}),
+                  ...(meaningful ? {} : { status: "UNSUPPORTED", title: "Mensagem não suportada (ignorada)" }),
                 });
 
-                if (contact?.id && contact.cadence_active) {
+                if (meaningful && contact?.id && contact.cadence_active) {
                   await supabaseAdmin
                     .from("contacts")
                     .update({ cadence_active: false })
@@ -174,7 +175,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
 
                 // Roteador único: aguarda 8s, agrupa mensagens seguidas,
                 // identifica robôs/URA, e então responde uma única vez.
-                if (contact?.id) {
+                if (meaningful && contact?.id) {
                   try {
                     const { routeInbound } = await import("@/lib/inbound-router.server");
                     const status = await routeInbound({
