@@ -219,6 +219,8 @@ export async function logInbound(params: {
   text: string;
   externalId?: string | null;
   title?: string;
+  /** "RECEIVED" (padrão) ou "UNSUPPORTED" para mídias/códigos que não são resposta real. */
+  status?: string;
 }) {
   const db = await admin(params.workspaceId);
   const now = new Date().toISOString();
@@ -231,7 +233,7 @@ export async function logInbound(params: {
       title: params.title ?? (params.contactId ? "Resposta recebida" : `Mensagem de ${params.from}`),
       content: params.text,
       external_id: params.externalId ?? null,
-      status: "RECEIVED",
+      status: params.status ?? "RECEIVED",
       status_updated_at: now,
     })
     .select("id")
