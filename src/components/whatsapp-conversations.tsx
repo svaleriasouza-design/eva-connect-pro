@@ -401,8 +401,6 @@ export function WhatsappConversations() {
                           Não entregue — a Meta recusou o envio{a.error_message ? `: ${a.error_message}` : ""}.
                         </div>
                       )}
-                      <div className="hidden">
-                      </div>
                     </div>
                   </div>
                 );
