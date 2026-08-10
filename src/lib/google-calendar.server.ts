@@ -140,12 +140,17 @@ export function localParts(d: Date, tz = DEFAULT_TZ) {
   };
 }
 
-/** Verifica se um horário cai em dia útil e dentro do horário comercial (09h–18h, Brasília). */
-export function isBusinessSlot(iso: string, durationMinutes = 30, tz = DEFAULT_TZ) {
+/**
+ * Verifica se um horário cai dentro do expediente (09h–18h, Brasília).
+ * Domingo nunca é permitido. Sábado é sinalizado como "saturday" para que a EVA
+ * possa pedir confirmação — só é aceito quando allowSaturday = true.
+ */
+export function isBusinessSlot(iso: string, durationMinutes = 30, tz = DEFAULT_TZ, allowSaturday = false) {
   const start = new Date(iso);
   if (isNaN(start.getTime())) return { ok: false as const, reason: "invalid" as const };
   const s = localParts(start, tz);
-  if (s.weekday === "Sat" || s.weekday === "Sun") return { ok: false as const, reason: "weekend" as const };
+  if (s.weekday === "Sun") return { ok: false as const, reason: "sunday" as const };
+  if (s.weekday === "Sat" && !allowSaturday) return { ok: false as const, reason: "saturday" as const };
   if (s.hour < WORK_START_HOUR || s.hour >= WORK_END_HOUR) return { ok: false as const, reason: "after_hours" as const };
   const end = new Date(start.getTime() + durationMinutes * 60000);
   const e = localParts(end, tz);
