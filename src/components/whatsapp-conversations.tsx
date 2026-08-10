@@ -250,7 +250,7 @@ export function WhatsappConversations() {
   }
 
   return (
-    <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100vh-14rem)] min-h-[500px] md:grid-cols-[280px_1fr_320px]">
+    <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[280px_1fr_320px]">
       {/* Coluna 1: Conversas */}
       <div className="flex min-h-0 min-w-0 flex-col border-r bg-card">
         <div className="border-b p-3">
