@@ -133,6 +133,7 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
         external_id: send.messageId ?? null,
         status: send.ok ? "SENT" : "FAILED",
         status_updated_at: now,
+        error_message: send.ok ? null : (send.error ?? "Falha no envio (Meta Cloud API)"),
         sent_by: input.sentBy ?? null,
         sent_by_name: input.sentByName ?? null,
         send_mode: input.sendMode ?? (input.sentBy ? "manual" : "eva"),
