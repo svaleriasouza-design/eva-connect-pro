@@ -89,12 +89,15 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
               for (const m of messages) {
                 const fromRaw = String(m?.from ?? "");
                 const from = normalizePhoneNumber(fromRaw);
-                let text: string =
+                const humanText: string | undefined =
                   m?.text?.body ??
                   m?.button?.text ??
                   m?.interactive?.button_reply?.title ??
-                  m?.interactive?.list_reply?.title ??
-                  `[${m?.type ?? "mensagem"}]`;
+                  m?.interactive?.list_reply?.title;
+                // Mensagens sem texto legível (unsupported, reações, stickers, sistema)
+                // NÃO são resposta real: são registradas mas não movem o lead nem acionam a EVA.
+                let text: string = humanText ?? `[${m?.type ?? "mensagem"}]`;
+                let meaningful = Boolean(humanText && humanText.trim());
                 const externalId = m?.id as string | undefined;
 
                 // Mensagem de áudio/voz => transcreve antes de processar.
@@ -108,6 +111,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                     if (tr.ok && tr.text) {
                       text = tr.text;
                       transcribed = true;
+                      meaningful = true;
                       debug.push(`audio_transcrito=${tr.text.length}`);
                     } else {
                       text = "[áudio recebido — não foi possível transcrever]";
