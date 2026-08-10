@@ -431,6 +431,7 @@ export type Database = {
       eva_scheduling_state: {
         Row: {
           awaiting_email: boolean
+          awaiting_saturday: boolean
           contact_id: string
           duration_minutes: number
           online: boolean
@@ -441,6 +442,7 @@ export type Database = {
         }
         Insert: {
           awaiting_email?: boolean
+          awaiting_saturday?: boolean
           contact_id: string
           duration_minutes?: number
           online?: boolean
@@ -451,6 +453,7 @@ export type Database = {
         }
         Update: {
           awaiting_email?: boolean
+          awaiting_saturday?: boolean
           contact_id?: string
           duration_minutes?: number
           online?: boolean

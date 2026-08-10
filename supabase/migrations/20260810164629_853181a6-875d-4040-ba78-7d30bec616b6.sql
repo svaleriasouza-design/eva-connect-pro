@@ -1,0 +1,1 @@
+ALTER TABLE public.eva_scheduling_state ADD COLUMN IF NOT EXISTS awaiting_saturday boolean NOT NULL DEFAULT false;
