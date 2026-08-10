@@ -174,6 +174,20 @@ export async function runCadenceBatch(
       continue;
     }
 
+    // Guarda anti-duplicidade: se já houve QUALQUER envio para este contato hoje,
+    // não dispara de novo (evita a mesma mensagem repetida em manhã/tarde ou reexecuções).
+    const { data: sentToday } = await admin
+      .from("activities")
+      .select("id")
+      .eq("contact_id", c.id)
+      .eq("kind", "whatsapp_out")
+      .gte("created_at", todayIso)
+      .limit(1);
+    if (sentToday && sentToday.length > 0) {
+      result.skipped++;
+      continue;
+    }
+
     const nextDay = (f.cadence_day ?? c.cadence_day ?? 0) + 1;
     const tpl = scriptByDay.get(nextDay);
     if (!tpl) {
@@ -205,6 +219,9 @@ export async function runCadenceBatch(
       }
     } else {
       result.failed++;
+      // Mesmo com falha, marcamos a tentativa do dia para não repetir a mesma
+      // mensagem nas próximas execuções do mesmo dia.
+      await admin.from("contacts").update({ last_contact_at: nowIso }).eq("id", c.id);
       if (send.error) result.errors.push(`${c.name}: ${send.error}`);
     }
   }
