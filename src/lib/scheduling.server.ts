@@ -444,15 +444,6 @@ async function outOfHoursReply(startIso: string, duration: number, reason: "week
   return `Não consegui entender a data.${phrase} Pode me confirmar o dia e a hora?`;
 }
 
-async function busyReplyUnused(startIso: string, duration: number, error?: string) {
-  if (error === "busy") {
-    const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
-    const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
-    return `Neste horário já existe um compromisso. ${phrase}`;
-  }
-  return "Não consegui concluir o agendamento agora. Pode confirmar o horário novamente em instantes?";
-}
-
 function confirmText(startIso: string, duration: number, meetLink?: string, email?: string | null) {
   const f = formatBr(startIso);
   return [
