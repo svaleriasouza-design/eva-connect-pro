@@ -140,6 +140,43 @@ export function localParts(d: Date, tz = DEFAULT_TZ) {
   };
 }
 
+/** Verifica se um horário cai em dia útil e dentro do horário comercial (09h–18h, Brasília). */
+export function isBusinessSlot(iso: string, durationMinutes = 30, tz = DEFAULT_TZ) {
+  const start = new Date(iso);
+  if (isNaN(start.getTime())) return { ok: false as const, reason: "invalid" as const };
+  const s = localParts(start, tz);
+  if (s.weekday === "Sat" || s.weekday === "Sun") return { ok: false as const, reason: "weekend" as const };
+  if (s.hour < WORK_START_HOUR || s.hour >= WORK_END_HOUR) return { ok: false as const, reason: "after_hours" as const };
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+  const e = localParts(end, tz);
+  if (e.hour > WORK_END_HOUR || (e.hour === WORK_END_HOUR && e.minute > 0)) {
+    return { ok: false as const, reason: "after_hours" as const };
+  }
+  return { ok: true as const, reason: "ok" as const };
+}
+
+function localPartsLegacy(d: Date, tz = DEFAULT_TZ) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: Number(get("hour")),
+    minute: Number(get("minute")),
+    weekday: get("weekday"),
+  };
+}
+
 export function formatBr(iso: string, tz = DEFAULT_TZ) {
   const d = new Date(iso);
   const data = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric", weekday: "long" }).format(d);
