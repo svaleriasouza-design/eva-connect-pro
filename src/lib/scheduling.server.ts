@@ -346,6 +346,10 @@ export async function handleSchedulingMessage(params: {
       const phrase = slots.ok && slots.data.length ? ` Tenho livre: ${slotsPhrase(slots.data)}.` : "";
       return { handled: true, reply: `Claro, podemos remarcar.${phrase} Qual horário prefere?`, status: "reschedule_ask" };
     }
+    const biz = isBusinessSlot(startIso, duration);
+    if (!biz.ok) {
+      return { handled: true, reply: await outOfHoursReply(startIso, duration, biz.reason), status: `reschedule_${biz.reason}` };
+    }
     const res = await rescheduleMeeting(wid, params.contactId, startIso);
     if (!res.ok && res.error === "no_event") {
       return await scheduleFlow({ ...params, workspaceId: wid, contact, startIso, duration, online: intent.online !== false });
@@ -373,6 +377,18 @@ async function scheduleFlow(args: {
   duration: number;
   online: boolean;
 }): Promise<SchedulingOutcome> {
+  const biz = isBusinessSlot(args.startIso, args.duration);
+  if (!biz.ok) {
+    const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
+    await setState(args.workspaceId, args.contactId, {
+      suggested: slots.ok ? slots.data : null,
+      duration_minutes: args.duration,
+      online: args.online,
+      awaiting_email: false,
+      pending_start: null,
+    });
+    return { handled: true, reply: await outOfHoursReply(args.startIso, args.duration, biz.reason), status: `out_of_hours:${biz.reason}` };
+  }
   const free = await isSlotFree(args.startIso, args.duration);
   if (!free.ok) return { handled: true, reply: "Tive um problema para consultar a agenda agora. Pode confirmar o horário novamente em instantes?", status: `calendar_error:${free.error}` };
   if (!free.data) {
@@ -404,6 +420,9 @@ async function scheduleFlow(args: {
 }
 
 async function busyReply(startIso: string, duration: number, error?: string) {
+  if (error === "out_of_hours" || error === "weekend") {
+    return await outOfHoursReply(startIso, duration, error === "weekend" ? "weekend" : "after_hours");
+  }
   if (error === "busy") {
     const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
     const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
