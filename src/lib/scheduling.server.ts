@@ -280,26 +280,20 @@ export async function handleSchedulingMessage(params: {
   const contact = (contactRow ?? {}) as { email?: string | null; name?: string | null };
   const state = await getState(wid, params.contactId);
 
-  // Lead sugeriu sábado e a EVA pediu confirmação: trata sim/não sem custo de IA.
+  // Sábado pedido pelo lead: a decisão é do responsável do workspace.
+  // Enquanto ele não decidir, a EVA apenas informa que está confirmando.
   if (state?.awaiting_saturday && state?.pending_start) {
     if (isNegative(params.text)) {
       await setState(wid, params.contactId, { awaiting_saturday: false, pending_start: null });
       const slots = await suggestSlots({ durationMinutes: state.duration_minutes ?? 30, limit: 3 });
       const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
-      return { handled: true, reply: `Sem problema!${phrase} Qual fica melhor para você?`, status: "saturday_declined" };
+      return { handled: true, reply: `Sem problema!${phrase} Qual fica melhor para você?`, status: "saturday_cancelled_by_lead" };
     }
-    if (isAffirmative(params.text)) {
-      await setState(wid, params.contactId, { awaiting_saturday: false });
-      return await scheduleFlow({
-        ...params,
-        workspaceId: wid,
-        contact,
-        startIso: state.pending_start as string,
-        duration: state.duration_minutes ?? 30,
-        online: state.online ?? true,
-        allowSaturday: true,
-      });
-    }
+    return {
+      handled: true,
+      reply: await saturdayPendingReply(wid, state.pending_start as string),
+      status: "saturday_awaiting_owner",
+    };
   }
 
   const history = await recentHistory(wid, params.contactId);
