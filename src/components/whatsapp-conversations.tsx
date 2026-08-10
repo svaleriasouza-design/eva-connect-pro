@@ -53,7 +53,12 @@ function StatusIcon({ status }: { status: string | null }) {
   if (s === "READ") return <CheckCheck className="h-3 w-3 text-primary" />;
   if (s === "DELIVERED") return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
   if (s === "SENT") return <Check className="h-3 w-3 text-muted-foreground" />;
-  if (s === "FAILED") return <XCircle className="h-3 w-3 text-destructive" />;
+  if (s === "FAILED")
+    return (
+      <span title="Falha no envio — a Meta rejeitou esta mensagem (não chegou ao lead)">
+        <XCircle className="h-3 w-3 text-destructive" />
+      </span>
+    );
   return null;
 }
 
