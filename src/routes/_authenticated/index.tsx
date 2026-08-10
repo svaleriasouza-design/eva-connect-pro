@@ -13,6 +13,7 @@ import {
 import { fetchDueCadence } from "@/lib/cadence";
 import { CadenceModal } from "@/components/cadence-modal";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { SaturdayRequestsCard } from "@/components/saturday-requests-card";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
@@ -146,6 +147,8 @@ function Dashboard() {
           </div>
         </Button>
       </div>
+
+      <SaturdayRequestsCard />
 
       {/* Meta diária */}
       <Card className="border-[color:var(--gold)]/30 bg-gradient-to-r from-[color:var(--petrol)]/5 to-[color:var(--gold)]/5">

@@ -723,6 +723,72 @@ export type Database = {
         }
         Relationships: []
       }
+      saturday_requests: {
+        Row: {
+          contact_id: string
+          contact_name: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decided_by_name: string | null
+          duration_minutes: number
+          id: string
+          online: boolean
+          phone: string | null
+          start_at: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          contact_id: string
+          contact_name?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_by_name?: string | null
+          duration_minutes?: number
+          id?: string
+          online?: boolean
+          phone?: string | null
+          start_at: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Update: {
+          contact_id?: string
+          contact_name?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_by_name?: string | null
+          duration_minutes?: number
+          id?: string
+          online?: boolean
+          phone?: string | null
+          start_at?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saturday_requests_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saturday_requests_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           contact_id: string | null
