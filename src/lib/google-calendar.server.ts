@@ -155,28 +155,6 @@ export function isBusinessSlot(iso: string, durationMinutes = 30, tz = DEFAULT_T
   return { ok: true as const, reason: "ok" as const };
 }
 
-function localPartsLegacy(d: Date, tz = DEFAULT_TZ) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-    hour12: false,
-  }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return {
-    year: get("year"),
-    month: get("month"),
-    day: get("day"),
-    hour: Number(get("hour")),
-    minute: Number(get("minute")),
-    weekday: get("weekday"),
-  };
-}
-
 export function formatBr(iso: string, tz = DEFAULT_TZ) {
   const d = new Date(iso);
   const data = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric", weekday: "long" }).format(d);
