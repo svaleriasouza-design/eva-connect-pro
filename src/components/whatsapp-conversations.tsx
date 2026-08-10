@@ -22,6 +22,7 @@ type ActivityRow = {
   external_id: string | null;
   status: string | null;
   status_updated_at: string | null;
+  error_message?: string | null;
   created_at: string;
   sent_by_name?: string | null;
   send_mode?: string | null;
