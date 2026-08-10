@@ -110,7 +110,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at, sent_by_name, send_mode")
+        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, error_message, created_at, sent_by_name, send_mode")
         .in("kind", ["whatsapp_out", "whatsapp_in"])
         .order("created_at", { ascending: false })
         .limit(500);
@@ -126,10 +126,11 @@ export function WhatsappConversations() {
       if (!a.contact_id) continue;
       let cur = m.get(a.contact_id);
       if (!cur) {
-        cur = { last: a, unread: a.kind === "whatsapp_in", inbound: 0, outbound: 0 };
+        cur = { last: a, unread: a.kind === "whatsapp_in" && (a.status ?? "").toUpperCase() !== "UNSUPPORTED", inbound: 0, outbound: 0 };
         m.set(a.contact_id, cur);
       }
-      if (a.kind === "whatsapp_in") cur.inbound += 1;
+      const unsupported = (a.status ?? "").toUpperCase() === "UNSUPPORTED";
+      if (a.kind === "whatsapp_in" && !unsupported) cur.inbound += 1;
       if (a.kind === "whatsapp_out") cur.outbound += 1;
     }
     return m;
@@ -177,7 +178,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, created_at, sent_by_name, send_mode")
+        .select("id, contact_id, kind, title, content, external_id, status, status_updated_at, error_message, created_at, sent_by_name, send_mode")
       .eq("contact_id", selectedId as string)
         .in("kind", ["whatsapp_out", "whatsapp_in", "cadence_stop", "bot_detected", "nota"])
         .order("created_at", { ascending: true })
@@ -251,7 +252,7 @@ export function WhatsappConversations() {
   return (
     <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100vh-14rem)] min-h-[500px] md:grid-cols-[280px_1fr_320px]">
       {/* Coluna 1: Conversas */}
-      <div className="flex min-w-0 flex-col border-r bg-card">
+      <div className="flex min-h-0 min-w-0 flex-col border-r bg-card">
         <div className="border-b p-3">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -276,7 +277,7 @@ export function WhatsappConversations() {
             ))}
           </div>
         </div>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           {filtered.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">Nenhum contato.</div>
           )}
@@ -321,7 +322,7 @@ export function WhatsappConversations() {
       </div>
 
       {/* Coluna 2: Thread */}
-      <div className="flex min-w-0 flex-col bg-background">
+      <div className="flex min-h-0 min-w-0 flex-col bg-background">
         {!selected ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             Selecione uma conversa
@@ -361,7 +362,7 @@ export function WhatsappConversations() {
                 Você assumiu esta conversa. A EVA não responde automaticamente aqui até você devolver o controle.
               </div>
             )}
-            <div ref={threadRef} className="flex-1 overflow-y-auto space-y-2 bg-muted/30 p-4">
+            <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-2 bg-muted/30 p-4">
               {thread.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">Sem histórico ainda. Envie a primeira mensagem.</div>
               )}
@@ -394,6 +395,13 @@ export function WhatsappConversations() {
                       <div className={`mt-1 flex items-center gap-1 text-[10px] ${outgoing ? "text-primary-foreground/70 justify-end" : "text-muted-foreground"}`}>
                         <span>{manual ? formatDateTime(a.created_at) : formatShort(a.created_at)}</span>
                         {outgoing && <StatusIcon status={a.status} />}
+                      </div>
+                      {outgoing && (a.status ?? "").toUpperCase() === "FAILED" && (
+                        <div className="mt-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">
+                          Não entregue — a Meta recusou o envio{a.error_message ? `: ${a.error_message}` : ""}.
+                        </div>
+                      )}
+                      <div className="hidden">
                       </div>
                     </div>
                   </div>
@@ -429,7 +437,7 @@ export function WhatsappConversations() {
         {!selected ? (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">Selecione um contato para ver a ficha.</div>
         ) : (
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-4 p-4">
               <div className="flex items-center gap-3">
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
