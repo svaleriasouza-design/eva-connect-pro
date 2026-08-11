@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { askEva } from "@/lib/eva.functions";
 import { toast } from "sonner";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { EvaMarkdown } from "@/components/eva-markdown";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -73,7 +74,7 @@ export function EvaChat({ context, initialOpen = false }: { context?: string; in
                 : "bg-muted text-foreground"
             }`}
           >
-            {m.content}
+            {m.role === "user" ? m.content : <EvaMarkdown>{m.content}</EvaMarkdown>}
           </div>
         ))}
         {loading && <div className="text-xs text-muted-foreground">EVA está pensando…</div>}
