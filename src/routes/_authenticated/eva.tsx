@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { EvaMarkdown } from "@/components/eva-markdown";
 
 export const Route = createFileRoute("/_authenticated/eva")({ component: EvaPage });
 
@@ -34,11 +35,25 @@ function EvaPage() {
   }
 
   const suggestions = [
+    "Qual o resumo da cadência?",
+    "Tenho reuniões hoje?",
+    "Quantas empresas foram contatadas?",
     "Resuma minha semana comercial",
     "Escreva um e-mail de follow-up após reunião",
     `Crie uma proposta para uma consultoria da ${workspace.name}`,
     "Quais clientes devo priorizar hoje?",
   ];
+
+  async function sendText(text: string) {
+    if (loading) return;
+    const next = [...messages, { role: "user" as const, content: text }];
+    setMessages(next); setInput(""); setLoading(true);
+    try {
+      const res = await ask({ data: { messages: next } });
+      setMessages([...next, { role: "assistant", content: res.text }]);
+    } catch { toast.error("EVA falhou"); }
+    finally { setLoading(false); }
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-4">
@@ -49,13 +64,15 @@ function EvaPage() {
 
       <div className="flex flex-wrap gap-2">
         {suggestions.map((s) => (
-          <button key={s} onClick={() => setInput(s)} className="rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
+          <button key={s} onClick={() => sendText(s)} disabled={loading} className="rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">{s}</button>
         ))}
       </div>
 
       <Card className="p-4 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
         {messages.map((m, i) => (
-          <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>{m.content}</div>
+          <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${m.role === "user" ? "ml-auto whitespace-pre-wrap bg-primary text-primary-foreground" : "bg-muted"}`}>
+            {m.role === "user" ? m.content : <EvaMarkdown>{m.content}</EvaMarkdown>}
+          </div>
         ))}
         {loading && <div className="text-xs text-muted-foreground">EVA está pensando…</div>}
       </Card>
