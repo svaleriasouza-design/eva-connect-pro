@@ -16,7 +16,7 @@ export const askEva = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY não configurado");
     const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-2.5-flash");
+    const model = gateway("google/gemini-3.6-flash");
     const { loadWorkspace } = await import("./workspace.server");
     const { currentWorkspaceId } = await import("./workspace-scope.server");
     const wid = await currentWorkspaceId(context.supabase);
