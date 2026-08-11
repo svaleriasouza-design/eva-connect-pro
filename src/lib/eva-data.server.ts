@@ -4,6 +4,27 @@ import { wsDb } from "./workspace-scope.server";
 
 const NOT_DELETED = "deleted_at";
 
+const STAGES = [
+  "novo_lead",
+  "primeiro_contato",
+  "qualificado",
+  "reuniao_agendada",
+  "proposta_enviada",
+  "fechado",
+  "cliente_ativo",
+  "pos_venda",
+  "perdido",
+] as const;
+
+/** Contagem exata (head:true) — nunca limitada a 1000 linhas. */
+async function countRows(wid: string, table: string, build?: (q: any) => any) {
+  const db = await wsDb(wid);
+  let q = db.from(table).select("id", { count: "exact", head: true });
+  if (build) q = build(q);
+  const { count } = await q;
+  return (count ?? 0) as number;
+}
+
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -11,26 +32,17 @@ function startOfToday() {
 }
 
 export async function crmOverview(wid: string) {
-  const db = await wsDb(wid);
-  const { data } = await db
-    .from("contacts")
-    .select("funnel_stage, status, cadence_active, do_not_contact, last_contact_at")
-    .is(NOT_DELETED, null)
-    .limit(20000);
-  const rows = (data ?? []) as any[];
-  const byStage: Record<string, number> = {};
-  const byStatus: Record<string, number> = {};
-  let ativos = 0;
-  let optout = 0;
-  let semContato = 0;
-  for (const r of rows) {
-    byStage[r.funnel_stage ?? "sem_etapa"] = (byStage[r.funnel_stage ?? "sem_etapa"] ?? 0) + 1;
-    byStatus[r.status ?? "sem_status"] = (byStatus[r.status ?? "sem_status"] ?? 0) + 1;
-    if (r.cadence_active) ativos++;
-    if (r.do_not_contact) optout++;
-    if (!r.last_contact_at) semContato++;
+  const base = (q: any) => q.is(NOT_DELETED, null);
+  const total = await countRows(wid, "contacts", base);
+  const por_etapa: Record<string, number> = {};
+  for (const s of STAGES) {
+    const n = await countRows(wid, "contacts", (q) => base(q).eq("funnel_stage", s));
+    if (n) por_etapa[s] = n;
   }
-  return { total: rows.length, por_etapa: byStage, por_status: byStatus, em_cadencia: ativos, opt_out: optout, nunca_contatados: semContato };
+  const em_cadencia = await countRows(wid, "contacts", (q) => base(q).eq("cadence_active", true).eq("do_not_contact", false));
+  const opt_out = await countRows(wid, "contacts", (q) => base(q).eq("do_not_contact", true));
+  const nunca_contatados = await countRows(wid, "contacts", (q) => base(q).is("last_contact_at", null));
+  return { total, por_etapa, em_cadencia, opt_out, nunca_contatados, contatados: total - nunca_contatados };
 }
 
 export async function listContacts(
@@ -58,15 +70,12 @@ export async function companiesOverview(wid: string, opts: { search?: string | n
     .is(NOT_DELETED, null);
   if (opts.search) q = q.ilike("name", `%${opts.search}%`);
   const { data } = await q.order("last_contact_at", { ascending: false, nullsFirst: false }).limit(Math.min(opts.limit ?? 20, 50));
-  const { count } = await (await wsDb(wid)).from("companies").select("id", { count: "exact", head: true }).is(NOT_DELETED, null);
-  const contatadas = await (await wsDb(wid))
-    .from("companies")
-    .select("id", { count: "exact", head: true })
-    .not("last_contact_at", "is", null)
-    .is(NOT_DELETED, null);
+  const total = await countRows(wid, "companies", (x) => x.is(NOT_DELETED, null));
+  const contatadas = await countRows(wid, "companies", (x) => x.is(NOT_DELETED, null).not("last_contact_at", "is", null));
   return {
-    total_empresas: count ?? null,
-    empresas_contatadas: (contatadas as any)?.count ?? null,
+    total_empresas: total,
+    empresas_contatadas: contatadas,
+    empresas_nao_contatadas: total - contatadas,
     amostra: (data ?? []) as any[],
   };
 }
@@ -94,38 +103,23 @@ export async function cadenceSummary(wid: string) {
     .select("morning_time, afternoon_time, batch_size, timezone, weekdays_only, automation_enabled, auto_reply_enabled, last_morning_run_at, last_afternoon_run_at")
     .maybeSingle();
   const { data: steps } = await db.from("cadence_steps").select("day, active, script").order("day", { ascending: true });
-  const { data: contacts } = await db
-    .from("contacts")
-    .select("cadence_day, cadence_active, do_not_contact, last_contact_at")
-    .is(NOT_DELETED, null)
-    .limit(20000);
-  const rows = (contacts ?? []) as any[];
+  const ativosBase = (q: any) => q.is(NOT_DELETED, null).eq("cadence_active", true).eq("do_not_contact", false);
+  const ativos = await countRows(wid, "contacts", ativosBase);
   const byDay: Record<string, number> = {};
-  let ativos = 0;
-  for (const r of rows) {
-    if (r.cadence_active && !r.do_not_contact) {
-      ativos++;
-      byDay[`dia_${r.cadence_day ?? 0}`] = (byDay[`dia_${r.cadence_day ?? 0}`] ?? 0) + 1;
-    }
+  for (let d = 0; d <= 5; d++) {
+    const n = await countRows(wid, "contacts", (q) => ativosBase(q).eq("cadence_day", d));
+    if (n) byDay[`dia_${d}`] = n;
   }
   const today = startOfToday().toISOString();
-  const enviadasHoje = await db
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("kind", "whatsapp_out")
-    .gte("created_at", today);
-  const recebidasHoje = await db
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("kind", "whatsapp_in")
-    .gte("created_at", today);
+  const enviadasHoje = await countRows(wid, "activities", (q) => q.eq("kind", "whatsapp_out").gte("created_at", today));
+  const recebidasHoje = await countRows(wid, "activities", (q) => q.eq("kind", "whatsapp_in").gte("created_at", today));
   return {
     configuracao: settings ?? null,
     passos: (steps ?? []) as any[],
     leads_em_cadencia: ativos,
     distribuicao_por_dia: byDay,
-    enviadas_hoje: (enviadasHoje as any)?.count ?? 0,
-    respostas_hoje: (recebidasHoje as any)?.count ?? 0,
+    enviadas_hoje: enviadasHoje,
+    respostas_hoje: recebidasHoje,
   };
 }
 
@@ -177,10 +171,7 @@ export async function priorityContacts(wid: string, opts: { limit?: number | nul
 export async function weeklySummary(wid: string) {
   const db = await wsDb(wid);
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
-  const count = async (table: string, build: (q: any) => any) => {
-    const { count } = await build((await wsDb(wid)).from(table).select("id", { count: "exact", head: true }));
-    return count ?? 0;
-  };
+  const count = (table: string, build: (q: any) => any) => countRows(wid, table, build);
   const enviadas = await count("activities", (q) => q.eq("kind", "whatsapp_out").gte("created_at", since));
   const recebidas = await count("activities", (q) => q.eq("kind", "whatsapp_in").gte("created_at", since));
   const falhas = await count("activities", (q) => q.eq("kind", "whatsapp_out").not("error_message", "is", null).gte("created_at", since));
