@@ -16,7 +16,7 @@ export const askEva = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY não configurado");
     const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-2.5-flash");
+    const model = gateway("google/gemini-3.6-flash");
     const { loadWorkspace } = await import("./workspace.server");
     const { currentWorkspaceId } = await import("./workspace-scope.server");
     const wid = await currentWorkspaceId(context.supabase);
@@ -30,23 +30,26 @@ export const askEva = createServerFn({ method: "POST" })
         execute: async () => d.crmOverview(wid),
       }),
       buscar_contatos: tool({
-        description: "Lista contatos/leads do CRM. Use search para nome/empresa/whatsapp e funnelStage para filtrar a etapa do funil.",
+        description:
+          "Lista contatos/leads do CRM. Todos os parâmetros são opcionais: search (nome/empresa/whatsapp), funnelStage (etapa) e limit.",
         inputSchema: z.object({
-          search: z.string().nullable(),
-          funnelStage: z.string().nullable(),
-          limit: z.number().nullable(),
+          search: z.string().nullish().optional(),
+          funnelStage: z.string().nullish().optional(),
+          limit: z.number().nullish().optional(),
         }),
-        execute: async (a) => d.listContacts(wid, a),
+        execute: async (a) => d.listContacts(wid, a ?? {}),
       }),
       empresas: tool({
-        description: "Empresas do workspace: total, quantas já foram contatadas e uma amostra com etapa, cidade e último contato.",
-        inputSchema: z.object({ search: z.string().nullable(), limit: z.number().nullable() }),
-        execute: async (a) => d.companiesOverview(wid, a),
+        description:
+          "Empresas do workspace: total cadastrado, quantas já foram contatadas, quantas não foram, e uma amostra com etapa, cidade e último contato. Não exige parâmetros — chame com {}.",
+        inputSchema: z.object({ search: z.string().nullish().optional(), limit: z.number().nullish().optional() }),
+        execute: async (a) => d.companiesOverview(wid, a ?? {}),
       }),
       agenda: tool({
-        description: "Reuniões e eventos agendados a partir de hoje (inclui reuniões de hoje, link do Meet e status).",
-        inputSchema: z.object({ days: z.number().nullable() }),
-        execute: async (a) => d.agenda(wid, a),
+        description:
+          "Reuniões e eventos agendados a partir de hoje (inclui reuniões de hoje, link do Meet e status). Parâmetro days é opcional (padrão 7).",
+        inputSchema: z.object({ days: z.number().nullish().optional() }),
+        execute: async (a) => d.agenda(wid, a ?? {}),
       }),
       resumo_cadencia: tool({
         description: "Configuração da cadência automática, passos (Dia 1 a 5), leads ativos por dia, mensagens enviadas e respostas de hoje.",
@@ -55,8 +58,12 @@ export const askEva = createServerFn({ method: "POST" })
       }),
       mensagens_recentes: tool({
         description: "Histórico recente de mensagens de WhatsApp (enviadas, recebidas, falhas).",
-        inputSchema: z.object({ days: z.number().nullable(), limit: z.number().nullable(), onlyFailed: z.boolean().nullable() }),
-        execute: async (a) => d.recentMessages(wid, a),
+        inputSchema: z.object({
+          days: z.number().nullish().optional(),
+          limit: z.number().nullish().optional(),
+          onlyFailed: z.boolean().nullish().optional(),
+        }),
+        execute: async (a) => d.recentMessages(wid, a ?? {}),
       }),
       tarefas: tool({
         description: "Tarefas em aberto do workspace com prioridade e prazo.",
@@ -64,9 +71,10 @@ export const askEva = createServerFn({ method: "POST" })
         execute: async () => d.tasksOverview(wid),
       }),
       prioridades: tool({
-        description: "Clientes/leads que devem ser priorizados hoje: ações atrasadas e leads quentes do funil.",
-        inputSchema: z.object({ limit: z.number().nullable() }),
-        execute: async (a) => d.priorityContacts(wid, a),
+        description:
+          "Clientes/leads que devem ser priorizados hoje: ações atrasadas e leads quentes do funil. Não exige parâmetros — chame com {} (limit é opcional, padrão 15).",
+        inputSchema: z.object({ limit: z.number().nullish().optional() }),
+        execute: async (a) => d.priorityContacts(wid, a ?? {}),
       }),
       resumo_semana: tool({
         description: "Resumo comercial dos últimos 7 dias: envios, respostas, taxa de resposta, novos leads, reuniões e funil.",
@@ -90,7 +98,7 @@ ${data.context ? `\nContexto adicional:\n${data.context}` : ""}`;
       model,
       system,
       tools,
-      stopWhen: stepCountIs(6),
+      stopWhen: stepCountIs(8),
       messages: data.messages.filter((m) => m.role !== "system"),
     });
     return { text: text || "Não consegui gerar uma resposta agora. Pode reformular a pergunta?" };
