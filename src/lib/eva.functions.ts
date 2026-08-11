@@ -30,7 +30,8 @@ export const askEva = createServerFn({ method: "POST" })
         execute: async () => d.crmOverview(wid),
       }),
       buscar_contatos: tool({
-        description: "Lista contatos/leads do CRM. Use search para nome/empresa/whatsapp e funnelStage para filtrar a etapa do funil.",
+        description:
+          "Lista contatos/leads do CRM. Todos os parâmetros são opcionais: search (nome/empresa/whatsapp), funnelStage (etapa) e limit.",
         inputSchema: z.object({
           search: z.string().nullish().optional(),
           funnelStage: z.string().nullish().optional(),
@@ -39,12 +40,14 @@ export const askEva = createServerFn({ method: "POST" })
         execute: async (a) => d.listContacts(wid, a ?? {}),
       }),
       empresas: tool({
-        description: "Empresas do workspace: total, quantas já foram contatadas e uma amostra com etapa, cidade e último contato.",
+        description:
+          "Empresas do workspace: total cadastrado, quantas já foram contatadas, quantas não foram, e uma amostra com etapa, cidade e último contato. Não exige parâmetros — chame com {}.",
         inputSchema: z.object({ search: z.string().nullish().optional(), limit: z.number().nullish().optional() }),
         execute: async (a) => d.companiesOverview(wid, a ?? {}),
       }),
       agenda: tool({
-        description: "Reuniões e eventos agendados a partir de hoje (inclui reuniões de hoje, link do Meet e status).",
+        description:
+          "Reuniões e eventos agendados a partir de hoje (inclui reuniões de hoje, link do Meet e status). Parâmetro days é opcional (padrão 7).",
         inputSchema: z.object({ days: z.number().nullish().optional() }),
         execute: async (a) => d.agenda(wid, a ?? {}),
       }),
@@ -68,7 +71,8 @@ export const askEva = createServerFn({ method: "POST" })
         execute: async () => d.tasksOverview(wid),
       }),
       prioridades: tool({
-        description: "Clientes/leads que devem ser priorizados hoje: ações atrasadas e leads quentes do funil.",
+        description:
+          "Clientes/leads que devem ser priorizados hoje: ações atrasadas e leads quentes do funil. Não exige parâmetros — chame com {} (limit é opcional, padrão 15).",
         inputSchema: z.object({ limit: z.number().nullish().optional() }),
         execute: async (a) => d.priorityContacts(wid, a ?? {}),
       }),
