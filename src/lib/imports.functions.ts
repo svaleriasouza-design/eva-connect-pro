@@ -106,7 +106,7 @@ export const deleteContactsFn = createServerFn({ method: "POST" })
     const { error, data: removed } = await context.supabase.rpc("delete_contacts", {
       p_ids: data.ids,
     });
-    if (error) throw new Error("Não foi possível excluir os contatos.");
+    if (error) throw new Error(error.message);
     return { ok: true, removed: (removed as number) ?? 0 };
   });
 
@@ -124,7 +124,7 @@ export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
       p_stage: data.stage ?? null,
       p_batch: data.batch ?? null,
     });
-    if (error) throw new Error("Não foi possível excluir os contatos do filtro.");
+    if (error) throw new Error(error.message);
     return { ok: true, removed: (removed as number) ?? 0 };
   });
 
@@ -136,6 +136,6 @@ export const deleteCompaniesFn = createServerFn({ method: "POST" })
     const { error, data: removed } = await context.supabase.rpc("delete_companies", {
       p_ids: data.ids,
     });
-    if (error) throw new Error("Não foi possível excluir as empresas.");
+    if (error) throw new Error(error.message);
     return { ok: true, removed: (removed as number) ?? 0 };
   });
