@@ -117,16 +117,10 @@ export function CrmList() {
   async function removeSelected() {
     setDeleting(true);
     try {
-      await deleteContacts({ data: { ids: selected.slice(0, 1000) } });
+      const res: any = await deleteContacts({ data: { ids: selected } });
       setSelected([]);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
-        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
-        qc.invalidateQueries({ queryKey: ["companies"] }),
-        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
-        qc.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-      toast.success("Contatos excluídos.");
+      await invalidateAfterDelete();
+      toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} contato(s) excluído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
@@ -139,19 +133,45 @@ export function CrmList() {
     try {
       const res: any = await deleteContactsByFilter({ data: { q, stage, batch } });
       setSelected([]);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
-        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
-        qc.invalidateQueries({ queryKey: ["companies"] }),
-        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
-        qc.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
+      await invalidateAfterDelete();
       toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} contato(s) excluído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
       setDeleting(false);
     }
+  }
+
+  /** Invalida todas as queries relacionadas a contatos após uma exclusão. */
+  async function invalidateAfterDelete() {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["contacts"] }),
+      qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+      qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+      qc.invalidateQueries({ queryKey: ["contacts-min"] }),
+      qc.invalidateQueries({ queryKey: ["companies"] }),
+      qc.invalidateQueries({ queryKey: ["companies-page"] }),
+      qc.invalidateQueries({ queryKey: ["companies-count"] }),
+      qc.invalidateQueries({ queryKey: ["company-contacts"] }),
+      qc.invalidateQueries({ queryKey: ["company-detail"] }),
+      qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
+      qc.invalidateQueries({ queryKey: ["funnel"] }),
+      qc.invalidateQueries({ queryKey: ["dashboard"] }),
+      qc.invalidateQueries({ queryKey: ["dashboard-central"] }),
+      qc.invalidateQueries({ queryKey: ["activities"] }),
+      qc.invalidateQueries({ queryKey: ["all-activities"] }),
+      qc.invalidateQueries({ queryKey: ["events"] }),
+      qc.invalidateQueries({ queryKey: ["tasks"] }),
+      qc.invalidateQueries({ queryKey: ["saturday-requests"] }),
+      qc.invalidateQueries({ queryKey: ["cadence-stats"] }),
+      qc.invalidateQueries({ queryKey: ["cadence-due"] }),
+      qc.invalidateQueries({ queryKey: ["cadence-due-count"] }),
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] }),
+      qc.invalidateQueries({ queryKey: ["wa-recent-acts"] }),
+      qc.invalidateQueries({ queryKey: ["hist-contacts"] }),
+      qc.invalidateQueries({ queryKey: ["import-batches"] }),
+      qc.invalidateQueries({ queryKey: ["import-batch-options"] }),
+    ]);
   }
 
   // fetchAllRows / useMemo kept for CSV import path
@@ -437,8 +457,9 @@ export function CrmList() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Excluir {total.toLocaleString("pt-BR")} contato(s) do filtro atual?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Todos os contatos que aparecem com os filtros atuais (busca, etapa e lote de importação) saem do CRM,
-                  funil e cadências na hora. Os dados ficam guardados no banco e podem ser recuperados.
+                  Você está prestes a excluir {total.toLocaleString("pt-BR")} contato(s) e seus registros relacionados
+                  (atividades, agendamentos, pedidos de sábado). Eventos e tarefas permanecem, mas serão desvinculados
+                  dos contatos. As empresas não são excluídas. Esta ação não pode ser desfeita. Deseja continuar?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -470,8 +491,9 @@ export function CrmList() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Excluir {selected.length} contato(s)?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Eles saem do CRM, funil e cadências na hora. Os dados ficam guardados no banco, sem aparecer nas
-                      telas.
+                      Os contatos selecionados e seus registros relacionados (atividades, agendamentos, pedidos de sábado)
+                      serão excluídos permanentemente. Eventos e tarefas permanecem, mas serão desvinculados. As empresas
+                      não são excluídas. Esta ação não pode ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

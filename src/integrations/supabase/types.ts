@@ -953,6 +953,14 @@ export type Database = {
         Args: { _company_id: string }
         Returns: undefined
       }
+      delete_contacts: {
+        Args: { p_ids: string[] }
+        Returns: number
+      }
+      delete_contacts_by_filter: {
+        Args: { p_q?: string | null; p_stage?: string | null; p_batch?: string | null }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
