@@ -33,24 +33,25 @@ export const listImportBatchesFn = createServerFn({ method: "GET" })
     return (data ?? []) as any[];
   });
 
-/** Desfaz uma importação (lixeira: contatos e empresas ficam ocultos, nada é apagado). */
+/** Desfaz uma importação: exclui permanentemente contatos, empresas e histórico relacionado. */
 export const undoImportFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => batchSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { db } = await scope(context);
-    const now = new Date().toISOString();
-    await db
-      .from("contacts")
-      .update({ deleted_at: now, cadence_active: false })
-      .eq("import_batch_id", data.batchId)
-      .is("deleted_at", null);
-    await db
-      .from("companies")
-      .update({ deleted_at: now })
-      .eq("import_batch_id", data.batchId)
-      .is("deleted_at", null);
-    await db.from("import_batches").update({ deleted_at: now }).eq("id", data.batchId);
+    const { data: rows } = await db.from("contacts").select("id").eq("import_batch_id", data.batchId);
+    const ids = ((rows ?? []) as { id: string }[]).map((r) => r.id);
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      await db.from("activities").delete().in("contact_id", chunk);
+      await db.from("tasks").delete().in("contact_id", chunk);
+      await db.from("events").delete().in("contact_id", chunk);
+      await db.from("eva_scheduling_state").delete().in("contact_id", chunk);
+      await db.from("saturday_requests").delete().in("contact_id", chunk);
+    }
+    await db.from("contacts").delete().eq("import_batch_id", data.batchId);
+    await db.from("companies").delete().eq("import_batch_id", data.batchId);
+    await db.from("import_batches").delete().eq("id", data.batchId);
     return { ok: true };
   });
 
@@ -79,6 +80,8 @@ export const purgeImportFn = createServerFn({ method: "POST" })
       await db.from("activities").delete().in("contact_id", chunk);
       await db.from("tasks").delete().in("contact_id", chunk);
       await db.from("events").delete().in("contact_id", chunk);
+      await db.from("eva_scheduling_state").delete().in("contact_id", chunk);
+      await db.from("saturday_requests").delete().in("contact_id", chunk);
     }
     await db.from("contacts").delete().eq("import_batch_id", data.batchId);
     await db.from("companies").delete().eq("import_batch_id", data.batchId);
@@ -86,28 +89,31 @@ export const purgeImportFn = createServerFn({ method: "POST" })
     return { ok: true, removed: ids.length };
   });
 
-/** Exclui (lixeira reversível) os contatos selecionados no CRM. */
+/** Exclui permanentemente os contatos selecionados no CRM e limpa todos os dados relacionados. */
 export const deleteContactsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => idsSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { db } = await scope(context);
-    const now = new Date().toISOString();
-    await db
-      .from("contacts")
-      .update({ deleted_at: now, cadence_active: false })
-      .in("id", data.ids)
-      .is("deleted_at", null);
-    return { ok: true, removed: data.ids.length };
+    const ids = data.ids;
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      await db.from("activities").delete().in("contact_id", chunk);
+      await db.from("tasks").delete().in("contact_id", chunk);
+      await db.from("events").delete().in("contact_id", chunk);
+      await db.from("eva_scheduling_state").delete().in("contact_id", chunk);
+      await db.from("saturday_requests").delete().in("contact_id", chunk);
+    }
+    await db.from("contacts").delete().in("id", ids);
+    return { ok: true, removed: ids.length };
   });
 
-/** Exclui (lixeira reversível) TODOS os contatos que atendem ao filtro atual do CRM. */
+/** Exclui permanentemente TODOS os contatos que atendem ao filtro atual do CRM e limpa dados relacionados. */
 export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => filterSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { db } = await scope(context);
-    const now = new Date().toISOString();
     const term = (data.q ?? "").trim();
     const build = () => {
       let query: any = db.from("contacts");
@@ -125,12 +131,20 @@ export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
     };
 
     let removed = 0;
-    // Atualiza em blocos para não estourar tempo de execução em listas grandes.
+    // Exclui em blocos para não estourar tempo de execução em listas grandes.
     for (let i = 0; i < 200; i++) {
       const { data: rows } = await applyFilters(build().select("id")).limit(1000);
       const ids = ((rows ?? []) as { id: string }[]).map((r) => r.id);
       if (ids.length === 0) break;
-      await db.from("contacts").update({ deleted_at: now, cadence_active: false }).in("id", ids);
+      for (let j = 0; j < ids.length; j += 200) {
+        const chunk = ids.slice(j, j + 200);
+        await db.from("activities").delete().in("contact_id", chunk);
+        await db.from("tasks").delete().in("contact_id", chunk);
+        await db.from("events").delete().in("contact_id", chunk);
+        await db.from("eva_scheduling_state").delete().in("contact_id", chunk);
+        await db.from("saturday_requests").delete().in("contact_id", chunk);
+      }
+      await db.from("contacts").delete().in("id", ids);
       removed += ids.length;
       if (ids.length < 1000) break;
     }

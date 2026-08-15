@@ -6,10 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import {
-  Users, Calendar, MessageCircle, CheckSquare, Building2, TrendingUp,
-  AlertTriangle, Sparkles, Play, Target, Flame, Clock, FileText, UserCheck,
-} from "lucide-react";
+import { Users, Calendar, MessageCircle, SquareCheck as CheckSquare, Building2, TrendingUp, TriangleAlert as AlertTriangle, Sparkles, Play, Target, Flame, Clock, FileText, UserCheck } from "lucide-react";
 import { fetchDueCadence } from "@/lib/cadence";
 import { CadenceModal } from "@/components/cadence-modal";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -58,7 +55,8 @@ function Dashboard() {
       const fifteenIso = fifteen.toISOString();
 
       const cnt = async (q: any) => (await q).count ?? 0;
-      const head = () => supabase.from("contacts").select("id", { count: "exact", head: true });
+      const head = () => supabase.from("contacts").select("id", { count: "exact", head: true }).is("deleted_at", null);
+      const companyHead = () => supabase.from("companies").select("id", { count: "exact", head: true }).is("deleted_at", null);
 
       const [
         active, proposals, inCadence, newLeads, meetingsScheduled, inbox,
@@ -71,22 +69,22 @@ function Dashboard() {
         cnt(head().eq("funnel_stage", "novo_lead")),
         cnt(head().eq("funnel_stage", "reuniao_agendada")),
         cnt(head().eq("status", "aguardando_resposta")),
-        cnt(supabase.from("companies").select("id", { count: "exact", head: true }).is("next_meeting", null)),
+        cnt(companyHead().is("next_meeting", null)),
         cnt(supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due_at", startIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "reuniao").gte("starts_at", startIso).lte("starts_at", endIso).eq("status", "no_show")),
-        cnt(supabase.from("companies").select("id", { count: "exact", head: true })),
+        cnt(companyHead()),
         supabase.from("events").select("id, title, starts_at, status, kind")
           .gte("starts_at", startIso).lte("starts_at", endIso).order("starts_at"),
         supabase.from("contacts").select("id, name, funnel_stage, last_contact_at")
-          .eq("funnel_stage", "proposta_enviada").order("updated_at", { ascending: false }).limit(5),
+          .eq("funnel_stage", "proposta_enviada").is("deleted_at", null).order("updated_at", { ascending: false }).limit(5),
         supabase.from("tasks").select("id, title, due_at, contact_id")
           .eq("done", false).lt("due_at", startIso).order("due_at", { ascending: true }).limit(5),
         supabase.from("contacts").select("id, name, last_contact_at")
-          .gte("last_contact_at", startIso).lte("last_contact_at", endIso)
+          .is("deleted_at", null).gte("last_contact_at", startIso).lte("last_contact_at", endIso)
           .order("last_contact_at", { ascending: false }).limit(5),
         supabase.from("contacts").select("id, name, last_contact_at")
-          .eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
+          .is("deleted_at", null).eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
           .order("last_contact_at", { ascending: true }).limit(5),
       ]);
 

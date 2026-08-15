@@ -20,9 +20,10 @@ function Funil() {
               .from("contacts")
               .select("id, name, company_name, whatsapp, phone, last_contact_at, next_action, cadence_active, cadence_day")
               .eq("funnel_stage", s.key)
+              .is("deleted_at", null)
               .order("updated_at", { ascending: false })
               .limit(100),
-            supabase.from("contacts").select("id", { count: "exact", head: true }).eq("funnel_stage", s.key),
+            supabase.from("contacts").select("id", { count: "exact", head: true }).eq("funnel_stage", s.key).is("deleted_at", null),
           ]);
           return [s.key, { items: data ?? [], total: count ?? 0 }] as const;
         }),

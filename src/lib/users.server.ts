@@ -8,9 +8,18 @@ async function admin() {
   return supabaseAdmin as any;
 }
 
-export async function getRolesFor(userId: string, workspaceId: string): Promise<AppRole[]> {
-  const db = await wsDb(workspaceId);
-  const { data } = await db.from("user_roles").select("role").eq("user_id", userId);
+export async function getRolesFor(
+  userId: string,
+  workspaceId: string,
+  supabase?: any,
+): Promise<AppRole[]> {
+  const { data } = supabase
+    ? await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", userId)
+    : (await wsDb(workspaceId)).from("user_roles").select("role").eq("user_id", userId);
   return ((data ?? []) as { role: AppRole }[]).map((r) => r.role);
 }
 

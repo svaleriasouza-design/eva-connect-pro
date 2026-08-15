@@ -8,22 +8,28 @@ const saveSchema = z.object({
   owner_name: z.string().trim().max(80).optional().nullable(),
 });
 
+async function wid(context: any) {
+  const { currentWorkspaceId } = await import("./workspace-scope.server");
+  return currentWorkspaceId(context.supabase);
+}
+
 export const getWorkspaceFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { currentWorkspaceId } = await import("./workspace-scope.server");
     const { loadWorkspace } = await import("./workspace.server");
-    return loadWorkspace(await currentWorkspaceId(context.supabase));
+    return loadWorkspace(await wid(context), context.supabase);
   });
 
 export const saveWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => saveSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { currentWorkspaceId } = await import("./workspace-scope.server");
-    const wid = await currentWorkspaceId(context.supabase);
-    const { requireRole } = await import("./users.server");
-    await requireRole(context.userId, ["admin"], wid);
+    const workspaceId = await wid(context);
+    const { getRolesFor } = await import("./users.server");
+    const roles = await getRolesFor(context.userId, workspaceId, context.supabase);
+    if (!roles.includes("admin")) {
+      throw new Error("Acesso negado: somente administradores podem alterar estes dados.");
+    }
     const { saveWorkspace } = await import("./workspace.server");
-    return saveWorkspace(wid, data);
+    return saveWorkspace(workspaceId, data, context.supabase);
   });

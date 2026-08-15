@@ -17,13 +17,20 @@ export const getMyAccessFn = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { getRolesFor, displayNameFor } = await import("./users.server");
     const workspaceId = await wid(context);
-    const roles = await getRolesFor(context.userId, workspaceId);
+    const roles = await getRolesFor(context.userId, workspaceId, context.supabase);
     const email = ((context.claims as any)?.email as string | undefined) ?? "";
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const row = (profile ?? null) as { full_name: string | null; email: string | null } | null;
+    const name = (row?.full_name || row?.email || email || "usuário").trim();
     return {
       workspaceId,
       userId: context.userId,
       email,
-      name: await displayNameFor(context.userId, email),
+      name,
       roles,
       isAdmin: roles.includes("admin"),
       canSend: roles.includes("admin") || roles.includes("operador"),

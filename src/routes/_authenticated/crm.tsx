@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Upload, Download, Trash2, Loader2 } from "lucide-react";
+import { Plus, Search, Upload, Download, Trash2, Loader as Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -73,7 +73,7 @@ export function CrmList() {
   const { data: total = 0 } = useQuery({
     queryKey: ["contacts-count", q, stage, batch],
     queryFn: async () => {
-      let query: any = supabase.from("contacts").select("id", { count: "exact", head: true });
+      let query: any = supabase.from("contacts").select("id", { count: "exact", head: true }).is("deleted_at", null);
       if (stage !== "all") query = query.eq("funnel_stage", stage);
       if (batch === "none") query = query.is("import_batch_id", null);
       else if (batch !== "all") query = query.eq("import_batch_id", batch);
@@ -88,6 +88,7 @@ export function CrmList() {
     queryFn: async () => {
       let query: any = supabase.from("contacts")
         .select("id, name, company_name, whatsapp, funnel_stage, last_contact_at, created_at, import_batch_id")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
       if (stage !== "all") query = query.eq("funnel_stage", stage);

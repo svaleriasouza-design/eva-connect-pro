@@ -32,7 +32,7 @@ function Empresas() {
   const { data: total = 0 } = useQuery({
     queryKey: ["companies-count", q],
     queryFn: async () => {
-      let query: any = supabase.from("companies").select("id", { count: "exact", head: true });
+      let query: any = supabase.from("companies").select("id", { count: "exact", head: true }).is("deleted_at", null);
       if (q.trim()) query = query.ilike("name", `%${q.trim()}%`);
       const { count } = await query;
       return count ?? 0;
@@ -45,6 +45,7 @@ function Empresas() {
       let query: any = supabase
         .from("companies")
         .select("id, name, responsible, whatsapp, phone, email, city, segment, employees, funnel_stage, status, last_contact_at, next_action, next_action_at, contacts_count")
+        .is("deleted_at", null)
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .order("name", { ascending: true })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
@@ -149,7 +150,7 @@ function CompanyDetailDialog({ id, onOpenChange }: { id: string | null; onOpenCh
   });
   const { data: contacts = [] } = useQuery({
     queryKey: ["company-contacts", id],
-    queryFn: async () => (await supabase.from("contacts").select("id, name, whatsapp, email, funnel_stage, last_contact_at, next_action").eq("company_id", id!).order("created_at")).data ?? [],
+    queryFn: async () => (await supabase.from("contacts").select("id, name, whatsapp, email, funnel_stage, last_contact_at, next_action").eq("company_id", id!).is("deleted_at", null).order("created_at")).data ?? [],
     enabled: !!id,
   });
 
