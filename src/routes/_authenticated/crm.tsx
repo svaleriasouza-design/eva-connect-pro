@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteContactsFn, deleteContactsByFilterFn } from "@/lib/imports.functions";
-import { useAccess } from "@/hooks/use-access";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import {
@@ -51,7 +50,6 @@ export function CrmList() {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 200;
-  const { isAdmin } = useAccess();
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const deleteContacts = useServerFn(deleteContactsFn);
@@ -440,7 +438,7 @@ export function CrmList() {
         </Select>
       </div>
 
-      {isAdmin && total > 0 && selected.length === 0 && (
+      {total > 0 && selected.length === 0 && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="text-sm text-muted-foreground">
             Filtro atual: <strong className="text-foreground">{total.toLocaleString("pt-BR")}</strong> contato(s). Dá
@@ -475,12 +473,10 @@ export function CrmList() {
         <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="text-sm">
             <strong>{selected.length.toLocaleString("pt-BR")}</strong> contato(s) selecionado(s)
-            {!isAdmin && <span className="ml-2 text-muted-foreground">— somente administradores podem excluir.</span>}
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={() => setSelected([])}>Limpar seleção</Button>
-            {isAdmin && (
-              <AlertDialog>
+            <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
                     {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -502,7 +498,6 @@ export function CrmList() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            )}
           </div>
         </Card>
       )}

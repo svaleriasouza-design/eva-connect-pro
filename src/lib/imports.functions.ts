@@ -127,3 +127,15 @@ export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
     if (error) throw new Error("Não foi possível excluir os contatos do filtro.");
     return { ok: true, removed: (removed as number) ?? 0 };
   });
+
+/** Exclui permanentemente as empresas selecionadas. Contatos vinculados ficam sem empresa. */
+export const deleteCompaniesFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => idsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error, data: removed } = await context.supabase.rpc("delete_companies", {
+      p_ids: data.ids,
+    });
+    if (error) throw new Error("Não foi possível excluir as empresas.");
+    return { ok: true, removed: (removed as number) ?? 0 };
+  });

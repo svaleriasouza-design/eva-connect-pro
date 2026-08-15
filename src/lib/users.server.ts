@@ -1,5 +1,4 @@
 // Helpers server-only para papéis de acesso — sempre escopados ao workspace.
-import { wsDb } from "./workspace-scope.server";
 
 export type AppRole = "admin" | "operador" | "leitor";
 
@@ -13,18 +12,26 @@ export async function getRolesFor(
   workspaceId: string,
   supabase?: any,
 ): Promise<AppRole[]> {
-  const { data } = supabase
-    ? await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", userId)
-    : (await wsDb(workspaceId)).from("user_roles").select("role").eq("user_id", userId);
+  if (supabase) {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", userId);
+    return ((data ?? []) as { role: AppRole }[]).map((r) => r.role);
+  }
+  const { currentWorkspaceId } = await import("./workspace-scope.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await (supabaseAdmin as any)
+    .from("user_roles")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", userId);
   return ((data ?? []) as { role: AppRole }[]).map((r) => r.role);
 }
 
-export async function requireRole(userId: string, allowed: AppRole[], workspaceId: string) {
-  const roles = await getRolesFor(userId, workspaceId);
+export async function requireRole(userId: string, allowed: AppRole[], workspaceId: string, supabase?: any) {
+  const roles = await getRolesFor(userId, workspaceId, supabase);
   if (!roles.some((r) => allowed.includes(r))) {
     throw new Error("Acesso negado: seu usuário não tem permissão para esta ação.");
   }
@@ -38,14 +45,16 @@ export async function displayNameFor(userId: string, fallback: string): Promise<
   return (row?.full_name || row?.email || fallback || "usuário").trim();
 }
 
-/** Lista apenas os membros do workspace informado. */
-export async function listUsersWithRoles(workspaceId: string) {
-  const db = await wsDb(workspaceId);
-  const { data: roles } = await db.from("user_roles").select("user_id, role, created_at");
+/** Lista apenas os membros do workspace informado. Usa o cliente autenticado. */
+export async function listUsersWithRoles(workspaceId: string, supabase?: any) {
+  const sb = supabase ?? (await admin());
+  const { data: roles } = await sb
+    .from("user_roles")
+    .select("user_id, role, created_at")
+    .eq("workspace_id", workspaceId);
   const rows = (roles ?? []) as { user_id: string; role: AppRole; created_at: string }[];
   const ids = Array.from(new Set(rows.map((r) => r.user_id)));
   if (ids.length === 0) return [];
-  const sb = await admin();
   const { data: profiles } = await sb
     .from("profiles")
     .select("id, email, full_name, created_at")
@@ -62,13 +71,15 @@ export async function listUsersWithRoles(workspaceId: string) {
   }));
 }
 
-export async function setUserRole(userId: string, role: AppRole, workspaceId: string) {
-  const db = await wsDb(workspaceId);
-  const existing = await getRolesFor(userId, workspaceId);
+export async function setUserRole(userId: string, role: AppRole, workspaceId: string, supabase?: any) {
+  const sb = supabase ?? (await admin());
+  const existing = await getRolesFor(userId, workspaceId, sb);
   if (existing.length === 0) {
     throw new Error("Este usuário não pertence ao seu workspace.");
   }
-  await db.from("user_roles").delete().eq("user_id", userId);
-  const { error } = await db.from("user_roles").insert({ user_id: userId, role });
+  await sb.from("user_roles").delete().eq("user_id", userId).eq("workspace_id", workspaceId);
+  const { error } = await sb
+    .from("user_roles")
+    .insert({ user_id: userId, role, workspace_id: workspaceId });
   if (error) throw new Error(error.message);
 }

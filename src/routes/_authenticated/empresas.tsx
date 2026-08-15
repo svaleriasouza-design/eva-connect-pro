@@ -8,10 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Building2, Mail } from "lucide-react";
+import { Plus, Search, Building2, Mail, Trash2, Loader as Loader2 } from "lucide-react";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
+import { useServerFn } from "@tanstack/react-start";
+import { deleteCompaniesFn } from "@/lib/imports.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresas")({ component: Empresas });
@@ -28,6 +32,9 @@ function Empresas() {
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const deleteCompanies = useServerFn(deleteCompaniesFn);
 
   const { data: total = 0 } = useQuery({
     queryKey: ["companies-count", q],
@@ -58,6 +65,48 @@ function Empresas() {
   });
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const allOnPageSelected = companies.length > 0 && companies.every((c: any) => selected.includes(c.id));
+
+  function toggleOne(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  function toggleAllOnPage() {
+    const ids = companies.map((c: any) => c.id as string);
+    setSelected((s) => (allOnPageSelected ? s.filter((x) => !ids.includes(x)) : Array.from(new Set([...s, ...ids]))));
+  }
+
+  async function removeSelected() {
+    setDeleting(true);
+    try {
+      const res: any = await deleteCompanies({ data: { ids: selected } });
+      setSelected([]);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["companies"] }),
+        qc.invalidateQueries({ queryKey: ["companies-page"] }),
+        qc.invalidateQueries({ queryKey: ["companies-count"] }),
+        qc.invalidateQueries({ queryKey: ["company-detail"] }),
+        qc.invalidateQueries({ queryKey: ["company-contacts"] }),
+        qc.invalidateQueries({ queryKey: ["contacts"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-page"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-count"] }),
+        qc.invalidateQueries({ queryKey: ["contacts-min"] }),
+        qc.invalidateQueries({ queryKey: ["funil-por-etapa"] }),
+        qc.invalidateQueries({ queryKey: ["funnel"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard-central"] }),
+        qc.invalidateQueries({ queryKey: ["activities"] }),
+        qc.invalidateQueries({ queryKey: ["all-activities"] }),
+        qc.invalidateQueries({ queryKey: ["events"] }),
+        qc.invalidateQueries({ queryKey: ["hist-contacts"] }),
+      ]);
+      toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} empresa(s) excluída(s).`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir as empresas.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -74,11 +123,47 @@ function Empresas() {
         <Input value={q} onChange={(e) => { setPage(0); setQ(e.target.value); }} placeholder="Buscar por nome…" className="pl-9" />
       </div>
 
+      {selected.length > 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="text-sm">
+            <strong>{selected.length.toLocaleString("pt-BR")}</strong> empresa(s) selecionada(s)
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected([])}>Limpar seleção</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={deleting} className="gap-2">
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Excluir selecionadas
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir {selected.length} empresa(s)?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    As empresas selecionadas serão excluídas permanentemente. Os contatos vinculados a elas
+                    permanecerão no CRM, mas serão desvinculados (sem empresa). Atividades relacionadas serão
+                    removidas. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={removeSelected}>Excluir</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>
+                <th className="p-3 w-8">
+                  <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} aria-label="Selecionar todas" />
+                </th>
                 <th className="p-3">Empresa</th>
                 <th className="p-3">Responsável</th>
                 <th className="p-3">WhatsApp</th>
@@ -90,37 +175,44 @@ function Empresas() {
                 <th className="p-3">Último contato</th>
                 <th className="p-3">Próxima ação</th>
               </tr>
-            </thead>
+          </thead>
             <tbody>
               {isLoading && companies.length === 0 &&
                 Array.from({ length: 10 }).map((_, i) => (
                   <tr key={i} className="border-t">
-                    {Array.from({ length: 10 }).map((__, j) => (
+                    {Array.from({ length: 11 }).map((__, j) => (
                       <td key={j} className="p-3"><Skeleton className="h-4 w-24" /></td>
                     ))}
                   </tr>
                 ))}
               {companies.map((c: any) => (
-                <tr key={c.id} className="border-t hover:bg-muted/30 cursor-pointer" onClick={() => setOpenId(c.id)}>
+                <tr key={c.id} className="border-t hover:bg-muted/30">
                   <td className="p-3">
+                    <Checkbox
+                      checked={selected.includes(c.id)}
+                      onCheckedChange={() => toggleOne(c.id)}
+                      aria-label={`Selecionar ${c.name}`}
+                    />
+                  </td>
+                  <td className="p-3 cursor-pointer" onClick={() => setOpenId(c.id)}>
                     <div className="font-medium">{c.name}</div>
                     <div className="text-[11px] text-muted-foreground">{c.contacts_count ?? 0} contato(s)</div>
                   </td>
-                  <td className="p-3 text-muted-foreground">{c.responsible ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">{c.whatsapp ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">
+                  <td className="p-3 text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.responsible ?? "—"}</td>
+                  <td className="p-3 text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.whatsapp ?? "—"}</td>
+                  <td className="p-3 text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>
                     {c.email ? <a onClick={(e) => e.stopPropagation()} href={`mailto:${c.email}`} className="inline-flex items-center gap-1 hover:underline"><Mail className="h-3 w-3" /> {c.email}</a> : "—"}
                   </td>
-                  <td className="p-3 text-muted-foreground">{c.city ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">{c.segment ?? "—"}</td>
-                  <td className="p-3 text-center text-muted-foreground">{c.employees ?? "—"}</td>
-                  <td className="p-3"><Badge variant="secondary">{stageLabel(c.funnel_stage)}</Badge></td>
-                  <td className="p-3 text-xs text-muted-foreground">{formatDateTime(c.last_contact_at)}</td>
-                  <td className="p-3 text-xs text-muted-foreground">{c.next_action ?? "—"}</td>
+                  <td className="p-3 text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.city ?? "—"}</td>
+                  <td className="p-3 text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.segment ?? "—"}</td>
+                  <td className="p-3 text-center text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.employees ?? "—"}</td>
+                  <td className="p-3 cursor-pointer" onClick={() => setOpenId(c.id)}><Badge variant="secondary">{stageLabel(c.funnel_stage)}</Badge></td>
+                  <td className="p-3 text-xs text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{formatDateTime(c.last_contact_at)}</td>
+                  <td className="p-3 text-xs text-muted-foreground cursor-pointer" onClick={() => setOpenId(c.id)}>{c.next_action ?? "—"}</td>
                 </tr>
               ))}
               {!isLoading && companies.length === 0 && (
-                <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">Nenhuma empresa encontrada.</td></tr>
+                <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">Nenhuma empresa encontrada.</td></tr>
               )}
             </tbody>
           </table>

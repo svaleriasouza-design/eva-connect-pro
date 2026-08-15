@@ -961,6 +961,10 @@ export type Database = {
         Args: { p_q?: string | null; p_stage?: string | null; p_batch?: string | null }
         Returns: number
       }
+      delete_companies: {
+        Args: { p_ids: string[] }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }

@@ -1,14 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listUsersFn, setUserRoleFn } from "@/lib/users.functions";
+import { listUsersFn, setUserRoleFn, addUserToWorkspaceFn } from "@/lib/users.functions";
 import { useAccess } from "@/hooks/use-access";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDateTime } from "@/lib/db";
 import { toast } from "sonner";
-import { ShieldCheck, Loader2, Users } from "lucide-react";
+import { ShieldCheck, Loader as Loader2, Users, UserPlus } from "lucide-react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsuariosPage,
@@ -41,6 +46,11 @@ function UsuariosPage() {
   const { isAdmin, loading, access } = useAccess();
   const listFn = useServerFn(listUsersFn);
   const setRoleFn = useServerFn(setUserRoleFn);
+  const addUserFn = useServerFn(addUserToWorkspaceFn);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEmail, setAddEmail] = useState("");
+  const [addRole, setAddRole] = useState("operador");
+  const [adding, setAdding] = useState(false);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users-roles"],
@@ -56,6 +66,22 @@ function UsuariosPage() {
       qc.invalidateQueries({ queryKey: ["my-access"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível alterar a permissão");
+    }
+  }
+
+  async function addUser() {
+    setAdding(true);
+    try {
+      const res: any = await addUserFn({ data: { email: addEmail, role: addRole as any } });
+      toast.success(`${res?.name ?? "Usuário"} adicionado ao workspace.`);
+      setAddOpen(false);
+      setAddEmail("");
+      setAddRole("operador");
+      qc.invalidateQueries({ queryKey: ["users-roles"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível adicionar o usuário.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -78,11 +104,53 @@ function UsuariosPage() {
 
   return (
     <div className="max-w-4xl space-y-4 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold"><Users className="h-5 w-5 text-primary" /> Usuários e permissões</h1>
-        <p className="text-sm text-muted-foreground">
-          Quem se cadastra entra como <strong>Leitor</strong> e só visualiza. Libere aqui o nível de cada pessoa.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold"><Users className="h-5 w-5 text-primary" /> Usuários e permissões</h1>
+          <p className="text-sm text-muted-foreground">
+            Adicione membros da equipe e defina o nível de acesso de cada pessoa.
+          </p>
+        </div>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2"><UserPlus className="h-4 w-4" /> Adicionar usuário</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Adicionar usuário ao workspace</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                A pessoa precisa ter se cadastrado na EVA primeiro. Informe o e-mail usado no cadastro para adicioná-la ao seu workspace.
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">E-mail do usuário</Label>
+                <Input
+                  type="email"
+                  value={addEmail}
+                  onChange={(e) => setAddEmail(e.target.value)}
+                  placeholder="pessoa@empresa.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Permissão</Label>
+                <Select value={addRole} onValueChange={setAddRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="operador">Operador</SelectItem>
+                    <SelectItem value="leitor">Leitor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+              <Button onClick={addUser} disabled={adding || !addEmail}>
+                {adding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Adicionar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-2 md:grid-cols-3">
@@ -96,7 +164,7 @@ function UsuariosPage() {
 
       <Card className="divide-y">
         {isLoading && <div className="p-6 text-sm text-muted-foreground">Carregando usuários…</div>}
-        {!isLoading && users.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhum usuário ainda.</div>}
+        {!isLoading && users.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhum usuário ainda. Adicione alguém ao seu workspace.</div>}
         {users.map((u) => {
           const role = u.roles?.[0] ?? "leitor";
           return (
