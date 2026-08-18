@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { GoogleCalendarCard } from "@/components/google-calendar-card";
 import { WorkspaceCard } from "@/components/workspace-card";
+import { WhatsappNumbersCard } from "@/components/whatsapp-numbers-card";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configs });
 
@@ -179,8 +180,10 @@ function Configs() {
 
       <GoogleCalendarCard />
 
+      <WhatsappNumbersCard />
+
       <Card>
-        <CardHeader><CardTitle>WhatsApp — Meta Cloud API</CardTitle></CardHeader>
+        <CardHeader><CardTitle>WhatsApp — configuração legada (número único)</CardTitle></CardHeader>
         <CardContent className="space-y-4 text-sm">
           <div className="rounded-md border p-3 space-y-2">
             <div className="font-medium">Status da integração</div>

@@ -103,7 +103,7 @@ export const deleteContactsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => idsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error, data: removed } = await context.supabase.rpc("delete_contacts", {
+    const { error, data: removed } = await (context.supabase.rpc as any)("delete_contacts", {
       p_ids: data.ids,
     });
     if (error) throw new Error(error.message);
@@ -119,7 +119,7 @@ export const deleteContactsByFilterFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => filterSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error, data: removed } = await context.supabase.rpc("delete_contacts_by_filter", {
+    const { error, data: removed } = await (context.supabase.rpc as any)("delete_contacts_by_filter", {
       p_q: data.q ?? null,
       p_stage: data.stage ?? null,
       p_batch: data.batch ?? null,
@@ -133,7 +133,7 @@ export const deleteCompaniesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => idsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error, data: removed } = await context.supabase.rpc("delete_companies", {
+    const { error, data: removed } = await (context.supabase.rpc as any)("delete_companies", {
       p_ids: data.ids,
     });
     if (error) throw new Error(error.message);

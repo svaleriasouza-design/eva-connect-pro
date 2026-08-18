@@ -30,6 +30,7 @@ export type Database = {
           status: string | null
           status_updated_at: string | null
           title: string
+          whatsapp_number_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -47,6 +48,7 @@ export type Database = {
           status?: string | null
           status_updated_at?: string | null
           title: string
+          whatsapp_number_id?: string | null
           workspace_id?: string
         }
         Update: {
@@ -64,6 +66,7 @@ export type Database = {
           status?: string | null
           status_updated_at?: string | null
           title?: string
+          whatsapp_number_id?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -79,6 +82,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_whatsapp_number_id_fkey"
+            columns: ["whatsapp_number_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_numbers"
             referencedColumns: ["id"]
           },
           {
@@ -174,6 +184,148 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cadence_steps_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_targets: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          error_message: string | null
+          external_id: string | null
+          id: string
+          phone_number_id: string | null
+          sent_at: string | null
+          status: string
+          to_phone: string | null
+          whatsapp_number_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          phone_number_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_phone?: string | null
+          whatsapp_number_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          phone_number_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_phone?: string | null
+          whatsapp_number_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_targets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_targets_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_targets_whatsapp_number_id_fkey"
+            columns: ["whatsapp_number_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_targets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          batch_size: number
+          body: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          name: string
+          number_ids: string[]
+          sent_count: number
+          started_at: string | null
+          status: string
+          strategy: string
+          total_targets: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          batch_size?: number
+          body: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          name: string
+          number_ids?: string[]
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          strategy?: string
+          total_targets?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          batch_size?: number
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          name?: string
+          number_ids?: string[]
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          strategy?: string
+          total_targets?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -328,6 +480,7 @@ export type Database = {
           updated_at: string
           website: string | null
           whatsapp: string | null
+          whatsapp_number_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -365,6 +518,7 @@ export type Database = {
           updated_at?: string
           website?: string | null
           whatsapp?: string | null
+          whatsapp_number_id?: string | null
           workspace_id?: string
         }
         Update: {
@@ -402,6 +556,7 @@ export type Database = {
           updated_at?: string
           website?: string | null
           whatsapp?: string | null
+          whatsapp_number_id?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -417,6 +572,13 @@ export type Database = {
             columns: ["import_batch_id"]
             isOneToOne: false
             referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_whatsapp_number_id_fkey"
+            columns: ["whatsapp_number_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_numbers"
             referencedColumns: ["id"]
           },
           {
@@ -868,6 +1030,83 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "user_roles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_numbers: {
+        Row: {
+          access_token: string | null
+          active: boolean
+          app_secret: string | null
+          connected_at: string | null
+          connection_error: string | null
+          connection_status: string
+          created_at: string
+          default_template_lang: string
+          default_template_name: string
+          display_phone: string | null
+          graph_version: string
+          id: string
+          is_primary: boolean
+          label: string
+          last_checked_at: string | null
+          phone_number_id: string
+          updated_at: string
+          verify_token: string | null
+          waba_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          active?: boolean
+          app_secret?: string | null
+          connected_at?: string | null
+          connection_error?: string | null
+          connection_status?: string
+          created_at?: string
+          default_template_lang?: string
+          default_template_name?: string
+          display_phone?: string | null
+          graph_version?: string
+          id?: string
+          is_primary?: boolean
+          label: string
+          last_checked_at?: string | null
+          phone_number_id: string
+          updated_at?: string
+          verify_token?: string | null
+          waba_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string | null
+          active?: boolean
+          app_secret?: string | null
+          connected_at?: string | null
+          connection_error?: string | null
+          connection_status?: string
+          created_at?: string
+          default_template_lang?: string
+          default_template_name?: string
+          display_phone?: string | null
+          graph_version?: string
+          id?: string
+          is_primary?: boolean
+          label?: string
+          last_checked_at?: string | null
+          phone_number_id?: string
+          updated_at?: string
+          verify_token?: string | null
+          waba_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_numbers_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"

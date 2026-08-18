@@ -18,6 +18,8 @@ export type SendAndLogInput = {
   to: string;
   body: string;
   contactId?: string | null;
+  /** Número da EVA que deve enviar. Se ausente, usa o número da conversa ou o principal. */
+  whatsappNumberId?: string | null;
   title?: string;
   tag?: string; // ex.: "cadence-day-1", "crm-manual", "eva-auto", "test"
   /** Força o uso de template aprovado, mesmo com janela aberta. */
@@ -40,6 +42,7 @@ export type SendAndLogResult = {
   activityId?: string;
   raw?: unknown;
   usedTemplate?: boolean;
+  whatsappNumberId?: string | null;
 };
 
 /**
@@ -76,30 +79,45 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
   const db = await admin(wid);
   const to = normalizePhoneNumber(input.to ?? "");
   const tag = input.tag ?? "manual";
-  console.log(`[msg:out] tag=${tag} contact=${input.contactId ?? "-"} to=${to} len=${(input.body ?? "").length}`);
 
   if (!to || to.length < 12) {
     console.warn(`[msg:out] telefone inválido tag=${tag} raw=${input.to}`);
     return { ok: false, to, error: "Número inválido (use DDD + número)." };
   }
 
+  // Qual número da EVA envia: pedido explícito > número já usado na conversa > principal.
+  const { resolveSendNumber } = await import("./wa-numbers.server");
+  let preferred = input.whatsappNumberId ?? null;
+  if (!preferred && input.contactId) {
+    const { data: c } = await db.from("contacts").select("whatsapp_number_id").eq("id", input.contactId).maybeSingle();
+    preferred = ((c as any)?.whatsapp_number_id as string | null) ?? null;
+  }
+  const number = await resolveSendNumber(wid, preferred);
+  const numberId = number?.id ?? null;
+  if (!number) {
+    console.warn(`[msg:out] nenhum número de WhatsApp ativo no workspace ${wid}`);
+  }
+  console.log(
+    `[msg:out] tag=${tag} contact=${input.contactId ?? "-"} to=${to} numero=${number?.label ?? "legado"} len=${(input.body ?? "").length}`,
+  );
+
   // Decide entre mensagem livre (janela 24h aberta) e template aprovado.
   const windowOpen = input.forceTemplate ? false : await hasOpenWindow(wid, input.contactId ?? null, to);
   let usedTemplate = false;
   let send = windowOpen
-    ? await sendWhatsappText(wid, to, input.body ?? "")
+    ? await sendWhatsappText(wid, to, input.body ?? "", numberId)
     : await (async () => {
         usedTemplate = true;
-        const cfg = await loadMetaConfig(wid);
+        const cfg = await loadMetaConfig(wid, numberId);
         const name = input.templateName || cfg.defaultTemplateName;
         const lang = input.templateLang || cfg.defaultTemplateLang;
         const contactName = input.contactId ? await contactFirstName(wid, input.contactId) : "";
         const attempt = async (tplName: string) => {
           // Primeiro sem parâmetros; se a Meta exigir variáveis, tenta com o nome.
-          const first = await sendWhatsappTemplate(wid, to, tplName, lang, []);
+          const first = await sendWhatsappTemplate(wid, to, tplName, lang, [], numberId);
           if (first.ok) return first;
           const needsParams = /param|variable|132000|132012|132001/i.test(first.error ?? "");
-          if (needsParams) return sendWhatsappTemplate(wid, to, tplName, lang, [contactName || "cliente"]);
+          if (needsParams) return sendWhatsappTemplate(wid, to, tplName, lang, [contactName || "cliente"], numberId);
           return first;
         };
         const primary = await attempt(name);
@@ -114,7 +132,7 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
       })();
 
   if (!windowOpen && !send.ok) {
-    console.warn(`[msg:out] template "${(await loadMetaConfig(wid)).defaultTemplateName}" falhou: ${send.error}`);
+    console.warn(`[msg:out] template padrão falhou: ${send.error}`);
   }
   const now = new Date().toISOString();
 
@@ -137,6 +155,7 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
         sent_by: input.sentBy ?? null,
         sent_by_name: input.sentByName ?? null,
         send_mode: input.sendMode ?? (input.sentBy ? "manual" : "eva"),
+        whatsapp_number_id: numberId,
       })
       .select("id")
       .maybeSingle();
@@ -149,7 +168,10 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
   // Atualiza last_contact_at
   if (send.ok && input.contactId) {
     try {
-      await db.from("contacts").update({ last_contact_at: now }).eq("id", input.contactId);
+      await db
+        .from("contacts")
+        .update({ last_contact_at: now, ...(numberId ? { whatsapp_number_id: numberId } : {}) })
+        .eq("id", input.contactId);
     } catch (err) {
       console.error("[msg:out] falha ao atualizar contact", err);
     }
@@ -167,6 +189,7 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
     activityId,
     raw: send.raw,
     usedTemplate,
+    whatsappNumberId: numberId,
   };
 }
 
@@ -219,6 +242,8 @@ export async function logInbound(params: {
   text: string;
   externalId?: string | null;
   title?: string;
+  /** Número da EVA que RECEBEU a mensagem (identificado pelo payload da Meta). */
+  whatsappNumberId?: string | null;
   /** "RECEIVED" (padrão) ou "UNSUPPORTED" para mídias/códigos que não são resposta real. */
   status?: string;
 }) {
@@ -235,11 +260,18 @@ export async function logInbound(params: {
       external_id: params.externalId ?? null,
       status: params.status ?? "RECEIVED",
       status_updated_at: now,
+      whatsapp_number_id: params.whatsappNumberId ?? null,
     })
     .select("id")
     .maybeSingle();
   if (params.contactId) {
-    await db.from("contacts").update({ last_contact_at: now }).eq("id", params.contactId);
+    await db
+      .from("contacts")
+      .update({
+        last_contact_at: now,
+        ...(params.whatsappNumberId ? { whatsapp_number_id: params.whatsappNumberId } : {}),
+      })
+      .eq("id", params.contactId);
   }
   return (data as any)?.id as string | undefined;
 }
