@@ -36,9 +36,10 @@ export const getMetaSettingsFn = createServerFn({ method: "GET" })
     const row = (data ?? {}) as any;
     return {
       phone_number_id: row.phone_number_id ?? "",
-      access_token: row.access_token ?? "",
-      app_secret: row.app_secret ?? "",
-      verify_token: row.verify_token ?? "",
+      // Credenciais nunca saem do backend — só indicadores de preenchimento.
+      has_access_token: Boolean(row.access_token),
+      has_app_secret: Boolean(row.app_secret),
+      has_verify_token: Boolean(row.verify_token),
       graph_version: row.graph_version ?? "v21.0",
       default_template_name: row.default_template_name ?? "hello_world",
       default_template_lang: row.default_template_lang ?? "en_US",
