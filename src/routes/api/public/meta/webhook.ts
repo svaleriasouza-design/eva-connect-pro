@@ -16,8 +16,11 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const challenge = url.searchParams.get("hub.challenge");
         // O verify token identifica o workspace dono do número na Meta.
         const { workspaceIdForVerifyToken } = await import("@/lib/workspace-scope.server");
+        const { waNumberByVerifyToken } = await import("@/lib/wa-numbers.server");
         const envToken = process.env.META_WA_VERIFY_TOKEN || "";
-        const wsMatch = token ? await workspaceIdForVerifyToken(token) : null;
+        const wsMatch = token
+          ? (await waNumberByVerifyToken(token))?.workspace_id ?? (await workspaceIdForVerifyToken(token))
+          : null;
         const valid = Boolean(token) && (Boolean(wsMatch) || (envToken && token === envToken));
         if (mode === "subscribe" && valid && challenge) {
           return new Response(challenge, {
@@ -44,17 +47,27 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const { workspaceIdForPhoneNumberId, legacyWorkspaceId, wsDb } = await import(
           "@/lib/workspace-scope.server"
         );
+        const { waNumberByPhoneNumberId } = await import("@/lib/wa-numbers.server");
         const phoneNumberId =
           payload?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? "";
+        // O phone_number_id do metadata identifica EXATAMENTE qual número da EVA
+        // recebeu a mensagem — nunca assumimos o número principal.
+        const inboundNumber = await waNumberByPhoneNumberId(String(phoneNumberId));
+        const inboundNumberId = inboundNumber?.id ?? null;
         const workspaceId =
-          (await workspaceIdForPhoneNumberId(String(phoneNumberId))) ?? (await legacyWorkspaceId());
+          inboundNumber?.workspace_id ??
+          (await workspaceIdForPhoneNumberId(String(phoneNumberId))) ??
+          (await legacyWorkspaceId());
         if (!workspaceId) {
           console.warn("[webhook] nenhum workspace para phone_number_id", phoneNumberId);
           return new Response("ok", { status: 200 });
         }
+        console.log(
+          `[webhook] phone_number_id=${phoneNumberId} numero="${inboundNumber?.label ?? "legado"}" ws=${workspaceId}`,
+        );
 
         const { verifyMetaSignature } = await import("@/lib/whatsapp.server");
-        const okSig = await verifyMetaSignature(workspaceId, rawBody, signature);
+        const okSig = await verifyMetaSignature(workspaceId, rawBody, signature, inboundNumberId);
         if (signature && !okSig) return new Response("invalid signature", { status: 401 });
 
         const supabaseAdmin = (await wsDb(workspaceId)) as any;
@@ -81,6 +94,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 await supabaseAdmin
                   .from("activities")
                   .update({ status, status_updated_at: now })
+                  .eq("external_id", externalId);
+                await supabaseAdmin
+                  .from("campaign_targets")
+                  .update({ status })
                   .eq("external_id", externalId);
               }
 
@@ -142,6 +159,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                       status: "ativo",
                       origin: "WhatsApp (entrada)",
                       last_contact_at: now,
+                      whatsapp_number_id: inboundNumberId,
                     })
                     .select("id, name, whatsapp, phone, cadence_active, cadence_day")
                     .maybeSingle();
@@ -155,6 +173,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   from,
                   text: transcribed ? `🎤 Áudio transcrito: ${text}` : text,
                   externalId,
+                  whatsappNumberId: inboundNumberId,
                   ...(transcribed ? { title: "Áudio recebido (transcrito)" } : {}),
                   ...(meaningful ? {} : { status: "UNSUPPORTED", title: "Mensagem não suportada (ignorada)" }),
                 });

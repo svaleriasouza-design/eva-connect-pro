@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import evaLogo from "@/assets/eva-logo.png";
 import { useAccess } from "@/hooks/use-access";
+import { Megaphone } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 const items = [
@@ -34,6 +35,7 @@ const items = [
   { title: "Empresas", url: "/empresas", icon: Building2 },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Cadências", url: "/cadencias", icon: KanbanSquare },
+  { title: "Disparos", url: "/disparos", icon: Megaphone },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Funil", url: "/funil", icon: KanbanSquare },

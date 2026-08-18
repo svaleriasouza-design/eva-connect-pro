@@ -14,6 +14,9 @@ export type MetaSendResult = {
 };
 
 export type MetaConfig = {
+  /** id do registro em whatsapp_numbers (null quando vier da config legada). */
+  numberId: string | null;
+  label: string;
   phoneNumberId: string;
   accessToken: string;
   appSecret: string;
@@ -24,10 +27,30 @@ export type MetaConfig = {
 };
 
 /**
- * Credenciais da Meta SEMPRE por workspace. Número e token nunca caem em
- * variável de ambiente global — isso evitaria o isolamento entre empresas.
+ * Credenciais da Meta SEMPRE por workspace E por número.
+ * Ordem: whatsapp_numbers (multi-número) -> meta_wa_settings (config legada).
+ * Nada vem de variável de ambiente global (isolamento entre empresas).
  */
-export async function loadMetaConfig(workspaceId: string): Promise<MetaConfig> {
+export async function loadMetaConfig(workspaceId: string, numberId?: string | null): Promise<MetaConfig> {
+  try {
+    const { resolveSendNumber } = await import("./wa-numbers.server");
+    const n = await resolveSendNumber(workspaceId, numberId ?? null);
+    if (n) {
+      return {
+        numberId: n.id,
+        label: n.label || "",
+        phoneNumberId: n.phone_number_id || "",
+        accessToken: n.access_token || "",
+        appSecret: n.app_secret || "",
+        verifyToken: n.verify_token || "",
+        graphVersion: n.graph_version || "v21.0",
+        defaultTemplateName: n.default_template_name || "hello_world",
+        defaultTemplateLang: n.default_template_lang || "en_US",
+      };
+    }
+  } catch (err) {
+    console.error("[meta:config] falha ao resolver número, usando config legada", err);
+  }
   let row: any = {};
   try {
     const { wsDb } = await import("./workspace-scope.server");
@@ -41,6 +64,8 @@ export async function loadMetaConfig(workspaceId: string): Promise<MetaConfig> {
     row = {};
   }
   return {
+    numberId: null,
+    label: "Configuração legada",
     phoneNumberId: row.phone_number_id || "",
     accessToken: row.access_token || "",
     // Nada de fallback em variável de ambiente: credenciais são sempre do
@@ -53,8 +78,8 @@ export async function loadMetaConfig(workspaceId: string): Promise<MetaConfig> {
   };
 }
 
-export async function metaConfiguredAsync(workspaceId: string) {
-  const cfg = await loadMetaConfig(workspaceId);
+export async function metaConfiguredAsync(workspaceId: string, numberId?: string | null) {
+  const cfg = await loadMetaConfig(workspaceId, numberId);
   return Boolean(cfg.phoneNumberId && cfg.accessToken);
 }
 
@@ -65,9 +90,14 @@ function normalizePhone(raw: string) {
   return normalizePhoneNumber(raw);
 }
 
-export async function sendWhatsappText(workspaceId: string, to: string, body: string): Promise<MetaSendResult> {
+export async function sendWhatsappText(
+  workspaceId: string,
+  to: string,
+  body: string,
+  numberId?: string | null,
+): Promise<MetaSendResult> {
   try {
-    const cfg = await loadMetaConfig(workspaceId);
+    const cfg = await loadMetaConfig(workspaceId, numberId);
     const phoneId = cfg?.phoneNumberId;
     const token = cfg?.accessToken;
     if (!phoneId || !token) {
@@ -135,8 +165,9 @@ export async function sendWhatsappTemplate(
   templateName: string,
   languageCode = "pt_BR",
   bodyParams: string[] = [],
+  numberId?: string | null,
 ): Promise<MetaSendResult> {
-  const cfg = await loadMetaConfig(workspaceId);
+  const cfg = await loadMetaConfig(workspaceId, numberId);
   const phoneId = cfg.phoneNumberId;
   const token = cfg.accessToken;
   if (!phoneId || !token) {
@@ -194,8 +225,9 @@ export async function verifyMetaSignature(
   workspaceId: string | null,
   rawBody: string,
   headerValue: string | null,
+  numberId?: string | null,
 ): Promise<boolean> {
-  const cfg = workspaceId ? await loadMetaConfig(workspaceId) : null;
+  const cfg = workspaceId ? await loadMetaConfig(workspaceId, numberId) : null;
   const secret = cfg?.appSecret || process.env.META_WA_APP_SECRET || "";
   if (!secret) return false;
   if (!headerValue) return false;

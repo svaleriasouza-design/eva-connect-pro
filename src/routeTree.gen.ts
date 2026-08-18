@@ -21,6 +21,7 @@ import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFunilRouteImport } from './routes/_authenticated/funil'
 import { Route as AuthenticatedEvaRouteImport } from './routes/_authenticated/eva'
 import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
+import { Route as AuthenticatedDisparosRouteImport } from './routes/_authenticated/disparos'
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authenticated/cadencias'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
+import { Route as ApiPublicHooksCampaignRunRouteImport } from './routes/api/public/hooks/campaign-run'
 import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -89,6 +91,11 @@ const AuthenticatedEmpresasRoute = AuthenticatedEmpresasRouteImport.update({
   path: '/empresas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDisparosRoute = AuthenticatedDisparosRouteImport.update({
+  id: '/disparos',
+  path: '/disparos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCrmRoute = AuthenticatedCrmRouteImport.update({
   id: '/crm',
   path: '/crm',
@@ -125,6 +132,12 @@ const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   path: '/api/public/meta/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksCampaignRunRoute =
+  ApiPublicHooksCampaignRunRouteImport.update({
+    id: '/api/public/hooks/campaign-run',
+    path: '/api/public/hooks/campaign-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksCadenceRunRoute =
   ApiPublicHooksCadenceRunRouteImport.update({
     id: '/api/public/hooks/cadence-run',
@@ -141,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/crm': typeof AuthenticatedCrmRouteWithChildren
+  '/disparos': typeof AuthenticatedDisparosRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/eva': typeof AuthenticatedEvaRoute
   '/funil': typeof AuthenticatedFunilRoute
@@ -151,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
+  '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -160,6 +175,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/disparos': typeof AuthenticatedDisparosRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/eva': typeof AuthenticatedEvaRoute
   '/funil': typeof AuthenticatedFunilRoute
@@ -171,6 +187,7 @@ export interface FileRoutesByTo {
   '/crm/$id': typeof AuthenticatedCrmIdRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
+  '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRoutesById {
@@ -183,6 +200,7 @@ export interface FileRoutesById {
   '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRouteWithChildren
+  '/_authenticated/disparos': typeof AuthenticatedDisparosRoute
   '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
   '/_authenticated/eva': typeof AuthenticatedEvaRoute
   '/_authenticated/funil': typeof AuthenticatedFunilRoute
@@ -194,6 +212,7 @@ export interface FileRoutesById {
   '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
+  '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
 }
 export interface FileRouteTypes {
@@ -207,6 +226,7 @@ export interface FileRouteTypes {
     | '/cadencias'
     | '/configuracoes'
     | '/crm'
+    | '/disparos'
     | '/empresas'
     | '/eva'
     | '/funil'
@@ -217,6 +237,7 @@ export interface FileRouteTypes {
     | '/crm/$id'
     | '/crm/'
     | '/api/public/hooks/cadence-run'
+    | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -226,6 +247,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/cadencias'
     | '/configuracoes'
+    | '/disparos'
     | '/empresas'
     | '/eva'
     | '/funil'
@@ -237,6 +259,7 @@ export interface FileRouteTypes {
     | '/crm/$id'
     | '/crm'
     | '/api/public/hooks/cadence-run'
+    | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
   id:
     | '__root__'
@@ -248,6 +271,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cadencias'
     | '/_authenticated/configuracoes'
     | '/_authenticated/crm'
+    | '/_authenticated/disparos'
     | '/_authenticated/empresas'
     | '/_authenticated/eva'
     | '/_authenticated/funil'
@@ -259,6 +283,7 @@ export interface FileRouteTypes {
     | '/_authenticated/crm/$id'
     | '/_authenticated/crm/'
     | '/api/public/hooks/cadence-run'
+    | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -268,6 +293,7 @@ export interface RootRouteChildren {
   PoliticaRoute: typeof PoliticaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
+  ApiPublicHooksCampaignRunRoute: typeof ApiPublicHooksCampaignRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
 }
 
@@ -357,6 +383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEmpresasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/disparos': {
+      id: '/_authenticated/disparos'
+      path: '/disparos'
+      fullPath: '/disparos'
+      preLoaderRoute: typeof AuthenticatedDisparosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/crm': {
       id: '/_authenticated/crm'
       path: '/crm'
@@ -406,6 +439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/campaign-run': {
+      id: '/api/public/hooks/campaign-run'
+      path: '/api/public/hooks/campaign-run'
+      fullPath: '/api/public/hooks/campaign-run'
+      preLoaderRoute: typeof ApiPublicHooksCampaignRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/cadence-run': {
       id: '/api/public/hooks/cadence-run'
       path: '/api/public/hooks/cadence-run'
@@ -434,6 +474,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCadenciasRoute: typeof AuthenticatedCadenciasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRouteWithChildren
+  AuthenticatedDisparosRoute: typeof AuthenticatedDisparosRoute
   AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
   AuthenticatedEvaRoute: typeof AuthenticatedEvaRoute
   AuthenticatedFunilRoute: typeof AuthenticatedFunilRoute
@@ -449,6 +490,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCadenciasRoute: AuthenticatedCadenciasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRouteWithChildren,
+  AuthenticatedDisparosRoute: AuthenticatedDisparosRoute,
   AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
   AuthenticatedEvaRoute: AuthenticatedEvaRoute,
   AuthenticatedFunilRoute: AuthenticatedFunilRoute,
@@ -468,6 +510,7 @@ const rootRouteChildren: RootRouteChildren = {
   PoliticaRoute: PoliticaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
+  ApiPublicHooksCampaignRunRoute: ApiPublicHooksCampaignRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
 }
 export const routeTree = rootRouteImport
