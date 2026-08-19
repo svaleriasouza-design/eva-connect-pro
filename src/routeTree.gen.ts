@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PoliticaRouteImport } from './routes/politica'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AssinaturaRouteImport } from './routes/assinatura'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
+import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicHooksCampaignRunRouteImport } from './routes/api/public/hooks/campaign-run'
 import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
@@ -45,6 +47,11 @@ const PoliticaRoute = PoliticaRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssinaturaRoute = AssinaturaRouteImport.update({
+  id: '/assinatura',
+  path: '/assinatura',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -127,6 +134,12 @@ const AuthenticatedCrmIdRoute = AuthenticatedCrmIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedCrmRoute,
 } as any)
+const ApiPublicPaymentsWebhookRoute =
+  ApiPublicPaymentsWebhookRouteImport.update({
+    id: '/api/public/payments/webhook',
+    path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   id: '/api/public/meta/webhook',
   path: '/api/public/meta/webhook',
@@ -147,6 +160,7 @@ const ApiPublicHooksCadenceRunRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -167,8 +181,10 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -189,10 +205,12 @@ export interface FileRoutesByTo {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -214,11 +232,13 @@ export interface FileRoutesById {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/assinatura'
     | '/auth'
     | '/politica'
     | '/reset-password'
@@ -239,8 +259,10 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/assinatura'
     | '/auth'
     | '/politica'
     | '/reset-password'
@@ -261,9 +283,11 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/_authenticated'
+    | '/assinatura'
     | '/auth'
     | '/politica'
     | '/reset-password'
@@ -285,16 +309,19 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AssinaturaRoute: typeof AssinaturaRoute
   AuthRoute: typeof AuthRoute
   PoliticaRoute: typeof PoliticaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicHooksCampaignRunRoute: typeof ApiPublicHooksCampaignRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
+  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -318,6 +345,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assinatura': {
+      id: '/assinatura'
+      path: '/assinatura'
+      fullPath: '/assinatura'
+      preLoaderRoute: typeof AssinaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -432,6 +466,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmIdRouteImport
       parentRoute: typeof AuthenticatedCrmRoute
     }
+    '/api/public/payments/webhook': {
+      id: '/api/public/payments/webhook'
+      path: '/api/public/payments/webhook'
+      fullPath: '/api/public/payments/webhook'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/meta/webhook': {
       id: '/api/public/meta/webhook'
       path: '/api/public/meta/webhook'
@@ -506,12 +547,14 @@ const AuthenticatedRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AssinaturaRoute: AssinaturaRoute,
   AuthRoute: AuthRoute,
   PoliticaRoute: PoliticaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicHooksCampaignRunRoute: ApiPublicHooksCampaignRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
+  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

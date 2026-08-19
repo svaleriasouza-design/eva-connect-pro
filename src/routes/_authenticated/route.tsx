@@ -8,12 +8,21 @@ import { Button } from "@/components/ui/button";
 import { LogOut, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { getStripeEnvironment } from "@/lib/stripe";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+
+    // Bloqueio de inadimplentes: sem assinatura ativa, vai para a renovação.
+    const { data: active } = await supabase.rpc("has_active_subscription", {
+      user_uuid: data.user.id,
+      check_env: getStripeEnvironment(),
+    });
+    if (active !== true) throw redirect({ to: "/assinatura" });
+
     return { user: data.user };
   },
   component: AuthedLayout,
