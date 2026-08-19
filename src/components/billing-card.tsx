@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function BillingCard() {
-  const { subscription, isActive, loading, refetch } = useSubscription();
+  const { subscription, isActive, isPastDue, loading, refetch } = useSubscription();
   const [opening, setOpening] = useState(false);
 
   async function openPortal() {
@@ -62,6 +62,13 @@ export function BillingCard() {
             </span>
           )}
         </div>
+
+        {isPastDue && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-foreground">
+            Não conseguimos processar o último pagamento. A Stripe vai tentar novamente e seu acesso continua liberado —
+            atualize o cartão no portal para evitar o cancelamento.
+          </p>
+        )}
 
         {subscription?.cancel_at_period_end && (
           <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
