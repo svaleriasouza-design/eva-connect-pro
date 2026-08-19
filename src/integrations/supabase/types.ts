@@ -861,6 +861,39 @@ export type Database = {
           },
         ]
       }
+      platform_access: {
+        Row: {
+          access_revoked: boolean
+          created_at: string
+          is_platform_admin: boolean
+          notes: string | null
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+          vip: boolean
+        }
+        Insert: {
+          access_revoked?: boolean
+          created_at?: string
+          is_platform_admin?: boolean
+          notes?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id: string
+          vip?: boolean
+        }
+        Update: {
+          access_revoked?: boolean
+          created_at?: string
+          is_platform_admin?: boolean
+          notes?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id?: string
+          vip?: boolean
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1253,6 +1286,10 @@ export type Database = {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean
       }
+      has_app_access: {
+        Args: { _user_id: string; check_env?: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1260,6 +1297,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
       norm_company_name: { Args: { txt: string }; Returns: string }
       recompute_company_aggregates: {
         Args: { _company_id: string }
