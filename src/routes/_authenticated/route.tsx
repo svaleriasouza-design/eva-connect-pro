@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated")({
 
     // Liberação total para admin da plataforma, VIP, degustação ou assinatura ativa.
     const { data: active } = await supabase.rpc("has_app_access", {
-      user_uuid: data.user.id,
+      _user_id: data.user.id,
       check_env: getStripeEnvironment(),
     });
     if (active !== true) throw redirect({ to: "/assinatura" });
