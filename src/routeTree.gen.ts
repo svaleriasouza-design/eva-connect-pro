@@ -28,6 +28,7 @@ import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
+import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicHooksCampaignRunRouteImport } from './routes/api/public/hooks/campaign-run'
 import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
@@ -127,6 +128,12 @@ const AuthenticatedCrmIdRoute = AuthenticatedCrmIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedCrmRoute,
 } as any)
+const ApiPublicPaymentsWebhookRoute =
+  ApiPublicPaymentsWebhookRouteImport.update({
+    id: '/api/public/payments/webhook',
+    path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
   id: '/api/public/meta/webhook',
   path: '/api/public/meta/webhook',
@@ -167,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -189,6 +197,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -214,6 +223,7 @@ export interface FileRoutesById {
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/_authenticated'
@@ -285,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
     | '/api/public/meta/webhook'
+    | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -295,6 +308,7 @@ export interface RootRouteChildren {
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicHooksCampaignRunRoute: typeof ApiPublicHooksCampaignRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
+  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -432,6 +446,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmIdRouteImport
       parentRoute: typeof AuthenticatedCrmRoute
     }
+    '/api/public/payments/webhook': {
+      id: '/api/public/payments/webhook'
+      path: '/api/public/payments/webhook'
+      fullPath: '/api/public/payments/webhook'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/meta/webhook': {
       id: '/api/public/meta/webhook'
       path: '/api/public/meta/webhook'
@@ -512,6 +533,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicHooksCampaignRunRoute: ApiPublicHooksCampaignRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
+  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
