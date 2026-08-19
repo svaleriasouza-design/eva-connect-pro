@@ -122,7 +122,7 @@ export const ensureDiscountCoupon = createServerFn({ method: "POST" })
         currency: "brl",
         duration: "forever",
       });
-      await stripe.promotionCodes.create({ coupon: coupon.id, code } as any);
+      await stripe.promotionCodes.create({ promotion: { type: "coupon", coupon: coupon.id }, code });
       return { code };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
