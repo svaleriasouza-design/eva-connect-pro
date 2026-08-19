@@ -66,6 +66,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         return_url: data.returnUrl,
         customer: customerId,
         allow_promotion_codes: true,
+        adaptive_pricing: { enabled: false },
         metadata: { userId },
         ...(isRecurring && { subscription_data: { metadata: { userId } } }),
       });
