@@ -16,8 +16,8 @@ export const Route = createFileRoute("/_authenticated")({
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
 
-    // Bloqueio de inadimplentes: sem assinatura ativa, vai para a renovação.
-    const { data: active } = await supabase.rpc("has_active_subscription", {
+    // Liberação total para admin da plataforma, VIP, degustação ou assinatura ativa.
+    const { data: active } = await supabase.rpc("has_app_access", {
       user_uuid: data.user.id,
       check_env: getStripeEnvironment(),
     });
