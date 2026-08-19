@@ -12,6 +12,7 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { GoogleCalendarCard } from "@/components/google-calendar-card";
 import { WorkspaceCard } from "@/components/workspace-card";
 import { WhatsappNumbersCard } from "@/components/whatsapp-numbers-card";
+import { BillingCard } from "@/components/billing-card";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: Configs,
@@ -68,6 +69,8 @@ function Configs() {
       </div>
 
       <WorkspaceCard />
+
+      <BillingCard />
 
       <GoogleCalendarCard />
 
