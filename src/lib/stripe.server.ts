@@ -60,7 +60,23 @@ export function getStripeErrorMessage(error: unknown): string {
   return 'Stripe request failed';
 }
 
-export async function verifyWebhook(req: Request, env: StripeEnv): Promise<{ type: string; data: { object: any } }> {
+export type StripeWebhookEvent = {
+  id: string;
+  type: string;
+  livemode?: boolean;
+  created?: number;
+  data: { object: any };
+};
+
+/** Comparação em tempo constante para não vazar informação por timing. */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+export async function verifyWebhook(req: Request, env: StripeEnv): Promise<StripeWebhookEvent> {
   const signature = req.headers.get("stripe-signature");
   const body = await req.text();
   const secret = env === 'sandbox'
@@ -90,7 +106,26 @@ export async function verifyWebhook(req: Request, env: StripeEnv): Promise<{ typ
   );
   const signed = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}.${body}`));
   const expected = Buffer.from(new Uint8Array(signed)).toString('hex');
-  if (!v1Signatures.includes(expected)) throw new Error("Invalid webhook signature");
+  if (!v1Signatures.some((sig) => timingSafeEqualHex(sig, expected))) {
+    throw new Error("Invalid webhook signature");
+  }
 
-  return JSON.parse(body);
+  let event: StripeWebhookEvent;
+  try {
+    event = JSON.parse(body);
+  } catch {
+    throw new Error("Invalid webhook payload");
+  }
+
+  if (!event || typeof event.id !== "string" || typeof event.type !== "string" || !event.data?.object) {
+    throw new Error("Malformed webhook event");
+  }
+
+  // O evento precisa vir do mesmo ambiente do secret usado (evita cruzar teste/produção).
+  if (typeof event.livemode === "boolean") {
+    const expectedLivemode = env === 'live';
+    if (event.livemode !== expectedLivemode) throw new Error("Webhook environment mismatch");
+  }
+
+  return event;
 }

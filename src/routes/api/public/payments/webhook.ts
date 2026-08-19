@@ -68,8 +68,21 @@ async function updateSubscription(subscription: any, env: StripeEnv) {
   if (!data || data.length === 0) await upsertSubscription(subscription, env);
 }
 
+/** Proteção contra reenvio: registra o evento e retorna false se já foi processado. */
+async function claimEvent(event: { id: string; type: string }, env: StripeEnv): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("stripe_webhook_events")
+    .insert({ event_id: event.id, event_type: event.type, environment: env });
+  if (error) {
+    console.log("[payments] evento duplicado/ignorado:", event.id, error.code);
+    return false;
+  }
+  return true;
+}
+
 async function handleWebhook(req: Request, env: StripeEnv) {
   const event = await verifyWebhook(req, env);
+  if (!(await claimEvent(event, env))) return;
 
   switch (event.type) {
     case "customer.subscription.created":
