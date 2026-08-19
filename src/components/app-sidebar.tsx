@@ -28,6 +28,9 @@ import evaLogo from "@/assets/eva-logo.png";
 import { useAccess } from "@/hooks/use-access";
 import { Megaphone } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getPlatformStatusFn } from "@/lib/platform.functions";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -48,13 +51,27 @@ const adminItems = [
   { title: "Usuários", url: "/usuarios", icon: ShieldCheck },
 ] as const;
 
+const platformItems = [
+  { title: "Painel Admin", url: "/admin", icon: ShieldCheck },
+] as const;
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (u: string) => (u === "/" ? path === "/" : path.startsWith(u));
   const { isAdmin, access } = useAccess();
-  const visible = isAdmin ? [...items, ...adminItems] : items;
+  const statusFn = useServerFn(getPlatformStatusFn);
+  const platform = useQuery({
+    queryKey: ["platform-status"],
+    queryFn: () => statusFn() as Promise<{ isPlatformAdmin: boolean }>,
+    staleTime: 60_000,
+  });
+  const visible = [
+    ...items,
+    ...(isAdmin ? adminItems : []),
+    ...(platform.data?.isPlatformAdmin ? platformItems : []),
+  ];
   const { workspace } = useWorkspace();
 
   return (

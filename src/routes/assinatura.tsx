@@ -18,6 +18,12 @@ export const Route = createFileRoute("/assinatura")({
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+    // Quem já tem liberação (admin, VIP, degustação ou assinatura) volta para o app.
+    const { data: access } = await supabase.rpc("has_app_access", {
+      _user_id: data.user.id,
+      check_env: getStripeEnvironment(),
+    });
+    if (access === true) throw redirect({ to: "/" });
     return { user: data.user };
   },
   component: AssinaturaPage,

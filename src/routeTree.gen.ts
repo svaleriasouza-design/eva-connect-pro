@@ -27,6 +27,7 @@ import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/cr
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authenticated/cadencias'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
@@ -124,6 +125,11 @@ const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCrmIndexRoute = AuthenticatedCrmIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/politica'
     | '/reset-password'
+    | '/admin'
     | '/agenda'
     | '/cadencias'
     | '/configuracoes'
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/politica'
     | '/reset-password'
+    | '/admin'
     | '/agenda'
     | '/cadencias'
     | '/configuracoes'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/politica'
     | '/reset-password'
+    | '/_authenticated/admin'
     | '/_authenticated/agenda'
     | '/_authenticated/cadencias'
     | '/_authenticated/configuracoes'
@@ -452,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgendaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/crm/': {
       id: '/_authenticated/crm/'
       path: '/'
@@ -511,6 +530,7 @@ const AuthenticatedCrmRouteWithChildren =
   AuthenticatedCrmRoute._addFileChildren(AuthenticatedCrmRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedCadenciasRoute: typeof AuthenticatedCadenciasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
@@ -527,6 +547,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedCadenciasRoute: AuthenticatedCadenciasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
