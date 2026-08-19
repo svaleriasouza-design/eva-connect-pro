@@ -77,6 +77,31 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     }
   });
 
+/** Garante que exista uma configuração do Customer Portal com cancelar/retomar/cartão/faturas. */
+async function ensurePortalConfiguration(
+  stripe: ReturnType<typeof createStripeClient>,
+): Promise<string | undefined> {
+  const existing = await stripe.billingPortal.configurations.list({ active: true, limit: 1 });
+  if (existing.data.length) return existing.data[0].id;
+  const created = await stripe.billingPortal.configurations.create({
+    business_profile: { headline: "EVA IA · Gerencie sua assinatura mensal" },
+    features: {
+      customer_update: { enabled: true, allowed_updates: ["email", "address", "name", "tax_id"] },
+      invoice_history: { enabled: true },
+      payment_method_update: { enabled: true },
+      subscription_cancel: {
+        enabled: true,
+        mode: "at_period_end",
+        cancellation_reason: {
+          enabled: true,
+          options: ["too_expensive", "missing_features", "switched_service", "unused", "other"],
+        },
+      },
+    },
+  });
+  return created.id;
+}
+
 /** Portal de faturamento: cancelar, trocar cartão, ver faturas. */
 export const createPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -96,8 +121,10 @@ export const createPortalSession = createServerFn({ method: "POST" })
 
     try {
       const stripe = createStripeClient(data.environment);
+      const configuration = await ensurePortalConfiguration(stripe);
       const portal = await stripe.billingPortal.sessions.create({
         customer: customerId,
+        ...(configuration && { configuration }),
         ...(data.returnUrl && { return_url: data.returnUrl }),
       });
       return { url: portal.url };
