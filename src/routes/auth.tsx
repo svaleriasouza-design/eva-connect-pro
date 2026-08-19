@@ -58,10 +58,12 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (!remember) sessionStorage.setItem("eva_no_persist", "1");
-        toast.success("Bem-vinda, Valéria ✨");
+        const meta = (data.user?.user_metadata ?? {}) as { full_name?: string; name?: string };
+        const who = (meta.full_name || meta.name || data.user?.email?.split("@")[0] || "").trim();
+        toast.success(who ? `Bem-vinda, ${who} ✨` : "Bem-vinda ✨");
         navigate({ to: "/" });
       } else if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
