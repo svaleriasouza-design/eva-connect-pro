@@ -48,9 +48,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CheckoutSessionResult> => {
     try {
       const stripe = createStripeClient(data.environment);
-      const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
-      if (!prices.data.length) throw new Error("Price not found");
-      const stripePrice = prices.data[0];
+      // Aceita tanto o ID real da Stripe (price_...) quanto o lookup_key.
+      const stripePrice = data.priceId.startsWith("price_")
+        ? await stripe.prices.retrieve(data.priceId)
+        : (await stripe.prices.list({ lookup_keys: [data.priceId] })).data[0];
+      if (!stripePrice) throw new Error("Price not found");
       const isRecurring = stripePrice.type === "recurring";
 
       const { data: userData } = await context.supabase.auth.getUser();
