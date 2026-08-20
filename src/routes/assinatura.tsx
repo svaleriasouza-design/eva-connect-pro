@@ -122,7 +122,7 @@ function AssinaturaPage() {
                 <CardDescription>Renovação automática a cada 30 dias. Cancele quando quiser.</CardDescription>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-semibold">R$ 100,00</div>
+                <div className="text-2xl font-semibold">R$ 99,00</div>
                 <div className="text-xs text-muted-foreground">por mês</div>
               </div>
             </div>
@@ -155,7 +155,7 @@ function AssinaturaPage() {
             {!checkoutOpen ? (
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setCheckoutOpen(true)} className="flex-1 sm:flex-none">
-                  Assinar por R$ 100,00/mês
+                  Assinar por R$ 99,00/mês
                 </Button>
                 <Button variant="outline" onClick={() => refetch()} disabled={checking}>
                   {checking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
