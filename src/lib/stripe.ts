@@ -26,4 +26,4 @@ export function getStripeEnvironment(): StripeEnv {
   return paymentsEnvironment();
 }
 
-export const EVA_PRICE_ID = "eva_monthly";
+export const EVA_PRICE_ID = "price_1U6UFLRtV5qbtRiqSFxvhJ1X";
