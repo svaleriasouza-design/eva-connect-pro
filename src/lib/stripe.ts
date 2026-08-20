@@ -26,4 +26,5 @@ export function getStripeEnvironment(): StripeEnv {
   return paymentsEnvironment();
 }
 
-export const EVA_PRICE_ID = "price_1U6UFLRtV5qbtRiqSFxvhJ1X";
+// ID legível do preço no catálogo gerenciado (funciona em teste e em produção).
+export const EVA_PRICE_ID = "eva_mensal";
