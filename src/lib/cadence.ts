@@ -18,7 +18,12 @@ export type DueContact = {
  *  - cadence_day entre 0 e 4 (próxima mensagem é Dia 1-5)
  *  - last_contact_at nulo OU anterior às 00:00 de hoje
  */
-export async function fetchDueCadence(): Promise<DueContact[]> {
+export function isWeekendIn(timezone = "America/Sao_Paulo"): boolean {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(new Date());
+  return wd === "Sat" || wd === "Sun";
+}
+
+export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -30,9 +35,10 @@ export async function fetchDueCadence(): Promise<DueContact[]> {
     .lt("cadence_day", 5);
   if (error) throw error;
 
-  const eligibles = (contacts ?? []).filter(
+  let eligibles = (contacts ?? []).filter(
     (c) => !c.last_contact_at || new Date(c.last_contact_at) < today,
   );
+  if (limit && limit > 0) eligibles = eligibles.slice(0, limit);
   if (eligibles.length === 0) return [];
 
   const { data: templates } = await supabase

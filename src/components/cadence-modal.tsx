@@ -4,27 +4,50 @@ import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fetchDueCadence, type DueContact } from "@/lib/cadence";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { fetchDueCadence, isWeekendIn, type DueContact } from "@/lib/cadence";
+import { getCadenceConfigFn } from "@/lib/cadence.functions";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
 import { Loader2, MessageCircle, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient();
-  const { data: due = [], isLoading, refetch } = useQuery({
-    queryKey: ["cadence-due"],
-    queryFn: fetchDueCadence,
+  const getConfig = useServerFn(getCadenceConfigFn);
+  const { data: config } = useQuery({
+    queryKey: ["cadence-config"],
+    queryFn: () => getConfig(),
     enabled: open,
+  });
+  const timezone = config?.settings?.timezone || "America/Sao_Paulo";
+  const batchSize = config?.settings?.batch_size ?? 10;
+  const weekend = isWeekendIn(timezone);
+
+  const { data: due = [], isLoading, refetch } = useQuery({
+    queryKey: ["cadence-due", batchSize],
+    queryFn: () => fetchDueCadence(batchSize),
+    enabled: open && !weekend && !!config,
   });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
   const sendFn = useServerFn(sendWhatsappMessageFn);
 
   const list = due as DueContact[];
   const activeIds = list.map((c) => c.id).filter((id) => !sentIds.has(id));
-  const allSelected = activeIds.length > 0 && activeIds.every((id) => selected[id] ?? true);
+  const selectedCount = activeIds.filter((id) => selected[id]).length;
+  const allSelected = activeIds.length > 0 && activeIds.every((id) => selected[id]);
 
   function toggleAll() {
     const next: Record<string, boolean> = {};
@@ -32,12 +55,18 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
     setSelected(next);
   }
 
+
   async function startSending() {
-    const targets = list.filter((c) => (selected[c.id] ?? true) && !sentIds.has(c.id));
+    const targets = list.filter((c) => selected[c.id] && !sentIds.has(c.id));
     if (targets.length === 0) {
       toast.info("Selecione ao menos um contato.");
       return;
     }
+    if (weekend) {
+      toast.error("Disparo em massa bloqueado no fim de semana.");
+      return;
+    }
+    setConfirming(false);
     setSending(true);
     let okCount = 0;
     let failCount = 0;
@@ -88,21 +117,23 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
             Iniciar Cadência
           </DialogTitle>
           <DialogDescription>
-            {isLoading
-              ? "Analisando contatos…"
-              : list.length === 0
-                ? "Nenhum contato pendente para hoje. 🎉"
-                : `Hoje existem ${list.length} contato(s) para receber mensagens. Deseja iniciar os envios?`}
+            {weekend
+              ? "Disparo em massa indisponível no fim de semana (sábado e domingo). Conversas individuais na aba WhatsApp continuam liberadas."
+              : isLoading
+                ? "Analisando contatos…"
+                : list.length === 0
+                  ? "Nenhum contato pendente para hoje. 🎉"
+                  : `Lote de até ${batchSize} contato(s) conforme Configurações. Selecione quem deve receber a mensagem.`}
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading && (
+        {!weekend && isLoading && (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
 
-        {!isLoading && list.length > 0 && (
+        {!weekend && !isLoading && list.length > 0 && (
           <div className="max-h-[50vh] overflow-y-auto rounded-md border">
             <div className="sticky top-0 flex items-center gap-3 border-b bg-muted/50 px-3 py-2 text-xs font-medium">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
@@ -116,7 +147,7 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
               return (
                 <div key={c.id} className={`flex items-center gap-3 border-b px-3 py-2 text-sm ${isSent ? "opacity-60" : ""}`}>
                   <Checkbox
-                    checked={!isSent && (selected[c.id] ?? true)}
+                    checked={!isSent && !!selected[c.id]}
                     disabled={isSent}
                     onCheckedChange={(v) => setSelected((s) => ({ ...s, [c.id]: !!v }))}
                   />
@@ -142,12 +173,30 @@ export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChan
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-          <Button onClick={startSending} disabled={sending || list.length === 0}>
+          <Button
+            onClick={() => setConfirming(true)}
+            disabled={sending || weekend || selectedCount === 0}
+          >
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Enviar via Meta Cloud API
+            Enviar {selectedCount > 0 ? `(${selectedCount})` : ""} via Meta Cloud API
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar disparo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso vai enviar mensagens para {selectedCount} contato(s) agora. Confirmar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={startSending}>Confirmar envio</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
