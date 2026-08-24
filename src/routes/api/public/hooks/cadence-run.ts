@@ -32,9 +32,12 @@ function pickSlot(settings: {
   const today = `${get("year")}-${get("month")}-${get("day")}`;
   const weekday = get("weekday");
 
-  if (settings.weekdays_only && (weekday === "Sat" || weekday === "Sun")) {
+  // Disparo em massa NUNCA roda no fim de semana (sábado/domingo),
+  // independentemente da configuração. Conversas individuais seguem liberadas.
+  if (weekday === "Sat" || weekday === "Sun") {
     return { slot: null, reason: "weekend" };
   }
+
 
   const toMinutes = (hhmm: string) => {
     const [h, m] = (hhmm ?? "09:00").split(":");
