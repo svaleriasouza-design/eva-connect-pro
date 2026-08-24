@@ -148,6 +148,9 @@ function Dashboard() {
 
       <SaturdayRequestsCard />
 
+      <CadenceDispatchCard />
+
+
       {/* Meta diária */}
       <Card className="border-[color:var(--gold)]/30 bg-gradient-to-r from-[color:var(--petrol)]/5 to-[color:var(--gold)]/5">
         <CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
