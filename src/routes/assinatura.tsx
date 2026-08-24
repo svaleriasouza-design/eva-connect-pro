@@ -152,7 +152,18 @@ function AssinaturaPage() {
               o desconto de R$ 40,00 é aplicado automaticamente.
             </p>
 
-            {!checkoutOpen ? (
+            {!isOwner && !accessLoading ? (
+              <div className="space-y-2">
+                <p className="rounded-lg border bg-muted/40 p-3 text-sm">
+                  Sua conta é gerenciada pelo proprietário do workspace. Ele precisa regularizar a mensalidade — você
+                  não deve contratar uma assinatura própria.
+                </p>
+                <Button variant="outline" onClick={() => refetch()} disabled={checking}>
+                  {checking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Verificar novamente
+                </Button>
+              </div>
+            ) : !checkoutOpen ? (
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setCheckoutOpen(true)} className="flex-1 sm:flex-none">
                   Assinar por R$ 99,00/mês
@@ -174,6 +185,7 @@ function AssinaturaPage() {
                 returnUrl={`${window.location.origin}/assinatura?session_id={CHECKOUT_SESSION_ID}`}
               />
             )}
+
           </CardContent>
         </Card>
 
