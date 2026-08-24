@@ -7,6 +7,8 @@ import { CreditCard, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { createPortalSession } from "@/utils/payments.functions";
+import { useAccess } from "@/hooks/use-access";
+
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Ativa",
