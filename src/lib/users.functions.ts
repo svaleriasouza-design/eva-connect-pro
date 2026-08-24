@@ -26,6 +26,12 @@ export const getMyAccessFn = createServerFn({ method: "GET" })
       .maybeSingle();
     const row = (profile ?? null) as { full_name: string | null; email: string | null } | null;
     const name = (row?.full_name || row?.email || email || "usuário").trim();
+    const { data: ws } = await context.supabase
+      .from("workspaces")
+      .select("owner_user_id")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const ownerUserId = ((ws as any)?.owner_user_id ?? null) as string | null;
     return {
       workspaceId,
       userId: context.userId,
@@ -34,18 +40,11 @@ export const getMyAccessFn = createServerFn({ method: "GET" })
       roles,
       isAdmin: roles.includes("admin"),
       canSend: roles.includes("admin") || roles.includes("operador"),
-      isOwner: await isWorkspaceOwner(context.userId, workspaceId, context.supabase),
+      ownerUserId,
+      isOwner: ownerUserId === context.userId,
     };
   });
 
-async function isWorkspaceOwner(userId: string, workspaceId: string, supabase: any) {
-  const { data } = await supabase
-    .from("workspaces")
-    .select("owner_user_id")
-    .eq("id", workspaceId)
-    .maybeSingle();
-  return ((data as any)?.owner_user_id ?? null) === userId;
-}
 
 export const getWorkspaceOwnerFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
