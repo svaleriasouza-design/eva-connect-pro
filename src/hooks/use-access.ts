@@ -3,12 +3,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyAccessFn } from "@/lib/users.functions";
 
 export type Access = {
+  workspaceId: string;
   userId: string;
   email: string;
   name: string;
   roles: ("admin" | "operador" | "leitor")[];
   isAdmin: boolean;
   canSend: boolean;
+  ownerUserId: string | null;
+  isOwner: boolean;
 };
 
 export function useAccess() {
@@ -23,5 +26,6 @@ export function useAccess() {
     loading: q.isLoading,
     isAdmin: q.data?.isAdmin ?? false,
     canSend: q.data?.canSend ?? false,
+    isOwner: q.data?.isOwner ?? false,
   };
 }
