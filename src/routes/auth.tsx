@@ -116,7 +116,7 @@ function AuthPage() {
             </CardTitle>
             <CardDescription>
               {mode === "login" && "Acesse sua central comercial."}
-              {mode === "signup" && "Cadastre-se para acessar. Novos usuários entram como Leitor até um administrador liberar o envio."}
+              {mode === "signup" && "Cada cadastro cria uma conta própria, com workspace e assinatura independentes. Para trabalhar na conta de outra pessoa, peça que ela cadastre você na aba Usuários."}
               {mode === "forgot" && "Vamos enviar um link para o seu e-mail."}
             </CardDescription>
           </CardHeader>
