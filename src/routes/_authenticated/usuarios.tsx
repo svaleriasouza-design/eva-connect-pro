@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listUsersFn, setUserRoleFn, addUserToWorkspaceFn } from "@/lib/users.functions";
+import { listUsersFn, setUserRoleFn, createWorkspaceUserFn, deleteWorkspaceUserFn } from "@/lib/users.functions";
 import { useAccess } from "@/hooks/use-access";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDateTime } from "@/lib/db";
 import { toast } from "sonner";
-import { ShieldCheck, Loader as Loader2, Users, UserPlus } from "lucide-react";
+import { ShieldCheck, Loader as Loader2, Users, UserPlus, Trash2, Crown } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
@@ -43,10 +44,15 @@ const ROLE_HELP: Record<string, string> = {
 
 function UsuariosPage() {
   const qc = useQueryClient();
-  const { isAdmin, loading, access } = useAccess();
+  const { isAdmin, loading, access, isOwner } = useAccess();
   const listFn = useServerFn(listUsersFn);
   const setRoleFn = useServerFn(setUserRoleFn);
-  const addUserFn = useServerFn(addUserToWorkspaceFn);
+  const createUserFn = useServerFn(createWorkspaceUserFn);
+  const removeUserFn = useServerFn(deleteWorkspaceUserFn);
+  const [addName, setAddName] = useState("");
+  const [addPassword, setAddPassword] = useState("");
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmUser, setConfirmUser] = useState<any | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addRole, setAddRole] = useState("operador");
@@ -72,16 +78,34 @@ function UsuariosPage() {
   async function addUser() {
     setAdding(true);
     try {
-      const res: any = await addUserFn({ data: { email: addEmail, role: addRole as any } });
-      toast.success(`${res?.name ?? "Usuário"} adicionado ao workspace.`);
+      const res: any = await createUserFn({
+        data: { email: addEmail, password: addPassword, fullName: addName, role: addRole as any },
+      });
+      toast.success(`${res?.name ?? "Usuário"} cadastrado no seu workspace.`);
       setAddOpen(false);
       setAddEmail("");
+      setAddName("");
+      setAddPassword("");
       setAddRole("operador");
       qc.invalidateQueries({ queryKey: ["users-roles"] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível adicionar o usuário.");
+      toast.error(e instanceof Error ? e.message : "Não foi possível cadastrar o usuário.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function deleteUser(userId: string) {
+    setRemoving(userId);
+    try {
+      await removeUserFn({ data: { userId } });
+      toast.success("Usuário excluído da plataforma. Os dados do workspace foram preservados.");
+      setConfirmUser(null);
+      qc.invalidateQueries({ queryKey: ["users-roles"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir o usuário.");
+    } finally {
+      setRemoving(null);
     }
   }
 
@@ -119,8 +143,12 @@ function UsuariosPage() {
             <DialogHeader><DialogTitle>Adicionar usuário ao workspace</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                A pessoa precisa ter se cadastrado na EVA primeiro. Informe o e-mail usado no cadastro para adicioná-la ao seu workspace.
+                O usuário é criado já dentro do seu workspace e usa a sua assinatura — ele não precisa contratar um plano.
               </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nome</Label>
+                <Input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="Nome da pessoa" />
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">E-mail do usuário</Label>
                 <Input
@@ -128,6 +156,15 @@ function UsuariosPage() {
                   value={addEmail}
                   onChange={(e) => setAddEmail(e.target.value)}
                   placeholder="pessoa@empresa.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Senha inicial (mínimo 8 caracteres)</Label>
+                <Input
+                  type="password"
+                  value={addPassword}
+                  onChange={(e) => setAddPassword(e.target.value)}
+                  placeholder="••••••••"
                 />
               </div>
               <div className="space-y-1.5">
@@ -144,9 +181,9 @@ function UsuariosPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
-              <Button onClick={addUser} disabled={adding || !addEmail}>
+              <Button onClick={addUser} disabled={adding || !addEmail || addPassword.length < 8}>
                 {adding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Adicionar
+                Cadastrar usuário
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -176,6 +213,9 @@ function UsuariosPage() {
                 <div className="truncate text-sm font-medium">{u.full_name || u.email}</div>
                 <div className="truncate text-xs text-muted-foreground">{u.email} · desde {formatDateTime(u.created_at)}</div>
               </div>
+              {u.id === access?.ownerUserId && (
+                <Badge className="gap-1 text-[10px]"><Crown className="h-3 w-3" /> proprietário</Badge>
+              )}
               {u.id === access?.userId && <Badge variant="secondary" className="text-[10px]">você</Badge>}
               <Select value={role} onValueChange={(v) => changeRole(u.id, v)}>
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
@@ -185,10 +225,41 @@ function UsuariosPage() {
                   <SelectItem value="leitor">Leitor</SelectItem>
                 </SelectContent>
               </Select>
+              {isOwner && u.id !== access?.ownerUserId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive"
+                  disabled={removing === u.id}
+                  onClick={() => setConfirmUser(u)}
+                >
+                  {removing === u.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Excluir usuário
+                </Button>
+              )}
             </div>
           );
         })}
       </Card>
+
+      <AlertDialog open={!!confirmUser} onOpenChange={(o) => !o && setConfirmUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuário da plataforma?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmUser?.full_name || confirmUser?.email} perderá totalmente o acesso à EVA. Nenhum dado do seu
+              workspace é excluído — leads, empresas, cadências, mensagens, agenda e configurações permanecem intactos.
+              Esse e-mail poderá, no futuro, criar uma nova conta independente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmUser && deleteUser(confirmUser.id)}>
+              Excluir usuário
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
