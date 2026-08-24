@@ -1259,18 +1259,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          owner_user_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           name?: string
+          owner_user_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          owner_user_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1307,6 +1310,7 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
+      workspace_owner_for_user: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "operador" | "leitor"
