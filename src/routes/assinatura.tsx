@@ -12,6 +12,7 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { EVA_PRICE_ID, getStripeEnvironment } from "@/lib/stripe";
 import { createPortalSession } from "@/utils/payments.functions";
 import evaLogo from "@/assets/eva-logo.png";
+import { useAccess } from "@/hooks/use-access";
 
 export const Route = createFileRoute("/assinatura")({
   ssr: false,
@@ -51,6 +52,7 @@ function AssinaturaPage() {
   const { user } = Route.useRouteContext();
   const { subscription, isActive, loading, refetch } = useSubscription();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const { isOwner, loading: accessLoading } = useAccess();
   const [portalLoading, setPortalLoading] = useState(false);
   const [checking, setChecking] = useState(false);
 
