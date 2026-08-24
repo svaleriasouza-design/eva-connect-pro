@@ -11,26 +11,39 @@ import { toast } from "sonner";
 
 export function CadenceModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient();
-  const { data: due = [], isLoading, refetch } = useQuery({
-    queryKey: ["cadence-due"],
-    queryFn: fetchDueCadence,
+  const getConfig = useServerFn(getCadenceConfigFn);
+  const { data: config } = useQuery({
+    queryKey: ["cadence-config"],
+    queryFn: () => getConfig(),
     enabled: open,
+  });
+  const timezone = config?.settings?.timezone || "America/Sao_Paulo";
+  const batchSize = config?.settings?.batch_size ?? 10;
+  const weekend = isWeekendIn(timezone);
+
+  const { data: due = [], isLoading, refetch } = useQuery({
+    queryKey: ["cadence-due", batchSize],
+    queryFn: () => fetchDueCadence(batchSize),
+    enabled: open && !weekend && !!config,
   });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
   const sendFn = useServerFn(sendWhatsappMessageFn);
 
   const list = due as DueContact[];
   const activeIds = list.map((c) => c.id).filter((id) => !sentIds.has(id));
-  const allSelected = activeIds.length > 0 && activeIds.every((id) => selected[id] ?? true);
+  const selectedCount = activeIds.filter((id) => selected[id]).length;
+  const allSelected = activeIds.length > 0 && activeIds.every((id) => selected[id]);
 
   function toggleAll() {
     const next: Record<string, boolean> = {};
     activeIds.forEach((id) => (next[id] = !allSelected));
     setSelected(next);
   }
+
 
   async function startSending() {
     const targets = list.filter((c) => (selected[c.id] ?? true) && !sentIds.has(c.id));
