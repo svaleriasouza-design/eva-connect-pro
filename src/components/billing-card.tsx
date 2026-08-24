@@ -7,6 +7,8 @@ import { CreditCard, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { createPortalSession } from "@/utils/payments.functions";
+import { useAccess } from "@/hooks/use-access";
+
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Ativa",
@@ -19,7 +21,25 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function BillingCard() {
   const { subscription, isActive, isPastDue, loading, refetch } = useSubscription();
+  const { isOwner, loading: accessLoading } = useAccess();
   const [opening, setOpening] = useState(false);
+
+  if (!accessLoading && !isOwner) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="h-4 w-4 text-primary" /> Assinatura
+          </CardTitle>
+          <CardDescription>
+            Esta conta é gerenciada pelo proprietário do workspace. Você usa a assinatura dele — não precisa
+            contratar nada e não é possível alterar a cobrança por aqui.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
 
   async function openPortal() {
     setOpening(true);
