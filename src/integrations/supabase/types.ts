@@ -462,6 +462,10 @@ export type Database = {
           facebook: string | null
           funnel_stage: string
           goal: string | null
+          human_takeover: boolean
+          human_takeover_at: string | null
+          human_takeover_by: string | null
+          human_takeover_by_name: string | null
           id: string
           import_batch_id: string | null
           instagram: string | null
@@ -500,6 +504,10 @@ export type Database = {
           facebook?: string | null
           funnel_stage?: string
           goal?: string | null
+          human_takeover?: boolean
+          human_takeover_at?: string | null
+          human_takeover_by?: string | null
+          human_takeover_by_name?: string | null
           id?: string
           import_batch_id?: string | null
           instagram?: string | null
@@ -538,6 +546,10 @@ export type Database = {
           facebook?: string | null
           funnel_stage?: string
           goal?: string | null
+          human_takeover?: boolean
+          human_takeover_at?: string | null
+          human_takeover_by?: string | null
+          human_takeover_by_name?: string | null
           id?: string
           import_batch_id?: string | null
           instagram?: string | null
