@@ -126,6 +126,7 @@ export async function runCadenceBatch(
       .eq("do_not_contact", false)
       .eq("is_bot", false)
       .eq("ai_paused", false)
+      .eq("human_takeover", false)
       .lt("cadence_day", maxDay)
       .or(`last_contact_at.is.null,last_contact_at.lt.${todayIso}`);
 
@@ -160,10 +161,15 @@ export async function runCadenceBatch(
     // Revalidação antes de cada disparo: respondeu? robô? ainda em cadência?
     const { data: fresh } = await admin
       .from("contacts")
-      .select("cadence_active, cadence_day, do_not_contact, is_bot, ai_paused")
+      .select("cadence_active, cadence_day, do_not_contact, is_bot, ai_paused, human_takeover")
       .eq("id", c.id)
       .maybeSingle();
     const f = (fresh ?? {}) as any;
+    if (f.human_takeover) {
+      console.log(`[cadence] bloqueado contact=${c.id} motivo=human_takeover`);
+      result.skipped++;
+      continue;
+    }
     if (!f.cadence_active || f.do_not_contact || f.is_bot || f.ai_paused) {
       result.skipped++;
       continue;
@@ -261,10 +267,14 @@ export async function autoReplyToInbound(params: {
   // Lead precisa estar ativo e permitir contato.
   const { data: contactRow } = await (admin as any)
     .from("contacts")
-    .select("do_not_contact, status, is_bot, ai_paused")
+    .select("do_not_contact, status, is_bot, ai_paused, human_takeover")
     .eq("id", params.contactId)
     .maybeSingle();
-  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null; is_bot?: boolean; ai_paused?: boolean };
+  const contact = (contactRow ?? {}) as { do_not_contact?: boolean; status?: string | null; is_bot?: boolean; ai_paused?: boolean; human_takeover?: boolean };
+  if (contact.human_takeover) {
+    console.log("[eva auto-reply] bloqueado: atendimento assumido por humano");
+    return "skipped:human_takeover";
+  }
   if (contact.is_bot) return "skipped:bot";
   if (contact.ai_paused) return "skipped:manual_mode";
   if (contact.do_not_contact || (contact.status ?? "ativo") === "perdido") {

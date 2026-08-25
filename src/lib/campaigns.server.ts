@@ -19,7 +19,11 @@ async function admin() {
 }
 
 function applyFilter(query: any, filter: ContactFilter) {
-  let q = query.is("deleted_at", null).eq("do_not_contact", false).not("whatsapp", "is", null);
+  let q = query
+    .is("deleted_at", null)
+    .eq("do_not_contact", false)
+    .eq("human_takeover", false)
+    .not("whatsapp", "is", null);
   if (filter.stage) q = q.eq("funnel_stage", filter.stage);
   if (filter.batch) q = q.eq("import_batch_id", filter.batch);
   if (filter.q) q = q.or(`name.ilike.%${filter.q}%,company_name.ilike.%${filter.q}%,whatsapp.ilike.%${filter.q}%`);
@@ -169,8 +173,18 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
         .limit(perNumber);
       let sent = 0;
       let failed = 0;
+      const { isHumanTakeover, TAKEOVER_BLOCK_REASON } = await import("./takeover.server");
       for (const t of (targets ?? []) as any[]) {
         try {
+          // Revalidação imediatamente antes do disparo.
+          if (t.contact_id && (await isHumanTakeover(workspaceId, t.contact_id))) {
+            console.warn(`[campaign] BLOQUEADO contact=${t.contact_id} motivo=human_takeover`);
+            await db
+              .from("campaign_targets")
+              .update({ status: "cancelled", error_message: TAKEOVER_BLOCK_REASON })
+              .eq("id", t.id);
+            continue;
+          }
           const res = await sendAndLog({
             workspaceId,
             to: t.to_phone,
