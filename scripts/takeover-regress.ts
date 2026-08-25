@@ -3,8 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendAndLog } from "@/lib/messaging.server";
 import { isHumanTakeover, markHumanTakeover, releaseHumanTakeover } from "@/lib/takeover.server";
 import { runCampaignBatch } from "@/lib/campaigns.server";
-import { routeInboundMessage } from "@/lib/inbound-router.server";
-import { runCadenceBatch } from "@/lib/cadence-runner.server";
+import { routeInbound } from "@/lib/inbound-router.server";
 
 const db = supabaseAdmin as any;
 const WS_A = "0c10a407-362d-4ee8-b88f-ff3ca2290d84"; // 2 números
@@ -80,7 +79,7 @@ async function main() {
   log(`4. Campanha: ${(tg ?? []).map((t: any) => `${t.contact_id === A1 ? "A1(takeover)" : "A2(normal)"}=${t.status}`).join(" | ")} (batch=${JSON.stringify((batch as any).sent ?? batch)})`);
 
   // 5) Webhook / resposta automática após takeover
-  const routed = await routeInboundMessage({ workspaceId: WS_A, contactId: A1, contactName: "A1", phone: "5511900000001", text: "quero saber mais", waitMs: 0 } as any).catch((e: any) => `erro:${e.message}`);
+  const routed = await routeInbound({ workspaceId: WS_A, contactId: A1, contactName: "A1", phone: "5511900000001", incomingText: "quero saber mais", cadenceDay: 1 }).catch((e: any) => `erro:${e.message}`);
   log(`5. Webhook pós-takeover: resultado="${routed}"`);
 
   // 6) Retomar EVA
