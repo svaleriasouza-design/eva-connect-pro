@@ -32,6 +32,7 @@ export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
     .select("id, name, whatsapp, phone, cadence_day, cadence_active, do_not_contact, last_contact_at")
     .eq("cadence_active", true)
     .eq("do_not_contact", false)
+    .eq("human_takeover", false)
     .lt("cadence_day", 5);
   if (error) throw error;
 
