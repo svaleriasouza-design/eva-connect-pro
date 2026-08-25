@@ -122,6 +122,7 @@ export const sendTestMessageFn = createServerFn({ method: "POST" })
         contactId: contact?.id ?? null,
         title: "Teste de conexão",
         tag: "test",
+        sendMode: "teste",
       });
       if (res?.ok) {
         return { ok: true as const, messageId: res?.messageId, to: res.to };
