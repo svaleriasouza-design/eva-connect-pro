@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
-import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
+import { sendWhatsappMessageFn, setHumanTakeoverFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +44,7 @@ type ContactRow = {
   last_contact_at: string | null;
   is_bot: boolean | null;
   ai_paused: boolean | null;
+  human_takeover: boolean | null;
   bot_reason: string | null;
 };
 
@@ -71,6 +72,7 @@ export function WhatsappConversations() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const sendFn = useServerFn(sendWhatsappMessageFn);
+  const takeoverFn = useServerFn(setHumanTakeoverFn);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const { canSend } = useAccess();
 
@@ -97,7 +99,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, is_bot, ai_paused, bot_reason")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, is_bot, ai_paused, human_takeover, bot_reason")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
@@ -144,7 +146,7 @@ export function WhatsappConversations() {
       const m = meta.get(c.id);
       if (filter === "robos") return Boolean(c.is_bot);
       if (c.is_bot) return false;
-      if (filter === "manual") return Boolean(c.ai_paused);
+      if (filter === "manual") return Boolean(c.ai_paused || c.human_takeover);
       if (filter === "aguardando") return Boolean(m?.unread);
       if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
       return true;
@@ -194,11 +196,18 @@ export function WhatsappConversations() {
   }, [thread.length, selectedId]);
 
   async function toggleManual(c: ContactRow) {
-    const next = !c.ai_paused;
-    const { error } = await supabase.from("contacts").update({ ai_paused: next }).eq("id", c.id);
-    if (error) return toast.error(error.message);
-    toast.success(next ? "Você assumiu a conversa — EVA pausada" : "EVA voltou a responder este contato");
-    qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+    const next = !(c.ai_paused || c.human_takeover);
+    try {
+      await takeoverFn({ data: { contactId: c.id, active: next } });
+      toast.success(
+        next
+          ? "Você assumiu a conversa — cadências e automações bloqueadas para este lead"
+          : "Automação retomada — a EVA voltou a responder este contato",
+      );
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao alterar o atendimento");
+    }
   }
 
   async function clearBot(c: ContactRow) {
@@ -228,14 +237,13 @@ export function WhatsappConversations() {
         data: { contactId: selected.id, to, body: draft.trim(), manual: true },
       });
       if (res.ok) {
-        // Ao responder manualmente, você assume a conversa (EVA pausa neste contato).
-        if (!selected.ai_paused) {
-          await supabase.from("contacts").update({ ai_paused: true }).eq("id", selected.id);
-          qc.invalidateQueries({ queryKey: ["wa-contacts"] });
-          toast.success("Mensagem enviada — você assumiu esta conversa");
-        } else {
-          toast.success("Mensagem enviada");
-        }
+        // Ao responder manualmente, o backend já marcou a assunção humana.
+        qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+        toast.success(
+          selected.human_takeover || selected.ai_paused
+            ? "Mensagem enviada"
+            : "Mensagem enviada — você assumiu esta conversa (automações bloqueadas)",
+        );
         setDraft("");
         qc.invalidateQueries({ queryKey: ["wa-thread", selected.id] });
         qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
@@ -309,7 +317,7 @@ export function WhatsappConversations() {
                   </div>
                   {c.is_bot ? (
                     <Bot className="h-3 w-3 shrink-0 text-destructive" />
-                  ) : c.ai_paused ? (
+                  ) : c.ai_paused || c.human_takeover ? (
                     <Hand className="h-3 w-3 shrink-0 text-[color:var(--gold)]" />
                   ) : (
                     m?.unread && <CircleDot className="h-3 w-3 shrink-0 text-primary" />
@@ -335,7 +343,7 @@ export function WhatsappConversations() {
                 <div className="truncate text-sm font-semibold">{selected.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{selected.whatsapp ?? selected.phone ?? "—"}</div>
               </div>
-              {selected.ai_paused ? (
+              {selected.ai_paused || selected.human_takeover ? (
                 <Button variant="default" size="sm" onClick={() => toggleManual(selected)}>
                   <Sparkles className="mr-1 h-3 w-3" />
                   Retomar EVA
@@ -357,7 +365,7 @@ export function WhatsappConversations() {
                 <button type="button" className="ml-2 underline" onClick={() => clearBot(selected)}>Marcar como humano</button>
               </div>
             )}
-            {selected.ai_paused && !selected.is_bot && (
+            {(selected.ai_paused || selected.human_takeover) && !selected.is_bot && (
               <div className="border-b bg-[color:var(--gold)]/15 px-4 py-2 text-xs">
                 Você assumiu esta conversa. A EVA não responde automaticamente aqui até você devolver o controle.
               </div>
@@ -456,7 +464,7 @@ export function WhatsappConversations() {
                 )}
                 {selected.do_not_contact && <Badge variant="destructive" className="text-[10px]">Não contatar</Badge>}
                 {selected.is_bot && <Badge variant="destructive" className="text-[10px]">Robô/URA</Badge>}
-                {selected.ai_paused && <Badge variant="outline" className="text-[10px]">Modo manual</Badge>}
+                {(selected.ai_paused || selected.human_takeover) && <Badge variant="outline" className="text-[10px]">Modo manual</Badge>}
               </div>
 
               <InfoBlock label="Objetivo" value={selected.goal} />

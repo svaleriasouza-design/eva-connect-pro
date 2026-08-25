@@ -128,11 +128,15 @@ export async function routeInbound(params: {
   // Estado atual do contato (pode ter mudado durante a espera).
   const { data: contactRow } = await db
     .from("contacts")
-    .select("is_bot, ai_paused, do_not_contact")
+    .select("is_bot, ai_paused, do_not_contact, human_takeover")
     .eq("id", params.contactId)
     .maybeSingle();
-  const contact = (contactRow ?? {}) as { is_bot?: boolean; ai_paused?: boolean; do_not_contact?: boolean };
+  const contact = (contactRow ?? {}) as { is_bot?: boolean; ai_paused?: boolean; do_not_contact?: boolean; human_takeover?: boolean };
 
+  if (contact.human_takeover) {
+    console.log("[inbound-router] Envio automático bloqueado: atendimento assumido por humano.");
+    return "skipped:human_takeover";
+  }
   if (contact.is_bot) return "skipped:bot";
   if (contact.ai_paused) return "skipped:manual_mode";
 

@@ -54,10 +54,61 @@ export const sendWhatsappMessageFn = createServerFn({ method: "POST" })
         .eq("id", data.contactId);
     }
 
+    // Envio manual = humano assumiu a conversa: automações param imediatamente.
+    if (result.ok && !data.cadenceDay) {
+      const { markHumanTakeover } = await import("./takeover.server");
+      await markHumanTakeover({
+        workspaceId,
+        contactId: data.contactId,
+        userId: context.userId,
+        userName: sender,
+        reason: `Mensagem manual enviada por ${sender}.`,
+      });
+    }
+
     return result.ok
       ? { ok: true as const, messageId: result.messageId }
       : { ok: false as const, error: result.error ?? "Falha no envio." };
   });
+
+const takeoverSchema = z.object({
+  contactId: z.string().uuid(),
+  active: z.boolean(),
+});
+
+/** Liga/desliga a trava de atendimento humano para um contato. */
+export const setHumanTakeoverFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => takeoverSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    const { requireRole, displayNameFor } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const sender = await displayNameFor(
+      context.userId,
+      ((context.claims as any)?.email as string | undefined) ?? "atendente",
+    );
+    const { markHumanTakeover, releaseHumanTakeover } = await import("./takeover.server");
+    if (data.active) {
+      await markHumanTakeover({
+        workspaceId,
+        contactId: data.contactId,
+        userId: context.userId,
+        userName: sender,
+        reason: `${sender} assumiu o atendimento manualmente.`,
+      });
+    } else {
+      await releaseHumanTakeover({
+        workspaceId,
+        contactId: data.contactId,
+        userId: context.userId,
+        userName: sender,
+      });
+    }
+    return { ok: true as const, humanTakeover: data.active };
+  });
+
 
 export const testMetaConfigFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
