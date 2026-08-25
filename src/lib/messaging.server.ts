@@ -85,6 +85,30 @@ export async function sendAndLog(input: SendAndLogInput): Promise<SendAndLogResu
     return { ok: false, to, error: "Número inválido (use DDD + número)." };
   }
 
+  // TRAVA GLOBAL — atendimento assumido por humano bloqueia QUALQUER automação
+  // (cadência, campanha, resposta da EVA). Revalidado aqui, imediatamente antes
+  // do disparo, para evitar corrida entre o envio humano e o automático.
+  const { isManualSendMode, isHumanTakeover, TAKEOVER_BLOCK_REASON } = await import("./takeover.server");
+  const manualSend = isManualSendMode(input.sendMode, input.sentBy);
+  if (!manualSend && input.contactId && (await isHumanTakeover(wid, input.contactId))) {
+    console.warn(`[msg:out] BLOQUEADO tag=${tag} contact=${input.contactId} motivo=human_takeover`);
+    try {
+      await db.from("activities").insert({
+        contact_id: input.contactId,
+        kind: "nota",
+        title: "Envio automático bloqueado — atendimento humano",
+        content: `${TAKEOVER_BLOCK_REASON}\nOrigem do envio: ${tag}.\n\nConteúdo não enviado:\n${input.body ?? ""}`,
+        status: "BLOCKED",
+        status_updated_at: new Date().toISOString(),
+        send_mode: input.sendMode ?? "eva",
+      });
+    } catch (err) {
+      console.error("[msg:out] falha ao registrar bloqueio", err);
+    }
+    return { ok: false, to, error: TAKEOVER_BLOCK_REASON };
+  }
+
+
   // Qual número da EVA envia: pedido explícito > número já usado na conversa > principal.
   const { resolveSendNumber } = await import("./wa-numbers.server");
   let preferred = input.whatsappNumberId ?? null;
