@@ -471,6 +471,8 @@ export type Database = {
           instagram: string | null
           is_bot: boolean
           last_contact_at: string | null
+          last_inbound_at: string | null
+          last_outbound_at: string | null
           main_pain: string | null
           name: string
           next_action: string | null
@@ -513,6 +515,8 @@ export type Database = {
           instagram?: string | null
           is_bot?: boolean
           last_contact_at?: string | null
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           main_pain?: string | null
           name: string
           next_action?: string | null
@@ -555,6 +559,8 @@ export type Database = {
           instagram?: string | null
           is_bot?: boolean
           last_contact_at?: string | null
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           main_pain?: string | null
           name?: string
           next_action?: string | null
@@ -1295,6 +1301,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      contacts_recompute_message_status: {
+        Args: { _contact_id: string }
+        Returns: undefined
+      }
       current_workspace_id: { Args: never; Returns: string }
       delete_contacts: { Args: { p_ids: string[] }; Returns: number }
       funnel_stage_rank: { Args: { stage: string }; Returns: number }

@@ -62,7 +62,7 @@ function Dashboard() {
 
       const [
         active, proposals, inCadence, newLeads, meetingsScheduled, inbox,
-        forgottenCompanies, overdueFollowups, meetingsToday, noShows, companiesCount,
+        forgottenCompanies, overdueFollowups, meetingsToday, noShows, companiesCount, awaitingLead,
         meetingsList, priorities, overdueList, respondeuList, semContatoList,
       ] = await Promise.all([
         cnt(head().eq("funnel_stage", "cliente_ativo")),
@@ -70,21 +70,23 @@ function Dashboard() {
         cnt(head().eq("cadence_active", true).eq("do_not_contact", false)),
         cnt(head().eq("funnel_stage", "novo_lead")),
         cnt(head().eq("funnel_stage", "reuniao_agendada")),
-        cnt(head().eq("status", "aguardando_resposta")),
+        cnt(head().eq("status", "aguardando_contato")),
         cnt(companyHead().is("next_meeting", null)),
         cnt(supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due_at", startIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "reuniao").gte("starts_at", startIso).lte("starts_at", endIso).eq("status", "no_show")),
         cnt(companyHead()),
+        cnt(head().eq("status", "aguardando_resposta")),
         supabase.from("events").select("id, title, starts_at, status, kind")
           .gte("starts_at", startIso).lte("starts_at", endIso).order("starts_at"),
         supabase.from("contacts").select("id, name, funnel_stage, last_contact_at")
           .eq("funnel_stage", "proposta_enviada").is("deleted_at", null).order("updated_at", { ascending: false }).limit(5),
         supabase.from("tasks").select("id, title, due_at, contact_id")
           .eq("done", false).lt("due_at", startIso).order("due_at", { ascending: true }).limit(5),
-        supabase.from("contacts").select("id, name, last_contact_at")
-          .is("deleted_at", null).gte("last_contact_at", startIso).lte("last_contact_at", endIso)
-          .order("last_contact_at", { ascending: false }).limit(5),
+        // Só entram aqui leads com mensagem RECEBIDA (inbound) hoje — nunca envios nossos.
+        supabase.from("contacts").select("id, name, last_contact_at:last_inbound_at")
+          .is("deleted_at", null).gte("last_inbound_at", startIso).lte("last_inbound_at", endIso)
+          .order("last_inbound_at", { ascending: false }).limit(5),
         supabase.from("contacts").select("id, name, last_contact_at")
           .is("deleted_at", null).eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
           .order("last_contact_at", { ascending: true }).limit(5),
@@ -97,7 +99,7 @@ function Dashboard() {
         stats: {
           inbox, inCadence, meetingsToday, overdueFollowups: overdueFollowups,
           proposals, noShows, forgottenCompanies, active,
-          newLeads, meetingsScheduled, companies: companiesCount,
+          newLeads, meetingsScheduled, companies: companiesCount, awaitingLead,
         },
         meetings: meetingsData,
         reunioesHoje,
@@ -177,8 +179,9 @@ function Dashboard() {
 
       {/* Números da operação */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4">
-        <StatCard label="Mensagens p/ responder" value={data?.stats.inbox ?? 0} icon={MessageCircle} tone="gold" hint="clientes aguardando você" />
+        <StatCard label="Mensagens p/ responder" value={data?.stats.inbox ?? 0} icon={MessageCircle} tone="gold" hint="leads que responderam e aguardam retorno" />
         <StatCard label="Em cadência" value={data?.stats.inCadence ?? 0} icon={Flame} tone="primary" hint="rodando automaticamente" />
+        <StatCard label="Aguardando resposta do lead" value={data?.stats.awaitingLead ?? 0} icon={Clock} tone="muted" hint="só enviamos, ainda sem resposta" />
         <StatCard label="Reuniões hoje" value={data?.stats.meetingsToday ?? 0} icon={Calendar} tone="primary" />
         <StatCard label="Follow-ups atrasados" value={data?.stats.overdueFollowups ?? 0} icon={Clock} tone="warn" />
         <StatCard label="Propostas pendentes" value={data?.stats.proposals ?? 0} icon={FileText} tone="gold" />
