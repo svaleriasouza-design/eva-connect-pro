@@ -70,7 +70,7 @@ function Dashboard() {
         cnt(head().eq("cadence_active", true).eq("do_not_contact", false)),
         cnt(head().eq("funnel_stage", "novo_lead")),
         cnt(head().eq("funnel_stage", "reuniao_agendada")),
-        cnt(head().eq("status", "aguardando_resposta")),
+        cnt(head().eq("status", "aguardando_contato")),
         cnt(companyHead().is("next_meeting", null)),
         cnt(supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due_at", startIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
