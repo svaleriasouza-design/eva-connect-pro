@@ -62,7 +62,7 @@ function Dashboard() {
 
       const [
         active, proposals, inCadence, newLeads, meetingsScheduled, inbox,
-        forgottenCompanies, overdueFollowups, meetingsToday, noShows, companiesCount,
+        forgottenCompanies, overdueFollowups, meetingsToday, noShows, companiesCount, awaitingLead,
         meetingsList, priorities, overdueList, respondeuList, semContatoList,
       ] = await Promise.all([
         cnt(head().eq("funnel_stage", "cliente_ativo")),
@@ -76,6 +76,7 @@ function Dashboard() {
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).eq("kind", "reuniao").gte("starts_at", startIso).lte("starts_at", endIso).eq("status", "no_show")),
         cnt(companyHead()),
+        cnt(head().eq("status", "aguardando_resposta")),
         supabase.from("events").select("id, title, starts_at, status, kind")
           .gte("starts_at", startIso).lte("starts_at", endIso).order("starts_at"),
         supabase.from("contacts").select("id, name, funnel_stage, last_contact_at")
@@ -98,7 +99,7 @@ function Dashboard() {
         stats: {
           inbox, inCadence, meetingsToday, overdueFollowups: overdueFollowups,
           proposals, noShows, forgottenCompanies, active,
-          newLeads, meetingsScheduled, companies: companiesCount,
+          newLeads, meetingsScheduled, companies: companiesCount, awaitingLead,
         },
         meetings: meetingsData,
         reunioesHoje,
@@ -178,8 +179,9 @@ function Dashboard() {
 
       {/* Números da operação */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4">
-        <StatCard label="Mensagens p/ responder" value={data?.stats.inbox ?? 0} icon={MessageCircle} tone="gold" hint="clientes aguardando você" />
+        <StatCard label="Mensagens p/ responder" value={data?.stats.inbox ?? 0} icon={MessageCircle} tone="gold" hint="leads que responderam e aguardam retorno" />
         <StatCard label="Em cadência" value={data?.stats.inCadence ?? 0} icon={Flame} tone="primary" hint="rodando automaticamente" />
+        <StatCard label="Aguardando resposta do lead" value={data?.stats.awaitingLead ?? 0} icon={Clock} tone="muted" hint="só enviamos, ainda sem resposta" />
         <StatCard label="Reuniões hoje" value={data?.stats.meetingsToday ?? 0} icon={Calendar} tone="primary" />
         <StatCard label="Follow-ups atrasados" value={data?.stats.overdueFollowups ?? 0} icon={Clock} tone="warn" />
         <StatCard label="Propostas pendentes" value={data?.stats.proposals ?? 0} icon={FileText} tone="gold" />
