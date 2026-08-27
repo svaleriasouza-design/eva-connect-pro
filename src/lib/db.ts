@@ -12,6 +12,34 @@ export const FUNNEL_STAGES = [
   { key: "reativar_60", label: "Reativar em 60 dias" },
 ] as const;
 
+/** Etapas do quadro "Pré-venda" (campo contacts.presale_stage). */
+export const PRESALE_STAGES = [
+  { key: "responsivos", label: "Responsivos" },
+  { key: "pre_agendado_qualificado", label: "Pré-agendado qualificado" },
+  { key: "recebimento_leads", label: "Recebimento de leads" },
+  { key: "iniciar_cadencia", label: "Iniciar cadência" },
+  { key: "lead_dia_1", label: "Lead 1º dia" },
+  { key: "lead_dia_2", label: "Lead 2º dia" },
+  { key: "lead_dia_3", label: "Lead 3º dia" },
+  { key: "lead_dia_4", label: "Lead 4º dia" },
+  { key: "lead_dia_5", label: "Lead 5º dia" },
+  { key: "perdido_cadencia", label: "Perdido cadência" },
+  { key: "perdido_desqualificado", label: "Perdido desqualificado" },
+  { key: "perdido_desinteresse", label: "Perdido desinteresse" },
+] as const;
+
+/** Etapas do quadro "Venda" (campo contacts.sales_stage). */
+export const SALES_STAGES = [
+  { key: "agendado_no_show", label: "Agendado no show" },
+  { key: "reuniao_reagendada", label: "Reunião reagendada" },
+  { key: "reuniao_agendada", label: "Reunião agendada" },
+  { key: "apresentacao", label: "Apresentação" },
+  { key: "vendido", label: "Vendido" },
+  { key: "perdido_apresentado", label: "Perdido apresentado" },
+  { key: "perdido_fim_cadencia", label: "Perdido fim de cadência" },
+  { key: "cancelados", label: "Cancelados" },
+] as const;
+
 export const MESSAGE_CATEGORIES = [
   "Dia 1","Dia 2","Dia 3","Dia 4","Dia 5",
   "No Show","Lembretes","Qualificação","Quebra de objeções",
