@@ -480,7 +480,9 @@ export type Database = {
           notes: string | null
           origin: string | null
           phone: string | null
+          presale_stage: string | null
           profession: string | null
+          sales_stage: string | null
           service_interest: string | null
           status: string
           updated_at: string
@@ -524,7 +526,9 @@ export type Database = {
           notes?: string | null
           origin?: string | null
           phone?: string | null
+          presale_stage?: string | null
           profession?: string | null
+          sales_stage?: string | null
           service_interest?: string | null
           status?: string
           updated_at?: string
@@ -568,7 +572,9 @@ export type Database = {
           notes?: string | null
           origin?: string | null
           phone?: string | null
+          presale_stage?: string | null
           profession?: string | null
+          sales_stage?: string | null
           service_interest?: string | null
           status?: string
           updated_at?: string
