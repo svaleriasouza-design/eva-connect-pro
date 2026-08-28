@@ -72,7 +72,7 @@ async function hasReplied(admin: any, contactId: string): Promise<boolean> {
 export async function revertCadenceDayForFailedStatus(db: any, externalId: string) {
   const { data: act } = await db
     .from("activities")
-    .select("id, contact_id, title, tag:tag, created_at")
+    .select("id, contact_id, title, created_at")
     .eq("external_id", externalId)
     .eq("kind", "whatsapp_out")
     .maybeSingle();
