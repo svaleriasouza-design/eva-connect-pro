@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FUNNEL_STAGES, PRESALE_STAGES, SALES_STAGES } from "@/lib/db";
+import { FUNNEL_STAGES, SALES_STAGES } from "@/lib/db";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KanbanBoard } from "@/components/kanban-board";
+import { PresaleBoard } from "@/components/presale-board";
 
 export const Route = createFileRoute("/_authenticated/funil")({ component: Funil });
 
@@ -33,7 +34,7 @@ function Funil() {
         </TabsContent>
 
         <TabsContent value="prevenda" className="mt-4">
-          <KanbanBoard field="presale_stage" stages={PRESALE_STAGES} queryKey="funil-prevenda" />
+          <PresaleBoard />
         </TabsContent>
 
         <TabsContent value="venda" className="mt-4">
