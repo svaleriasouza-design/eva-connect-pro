@@ -68,20 +68,10 @@ export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
   });
 }
 
-export async function markCadenceSent(contact: DueContact) {
-  const now = new Date().toISOString();
-  await supabase.from("contacts").update({
-    cadence_day: contact.nextDay,
-    last_contact_at: now,
-    cadence_active: contact.nextDay < 5,
-  }).eq("id", contact.id);
-  await supabase.from("activities").insert({
-    contact_id: contact.id,
-    kind: "whatsapp_out",
-    title: `Mensagem Dia ${contact.nextDay} enviada`,
-    content: contact.message,
-  });
-}
+// markCadenceSent foi removido: avançava cadence_day sem confirmação de sucesso.
+// A progressão do dia acontece exclusivamente no backend (cadence-runner /
+// sendWhatsappMessageFn) e SOMENTE quando o envio retorna sucesso.
+
 
 export async function removeFromCadence(contactId: string, reason = "Respondeu / removido da cadência") {
   await supabase.from("contacts").update({ cadence_active: false }).eq("id", contactId);
