@@ -59,6 +59,55 @@ async function hasReplied(admin: any, contactId: string): Promise<boolean> {
   return Boolean(data && data.length > 0);
 }
 
+/**
+ * Integridade da progressão: só um envio confirmado como SUCESSO conclui o dia.
+ *
+ * A Meta pode aceitar a mensagem (retorno OK) e, minutos depois, avisar por
+ * webhook que ela FALHOU. Nesse caso o dia NÃO foi concluído: desfazemos o
+ * avanço do `cadence_day` (volta para o dia anterior), mantendo o contato ativo
+ * na fila para tentar novamente a MESMA mensagem do dia pendente.
+ *
+ * Recebe o client admin já disponível no webhook (sem workspace resolvido).
+ */
+export async function revertCadenceDayForFailedStatus(db: any, externalId: string) {
+  const { data: act } = await db
+    .from("activities")
+    .select("id, contact_id, title, created_at")
+    .eq("external_id", externalId)
+    .eq("kind", "whatsapp_out")
+    .maybeSingle();
+  const a = (act ?? null) as any;
+  if (!a?.contact_id) return;
+
+  const m = /Dia\s+(\d+)/i.exec(String(a.title ?? ""));
+  if (!m) return; // não é envio de cadência
+  const day = Number(m[1]);
+  if (!Number.isFinite(day) || day < 1) return;
+
+  const { data: contactRow } = await db
+    .from("contacts")
+    .select("cadence_day, cadence_active, do_not_contact")
+    .eq("id", a.contact_id)
+    .maybeSingle();
+  const c = (contactRow ?? null) as any;
+  if (!c) return;
+
+  // Só desfaz se o avanço registrado for exatamente o desta mensagem.
+  if ((c.cadence_day ?? 0) !== day) return;
+
+  await db
+    .from("contacts")
+    .update({
+      cadence_day: day - 1,
+      // Falha não conclui a etapa: o contato permanece na fila (a menos que
+      // tenha pedido opt-out).
+      cadence_active: c.do_not_contact ? false : true,
+    })
+    .eq("id", a.contact_id);
+  console.log(`[cadence] falha assíncrona: contact=${a.contact_id} volta para Dia ${day} pendente`);
+}
+
+
 export type BatchResult = {
   slot: "morning" | "afternoon";
   workspaceId: string;

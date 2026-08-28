@@ -99,6 +99,14 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   .from("campaign_targets")
                   .update({ status })
                   .eq("external_id", externalId);
+
+                // Falha confirmada depois do aceite: o dia da cadência NÃO foi
+                // concluído — desfaz o avanço e devolve o contato à fila.
+                if (status === "FAILED") {
+                  const { revertCadenceDayForFailedStatus } = await import("@/lib/cadence-runner.server");
+                  await revertCadenceDayForFailedStatus(supabaseAdmin, externalId);
+                }
+
               }
 
               // 2) Mensagens recebidas => registra e retira da cadência
