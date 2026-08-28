@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Settings,
   ShieldCheck,
+  Headphones,
 } from "lucide-react";
 import {
   Sidebar,
