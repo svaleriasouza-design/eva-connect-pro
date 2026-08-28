@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
-import { sendWhatsappMessageFn, setHumanTakeoverFn } from "@/lib/whatsapp.functions";
+import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles } from "lucide-react";
+import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
 type ActivityRow = {
@@ -477,7 +477,11 @@ export function WhatsappConversations() {
                       {outgoing && a.title?.startsWith("EVA respondeu") && (
                         <div className="mb-0.5 text-[10px] font-medium opacity-80">EVA</div>
                       )}
-                      <div className="whitespace-pre-wrap break-words">{a.content ?? a.title}</div>
+                      {(a.content ?? "").startsWith("[audio]") ? (
+                        <AudioBubble content={a.content ?? ""} />
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{a.content ?? a.title}</div>
+                      )}
                       <div className={`mt-1 flex items-center gap-1 text-[10px] ${outgoing ? "text-primary-foreground/70 justify-end" : "text-muted-foreground"}`}>
                         <span>{manual ? formatDateTime(a.created_at) : formatShort(a.created_at)}</span>
                         {outgoing && <StatusIcon status={a.status} />}
@@ -616,4 +620,19 @@ function formatShort(iso: string) {
   return same
     ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+/** Player do áudio enviado — busca uma URL assinada no bucket whatsapp-audio. */
+function AudioBubble({ content }: { content: string }) {
+  const path = content.replace("[audio]", "").trim().split(" ")[0];
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.storage
+      .from("whatsapp-audio")
+      .createSignedUrl(path, 3600)
+      .then(({ data }) => { if (alive) setUrl(data?.signedUrl ?? null); });
+    return () => { alive = false; };
+  }, [path]);
+  if (!url) return <div className="text-xs opacity-80">🎤 Áudio</div>;
+  return <audio controls src={url} className="max-w-[220px]" />;
 }
