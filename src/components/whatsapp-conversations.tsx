@@ -257,6 +257,79 @@ export function WhatsappConversations() {
     }
   }
 
+  async function sendAudioFile(file: Blob, seconds?: number) {
+    if (!selected) return;
+    if (!canSend) {
+      toast.error("Seu acesso é somente leitura. Peça a um administrador o papel de Operador.");
+      return;
+    }
+    const to = selected.whatsapp ?? selected.phone;
+    if (!to) {
+      toast.error("Contato sem WhatsApp/telefone.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Áudio muito grande (máx. 10MB).");
+      return;
+    }
+    setSending(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const res = await audioFn({
+        data: {
+          contactId: selected.id,
+          to,
+          base64: btoa(bin),
+          mime: (file.type || "audio/ogg").split(";")[0],
+          ...(seconds ? { seconds } : {}),
+        },
+      });
+      if (res.ok) {
+        toast.success("Áudio enviado");
+        qc.invalidateQueries({ queryKey: ["wa-thread", selected.id] });
+        qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
+        qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      } else {
+        toast.error(res.error ?? "Falha no envio do áudio");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar áudio");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const candidates = ["audio/ogg;codecs=opus", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+      const type = candidates.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
+      const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks: BlobPart[] = [];
+      const startedAt = Date.now();
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/ogg" });
+        if (blob.size > 0) void sendAudioFile(blob, (Date.now() - startedAt) / 1000);
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      toast.error("Não foi possível acessar o microfone. Autorize o microfone no navegador ou anexe um arquivo de áudio.");
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+  }
+
+
   return (
     <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[280px_1fr_320px]">
       {/* Coluna 1: Conversas */}
