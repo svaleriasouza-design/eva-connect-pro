@@ -299,3 +299,98 @@ export async function logInbound(params: {
   }
   return (data as any)?.id as string | undefined;
 }
+/** Marcador usado no histórico para identificar mensagens de áudio enviadas. */
+export const AUDIO_MARKER = "[audio]";
+
+/**
+ * Envia um ÁUDIO via Meta Cloud API e grava no MESMO histórico (`activities`)
+ * usado pelo texto. `storagePath` é o arquivo já salvo no bucket whatsapp-audio.
+ */
+export async function sendAudioAndLog(input: {
+  workspaceId: string;
+  to: string;
+  contactId?: string | null;
+  bytes: Uint8Array;
+  mime: string;
+  storagePath: string;
+  seconds?: number | null;
+  title?: string;
+  tag?: string;
+  sentBy?: string | null;
+  sentByName?: string | null;
+  sendMode?: string;
+  whatsappNumberId?: string | null;
+}): Promise<SendAndLogResult> {
+  const wid = input.workspaceId;
+  const db = await admin(wid);
+  const to = normalizePhoneNumber(input.to ?? "");
+  if (!to || to.length < 12) return { ok: false, to, error: "Número inválido (use DDD + número)." };
+
+  const { isManualSendMode, isHumanTakeover, TAKEOVER_BLOCK_REASON } = await import("./takeover.server");
+  const manualSend = isManualSendMode(input.sendMode, input.sentBy);
+  if (!manualSend && input.contactId && (await isHumanTakeover(wid, input.contactId))) {
+    return { ok: false, to, error: TAKEOVER_BLOCK_REASON };
+  }
+
+  const { resolveSendNumber } = await import("./wa-numbers.server");
+  let preferred = input.whatsappNumberId ?? null;
+  if (!preferred && input.contactId) {
+    const { data: c } = await db.from("contacts").select("whatsapp_number_id").eq("id", input.contactId).maybeSingle();
+    preferred = ((c as any)?.whatsapp_number_id as string | null) ?? null;
+  }
+  const numberId = (await resolveSendNumber(wid, preferred))?.id ?? null;
+
+  // Áudio só existe em mensagem livre: a janela de 24h precisa estar aberta.
+  const windowOpen = await hasOpenWindow(wid, input.contactId ?? null, to);
+  const { uploadMetaAudio, sendWhatsappAudio } = await import("./whatsapp.server");
+
+  let send: { ok: boolean; messageId?: string; error?: string; raw?: unknown };
+  if (!windowOpen) {
+    send = {
+      ok: false,
+      error:
+        "Janela de 24h fechada: a Meta não permite enviar áudio antes de o lead responder. Envie um texto/template primeiro.",
+    };
+  } else {
+    const up = await uploadMetaAudio(wid, input.bytes, input.mime, numberId);
+    send = up.ok && up.mediaId
+      ? await sendWhatsappAudio(wid, to, up.mediaId, numberId)
+      : { ok: false, error: up.error ?? "Falha ao subir o áudio na Meta." };
+  }
+
+  const now = new Date().toISOString();
+  let activityId: string | undefined;
+  try {
+    const { data } = await db
+      .from("activities")
+      .insert({
+        contact_id: input.contactId ?? null,
+        kind: "whatsapp_out",
+        title: input.title ?? "Áudio enviado",
+        content: `${AUDIO_MARKER} ${input.storagePath}${input.seconds ? ` (${Math.round(input.seconds)}s)` : ""}`,
+        external_id: send.messageId ?? null,
+        status: send.ok ? "SENT" : "FAILED",
+        status_updated_at: now,
+        error_message: send.ok ? null : (send.error ?? "Falha no envio de áudio (Meta Cloud API)"),
+        sent_by: input.sentBy ?? null,
+        sent_by_name: input.sentByName ?? null,
+        send_mode: input.sendMode ?? (input.sentBy ? "manual" : "eva"),
+        whatsapp_number_id: numberId,
+      })
+      .select("id")
+      .maybeSingle();
+    activityId = (data as any)?.id;
+  } catch (err) {
+    console.error("[msg:out:audio] falha ao gravar activity", err);
+  }
+
+  if (send.ok && input.contactId) {
+    await db
+      .from("contacts")
+      .update({ last_contact_at: now, ...(numberId ? { whatsapp_number_id: numberId } : {}) })
+      .eq("id", input.contactId)
+      .then(undefined, (err: unknown) => console.error("[msg:out:audio] update contact", err));
+  }
+
+  return { ok: send.ok, to, messageId: send.messageId, error: send.error, activityId, raw: send.raw, whatsappNumberId: numberId };
+}

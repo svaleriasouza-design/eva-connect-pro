@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
-import { sendWhatsappMessageFn, setHumanTakeoverFn } from "@/lib/whatsapp.functions";
+import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles } from "lucide-react";
+import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
 type ActivityRow = {
@@ -71,8 +71,13 @@ export function WhatsappConversations() {
   const [filter, setFilter] = useState<ConvFilter>("todas");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
   const sendFn = useServerFn(sendWhatsappMessageFn);
+  const audioFn = useServerFn(sendWhatsappAudioFn);
   const takeoverFn = useServerFn(setHumanTakeoverFn);
+
   const threadRef = useRef<HTMLDivElement | null>(null);
   const { canSend } = useAccess();
 
@@ -257,6 +262,79 @@ export function WhatsappConversations() {
     }
   }
 
+  async function sendAudioFile(file: Blob, seconds?: number) {
+    if (!selected) return;
+    if (!canSend) {
+      toast.error("Seu acesso é somente leitura. Peça a um administrador o papel de Operador.");
+      return;
+    }
+    const to = selected.whatsapp ?? selected.phone;
+    if (!to) {
+      toast.error("Contato sem WhatsApp/telefone.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Áudio muito grande (máx. 10MB).");
+      return;
+    }
+    setSending(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const res = await audioFn({
+        data: {
+          contactId: selected.id,
+          to,
+          base64: btoa(bin),
+          mime: (file.type || "audio/ogg").split(";")[0],
+          ...(seconds ? { seconds } : {}),
+        },
+      });
+      if (res.ok) {
+        toast.success("Áudio enviado");
+        qc.invalidateQueries({ queryKey: ["wa-thread", selected.id] });
+        qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
+        qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      } else {
+        toast.error(res.error ?? "Falha no envio do áudio");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar áudio");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const candidates = ["audio/ogg;codecs=opus", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+      const type = candidates.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
+      const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks: BlobPart[] = [];
+      const startedAt = Date.now();
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/ogg" });
+        if (blob.size > 0) void sendAudioFile(blob, (Date.now() - startedAt) / 1000);
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      toast.error("Não foi possível acessar o microfone. Autorize o microfone no navegador ou anexe um arquivo de áudio.");
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+  }
+
+
   return (
     <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[280px_1fr_320px]">
       {/* Coluna 1: Conversas */}
@@ -399,7 +477,11 @@ export function WhatsappConversations() {
                       {outgoing && a.title?.startsWith("EVA respondeu") && (
                         <div className="mb-0.5 text-[10px] font-medium opacity-80">EVA</div>
                       )}
-                      <div className="whitespace-pre-wrap break-words">{a.content ?? a.title}</div>
+                      {(a.content ?? "").startsWith("[audio]") ? (
+                        <AudioBubble content={a.content ?? ""} />
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{a.content ?? a.title}</div>
+                      )}
                       <div className={`mt-1 flex items-center gap-1 text-[10px] ${outgoing ? "text-primary-foreground/70 justify-end" : "text-muted-foreground"}`}>
                         <span>{manual ? formatDateTime(a.created_at) : formatShort(a.created_at)}</span>
                         {outgoing && <StatusIcon status={a.status} />}
@@ -417,6 +499,35 @@ export function WhatsappConversations() {
 
             <div className="border-t bg-card p-3">
               <div className="flex items-end gap-2">
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) sendAudioFile(f);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="Anexar arquivo de áudio"
+                  disabled={!canSend || sending || recording}
+                  onClick={() => audioInputRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={recording ? "destructive" : "outline"}
+                  size="icon"
+                  title={recording ? "Parar e enviar áudio" : "Gravar áudio"}
+                  disabled={!canSend || sending}
+                  onClick={recording ? stopRecording : startRecording}
+                >
+                  {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
                 <Textarea
                   rows={2}
                   value={draft}
@@ -432,8 +543,13 @@ export function WhatsappConversations() {
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
-              <div className="mt-1 text-[10px] text-muted-foreground">Envio real via Meta Cloud API · ⌘/Ctrl + Enter</div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {recording
+                  ? "Gravando… clique no quadrado para parar e enviar."
+                  : "Envio real via Meta Cloud API · ⌘/Ctrl + Enter · 🎤 áudio só depois que o lead responder (janela de 24h)"}
+              </div>
             </div>
+
           </>
         )}
       </div>
@@ -504,4 +620,19 @@ function formatShort(iso: string) {
   return same
     ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+/** Player do áudio enviado — busca uma URL assinada no bucket whatsapp-audio. */
+function AudioBubble({ content }: { content: string }) {
+  const path = content.replace("[audio]", "").trim().split(" ")[0];
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.storage
+      .from("whatsapp-audio")
+      .createSignedUrl(path, 3600)
+      .then(({ data }) => { if (alive) setUrl(data?.signedUrl ?? null); });
+    return () => { alive = false; };
+  }, [path]);
+  if (!url) return <div className="text-xs opacity-80">🎤 Áudio</div>;
+  return <audio controls src={url} className="max-w-[220px]" />;
 }

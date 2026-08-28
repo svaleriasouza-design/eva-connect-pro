@@ -249,3 +249,76 @@ export async function verifyMetaSignature(
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
   return diff === 0;
 }
+// ---------------------------------------------------------------------------
+// Envio de ÁUDIO (voz) — Meta Cloud API
+// 1) sobe o arquivo em /media (multipart) e recebe um media id;
+// 2) envia a mensagem type=audio com esse id.
+// ---------------------------------------------------------------------------
+
+export async function uploadMetaAudio(
+  workspaceId: string,
+  bytes: Uint8Array,
+  mime: string,
+  numberId?: string | null,
+): Promise<{ ok: boolean; mediaId?: string; error?: string }> {
+  const cfg = await loadMetaConfig(workspaceId, numberId);
+  if (!cfg.phoneNumberId || !cfg.accessToken) {
+    return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
+  }
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", mime);
+  form.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), `audio.${mime.includes("mpeg") || mime.includes("mp3") ? "mp3" : "ogg"}`);
+  try {
+    const res = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      body: form,
+    });
+    const json: any = await res.json().catch(() => null);
+    if (!res.ok || !json?.id) {
+      return { ok: false, error: json?.error?.message ?? `HTTP ${res.status} ao subir áudio na Meta.` };
+    }
+    return { ok: true, mediaId: String(json.id) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendWhatsappAudio(
+  workspaceId: string,
+  to: string,
+  mediaId: string,
+  numberId?: string | null,
+): Promise<MetaSendResult> {
+  const cfg = await loadMetaConfig(workspaceId, numberId);
+  if (!cfg.phoneNumberId || !cfg.accessToken) {
+    return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
+  }
+  try {
+    const res = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: normalizePhone(to ?? ""),
+        type: "audio",
+        audio: { id: mediaId },
+      }),
+    });
+    const rawText = await res.text().catch(() => "");
+    let json: any = null;
+    try {
+      json = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      json = null;
+    }
+    if (!res.ok || json?.error) {
+      return { ok: false, error: json?.error?.message ?? `HTTP ${res.status}`, raw: json ?? rawText };
+    }
+    return { ok: true, messageId: json?.messages?.[0]?.id, raw: json };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
