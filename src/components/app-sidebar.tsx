@@ -36,6 +36,7 @@ const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "CRM", url: "/crm", icon: Users },
   { title: "Empresas", url: "/empresas", icon: Building2 },
+  { title: "Atendimento", url: "/atendimento", icon: Headphones },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Cadências", url: "/cadencias", icon: KanbanSquare },
   { title: "Disparos", url: "/disparos", icon: Megaphone },
