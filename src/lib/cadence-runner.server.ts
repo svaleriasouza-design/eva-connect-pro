@@ -270,11 +270,16 @@ export async function runCadenceBatch(
       }
     } else {
       result.failed++;
-      // Mesmo com falha, marcamos a tentativa do dia para não repetir a mesma
-      // mensagem nas próximas execuções do mesmo dia.
+      // FALHA: a mensagem NÃO é considerada enviada — cadence_day permanece o
+      // mesmo (continua Dia N) e o contato segue com cadence_active=true, ou
+      // seja, permanece na fila. Só marcamos a tentativa do dia para não
+      // repetir na outra execução de hoje; no próximo lote normal (manhã/tarde)
+      // ele volta pelo FLUXO 3 e a mesma mensagem do Dia N é tentada de novo.
+      // Se a automação estiver desligada, ele simplesmente aguarda na fila.
       await admin.from("contacts").update({ last_contact_at: nowIso }).eq("id", c.id);
       if (send.error) result.errors.push(`${c.name}: ${send.error}`);
     }
+
   }
 
   const stampField = slot === "morning" ? "last_morning_run_at" : "last_afternoon_run_at";
