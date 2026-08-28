@@ -171,3 +171,54 @@ export const runCadenceNowFn = createServerFn({ method: "POST" })
     const result = await runCadenceBatch(workspaceId, data.slot, size!);
     return result;
   });
+export type FailedCadenceSend = {
+  id: string;
+  contact_id: string | null;
+  contact_name: string;
+  phone: string;
+  day: number | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+/** Lista os envios de cadência que falharam (log já existente em activities). */
+export const listFailedCadenceSendsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    const { data, error } = await sb
+      .from("activities")
+      .select("id, contact_id, title, error_message, created_at, contacts(name, whatsapp, phone)")
+      .eq("kind", "whatsapp_out")
+      .eq("status", "FAILED")
+      .ilike("title", "Cad%ncia Dia%")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+    const items: FailedCadenceSend[] = ((data ?? []) as any[]).map((a) => {
+      const m = /Dia\s+(\d+)/i.exec(a.title ?? "");
+      return {
+        id: a.id,
+        contact_id: a.contact_id,
+        contact_name: a.contacts?.name ?? "Contato removido",
+        phone: a.contacts?.whatsapp ?? a.contacts?.phone ?? "",
+        day: m ? Number(m[1]) : null,
+        error_message: a.error_message ?? null,
+        created_at: a.created_at,
+      };
+    });
+    return { items };
+  });
+
+/** Recoloca na fila da cadência (mesmo dia que falhou) os envios selecionados. */
+export const retryFailedCadenceSendsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z.object({ activityIds: z.array(z.string().uuid()).min(1).max(500) }).parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    const { retryFailedCadenceSends } = await import("./cadence-runner.server");
+    return retryFailedCadenceSends(workspaceId, data.activityIds);
+  });
