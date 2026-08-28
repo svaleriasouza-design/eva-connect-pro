@@ -147,9 +147,54 @@ export async function runCadenceBatch(
     .limit(Math.max(0, batchSize));
   const newLeads = (newRaw ?? []) as any[];
 
-  const list = [...followUps, ...newLeads];
+  // FLUXO 3 — pendências: envios que FALHARAM em execuções anteriores voltam
+  // para o FINAL desta mesma fila, mantendo o dia da cadência que tentavam
+  // enviar (a falha nunca avança cadence_day). Sem fila paralela e sem retry
+  // imediato: são processados junto do próximo lote normal.
+  const pending: any[] = [];
+  const alreadyQueued = new Set<string>([...followUps, ...newLeads].map((c) => c.id));
+  const { data: failedRows } = await admin
+    .from("activities")
+    .select("contact_id, status, created_at, kind")
+    .eq("kind", "whatsapp_out")
+    .eq("status", "FAILED")
+    .ilike("title", "Cad%ncia Dia%")
+    .lt("created_at", todayIso)
+    .order("created_at", { ascending: true })
+    .limit(1000);
+  const failedIds = Array.from(
+    new Set(
+      ((failedRows ?? []) as any[])
+        .map((a) => a.contact_id as string | null)
+        .filter((id): id is string => typeof id === "string" && id.length > 0 && !alreadyQueued.has(id)),
+    ),
+  );
+  if (failedIds.length > 0) {
+    // Mantém apenas quem ainda está pendente de verdade (último envio = falha).
+    const { data: lastOut } = await admin
+      .from("activities")
+      .select("contact_id, status, created_at")
+      .eq("kind", "whatsapp_out")
+      .in("contact_id", failedIds)
+      .order("created_at", { ascending: false })
+      .limit(4000);
+    const latestStatus = new Map<string, string>();
+    for (const a of ((lastOut ?? []) as any[])) {
+      if (!latestStatus.has(a.contact_id)) latestStatus.set(a.contact_id, a.status ?? "");
+    }
+    const stillPending = failedIds.filter((id) => latestStatus.get(id) === "FAILED");
+    if (stillPending.length > 0) {
+      const { data: pendingRaw } = await eligible(
+        admin.from("contacts").select(select).in("id", stillPending),
+      ).limit(FOLLOWUP_CAP);
+      pending.push(...((pendingRaw ?? []) as any[]));
+    }
+  }
+
+  const list = [...followUps, ...newLeads, ...pending];
   result.attempted = list.length;
   const nowIso = new Date().toISOString();
+
 
   for (const c of list) {
     const to = (c.whatsapp ?? c.phone ?? "").toString();
@@ -225,11 +270,16 @@ export async function runCadenceBatch(
       }
     } else {
       result.failed++;
-      // Mesmo com falha, marcamos a tentativa do dia para não repetir a mesma
-      // mensagem nas próximas execuções do mesmo dia.
+      // FALHA: a mensagem NÃO é considerada enviada — cadence_day permanece o
+      // mesmo (continua Dia N) e o contato segue com cadence_active=true, ou
+      // seja, permanece na fila. Só marcamos a tentativa do dia para não
+      // repetir na outra execução de hoje; no próximo lote normal (manhã/tarde)
+      // ele volta pelo FLUXO 3 e a mesma mensagem do Dia N é tentada de novo.
+      // Se a automação estiver desligada, ele simplesmente aguarda na fila.
       await admin.from("contacts").update({ last_contact_at: nowIso }).eq("id", c.id);
       if (send.error) result.errors.push(`${c.name}: ${send.error}`);
     }
+
   }
 
   const stampField = slot === "morning" ? "last_morning_run_at" : "last_afternoon_run_at";
