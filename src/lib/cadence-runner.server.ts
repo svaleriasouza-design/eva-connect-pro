@@ -405,3 +405,113 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
   console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
   return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;
 }
+
+/** Extrai o dia da cadência a partir do título da atividade ("Cadência Dia 3 (manhã)"). */
+export function cadenceDayFromTitle(title: string | null | undefined): number | null {
+  const m = /Cad[êe]ncia\s+Dia\s+(\d+)/i.exec(title ?? "");
+  return m ? Number(m[1]) : null;
+}
+
+export type RetryResult = {
+  attempted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+};
+
+/**
+ * Recoloca na fila da cadência contatos cujo envio falhou: reenvia a mensagem
+ * do MESMO dia que falhou, usando o motor existente (sendAndLog + template do dia)
+ * e respeitando todas as proteções atuais (atendimento humano, opt-out, bot).
+ * Não cria fila nova nem cadência paralela.
+ */
+export async function retryFailedCadenceSends(
+  workspaceId: string,
+  activityIds: string[],
+): Promise<RetryResult> {
+  const admin = await loadAdmin(workspaceId);
+  const out: RetryResult = { attempted: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
+  if (activityIds.length === 0) return out;
+
+  const { data: rows } = await admin
+    .from("activities")
+    .select("id, contact_id, title, content")
+    .in("id", activityIds)
+    .eq("status", "FAILED");
+  const list = (rows ?? []) as Array<{ id: string; contact_id: string | null; title: string | null }>;
+
+  const { data: steps } = await admin.from("cadence_steps").select("day, script, active");
+  const scriptByDay = new Map<number, string>(
+    ((steps ?? []) as any[]).filter((s) => s.active).map((s) => [s.day as number, s.script as string]),
+  );
+
+  const nowIso = new Date().toISOString();
+
+  for (const a of list) {
+    out.attempted++;
+    const day = cadenceDayFromTitle(a.title);
+    if (!a.contact_id || !day) {
+      out.skipped++;
+      continue;
+    }
+    const { data: c } = await admin
+      .from("contacts")
+      .select("id, name, whatsapp, phone, do_not_contact, is_bot, human_takeover, ai_paused")
+      .eq("id", a.contact_id)
+      .maybeSingle();
+    const contact = (c ?? null) as any;
+    if (!contact) {
+      out.skipped++;
+      continue;
+    }
+    if (contact.human_takeover || contact.do_not_contact || contact.is_bot || contact.ai_paused) {
+      out.skipped++;
+      out.errors.push(`${contact.name}: bloqueado (atendimento humano/opt-out)`);
+      continue;
+    }
+    const to = (contact.whatsapp ?? contact.phone ?? "").toString();
+    if (!to.replace(/\D/g, "")) {
+      out.skipped++;
+      continue;
+    }
+    const tpl = scriptByDay.get(day);
+    if (!tpl) {
+      out.skipped++;
+      out.errors.push(`${contact.name}: Dia ${day} não está mais ativo na cadência`);
+      continue;
+    }
+
+    const send = await sendAndLog({
+      workspaceId,
+      to,
+      body: renderScript(tpl, { nome: firstName(contact.name ?? "") }),
+      contactId: contact.id,
+      title: `Cadência Dia ${day} (reenvio)`,
+      tag: `cadence-retry-day-${day}`,
+      templateName: templateForDay(day),
+    });
+
+    if (send.ok) {
+      out.sent++;
+      await admin
+        .from("activities")
+        .update({ status: "RETRIED", status_updated_at: nowIso })
+        .eq("id", a.id);
+      await admin
+        .from("contacts")
+        .update({ cadence_day: day, last_contact_at: nowIso, cadence_active: true })
+        .eq("id", contact.id);
+    } else {
+      out.failed++;
+      // A nova tentativa já foi registrada como FAILED por sendAndLog; marcamos a
+      // antiga como RETRIED para não duplicar o mesmo item na lista de falhas.
+      await admin
+        .from("activities")
+        .update({ status: "RETRIED", status_updated_at: nowIso })
+        .eq("id", a.id);
+      if (send.error) out.errors.push(`${contact.name}: ${send.error}`);
+    }
+  }
+  return out;
+}
