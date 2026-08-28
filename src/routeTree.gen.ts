@@ -26,6 +26,7 @@ import { Route as AuthenticatedDisparosRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authenticated/cadencias'
+import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
@@ -120,6 +121,12 @@ const AuthenticatedCadenciasRoute = AuthenticatedCadenciasRouteImport.update({
   path: '/cadencias',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAtendimentoRoute =
+  AuthenticatedAtendimentoRouteImport.update({
+    id: '/atendimento',
+    path: '/atendimento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -172,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/crm': typeof AuthenticatedCrmRouteWithChildren
@@ -197,6 +205,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/disparos': typeof AuthenticatedDisparosRoute
@@ -224,6 +233,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
+  '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
   '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRouteWithChildren
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/agenda'
+    | '/atendimento'
     | '/cadencias'
     | '/configuracoes'
     | '/crm'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/agenda'
+    | '/atendimento'
     | '/cadencias'
     | '/configuracoes'
     | '/disparos'
@@ -304,6 +316,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/agenda'
+    | '/_authenticated/atendimento'
     | '/_authenticated/cadencias'
     | '/_authenticated/configuracoes'
     | '/_authenticated/crm'
@@ -457,6 +470,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCadenciasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/atendimento': {
+      id: '/_authenticated/atendimento'
+      path: '/atendimento'
+      fullPath: '/atendimento'
+      preLoaderRoute: typeof AuthenticatedAtendimentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agenda': {
       id: '/_authenticated/agenda'
       path: '/agenda'
@@ -532,6 +552,7 @@ const AuthenticatedCrmRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
+  AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
   AuthenticatedCadenciasRoute: typeof AuthenticatedCadenciasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRouteWithChildren
@@ -549,6 +570,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
+  AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
   AuthenticatedCadenciasRoute: AuthenticatedCadenciasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRouteWithChildren,
