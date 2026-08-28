@@ -389,7 +389,7 @@ export async function sendAudioAndLog(input: {
       .from("contacts")
       .update({ last_contact_at: now, ...(numberId ? { whatsapp_number_id: numberId } : {}) })
       .eq("id", input.contactId)
-      .then(undefined, (err) => console.error("[msg:out:audio] update contact", err));
+      .then(undefined, (err: unknown) => console.error("[msg:out:audio] update contact", err));
   }
 
   return { ok: send.ok, to, messageId: send.messageId, error: send.error, activityId, raw: send.raw, whatsappNumberId: numberId };
