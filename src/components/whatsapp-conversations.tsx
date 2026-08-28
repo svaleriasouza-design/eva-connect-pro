@@ -417,6 +417,35 @@ export function WhatsappConversations() {
 
             <div className="border-t bg-card p-3">
               <div className="flex items-end gap-2">
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) sendAudioFile(f);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="Anexar arquivo de áudio"
+                  disabled={!canSend || sending || recording}
+                  onClick={() => audioInputRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={recording ? "destructive" : "outline"}
+                  size="icon"
+                  title={recording ? "Parar e enviar áudio" : "Gravar áudio"}
+                  disabled={!canSend || sending}
+                  onClick={recording ? stopRecording : startRecording}
+                >
+                  {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
                 <Textarea
                   rows={2}
                   value={draft}
@@ -432,8 +461,13 @@ export function WhatsappConversations() {
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
-              <div className="mt-1 text-[10px] text-muted-foreground">Envio real via Meta Cloud API · ⌘/Ctrl + Enter</div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {recording
+                  ? "Gravando… clique no quadrado para parar e enviar."
+                  : "Envio real via Meta Cloud API · ⌘/Ctrl + Enter · 🎤 áudio só depois que o lead responder (janela de 24h)"}
+              </div>
             </div>
+
           </>
         )}
       </div>
