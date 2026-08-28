@@ -71,8 +71,13 @@ export function WhatsappConversations() {
   const [filter, setFilter] = useState<ConvFilter>("todas");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
   const sendFn = useServerFn(sendWhatsappMessageFn);
+  const audioFn = useServerFn(sendWhatsappAudioFn);
   const takeoverFn = useServerFn(setHumanTakeoverFn);
+
   const threadRef = useRef<HTMLDivElement | null>(null);
   const { canSend } = useAccess();
 
