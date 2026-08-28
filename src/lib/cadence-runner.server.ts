@@ -166,7 +166,7 @@ export async function runCadenceBatch(
     new Set(
       ((failedRows ?? []) as any[])
         .map((a) => a.contact_id as string | null)
-        .filter((id): id is string => Boolean(id) && !alreadyQueued.has(id)),
+        .filter((id): id is string => typeof id === "string" && id.length > 0 && !alreadyQueued.has(id)),
     ),
   );
   if (failedIds.length > 0) {
