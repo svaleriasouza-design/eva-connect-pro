@@ -148,16 +148,22 @@ export const sendWhatsappAudioFn = createServerFn({ method: "POST" })
       ((context.claims as any)?.email as string | undefined) ?? "atendente",
     );
 
-    const mime = data.mime.split(";")[0].toLowerCase();
-    const allowed = ["audio/ogg", "audio/opus", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/aac", "audio/amr", "audio/webm"];
+    const raw = data.mime.split(";")[0].toLowerCase();
+    // WebM não é aceito pela Meta — o painel converte para Ogg/Opus antes de enviar.
+    const mime =
+      raw === "audio/opus" ? "audio/ogg" : raw === "audio/mp3" ? "audio/mpeg" : raw === "audio/x-m4a" ? "audio/mp4" : raw;
+    const allowed = ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/amr"];
     if (!allowed.includes(mime)) {
-      return { ok: false as const, error: `Formato de áudio não suportado pelo WhatsApp: ${mime}. Use OGG/Opus, MP3, M4A ou AAC.` };
+      return {
+        ok: false as const,
+        error: `Formato de áudio não suportado pelo WhatsApp: ${raw}. Use OGG/Opus, MP3, M4A (AAC) ou AMR.`,
+      };
     }
 
     const bin = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
     if (!bin.length) return { ok: false as const, error: "Áudio vazio." };
 
-    const ext = mime.includes("mpeg") || mime.includes("mp3") ? "mp3" : mime.includes("mp4") || mime.includes("aac") ? "m4a" : mime.includes("webm") ? "webm" : "ogg";
+    const ext = mime === "audio/mpeg" ? "mp3" : mime === "audio/mp4" || mime === "audio/aac" ? "m4a" : mime === "audio/amr" ? "amr" : "ogg";
     const path = `${workspaceId}/${data.contactId}/${Date.now()}.${ext}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const up = await supabaseAdmin.storage
