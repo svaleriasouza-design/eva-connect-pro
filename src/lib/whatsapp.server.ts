@@ -255,31 +255,87 @@ export async function verifyMetaSignature(
 // 2) envia a mensagem type=audio com esse id.
 // ---------------------------------------------------------------------------
 
+/** Formatos de áudio aceitos pela Meta Cloud API e a extensão correspondente. */
+const META_AUDIO_TYPES: Record<string, string> = {
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/amr": "amr",
+};
+
+/** Detecta o container real pelos magic bytes — evita enviar WebM renomeado. */
+function sniffAudioContainer(bytes: Uint8Array): string | null {
+  const s = (i: number, str: string) =>
+    str.split("").every((ch, k) => bytes[i + k] === ch.charCodeAt(0));
+  if (bytes.length < 12) return null;
+  if (s(0, "OggS")) return "audio/ogg";
+  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return "audio/webm";
+  if (s(4, "ftyp")) return "audio/mp4";
+  if (s(0, "ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  if (s(0, "#!AMR")) return "audio/amr";
+  return null;
+}
+
 export async function uploadMetaAudio(
   workspaceId: string,
   bytes: Uint8Array,
   mime: string,
   numberId?: string | null,
-): Promise<{ ok: boolean; mediaId?: string; error?: string }> {
+): Promise<{ ok: boolean; mediaId?: string; error?: string; raw?: unknown }> {
   const cfg = await loadMetaConfig(workspaceId, numberId);
   if (!cfg.phoneNumberId || !cfg.accessToken) {
     return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
   }
+
+  const declared = (mime || "").split(";")[0].toLowerCase();
+  const sniffed = sniffAudioContainer(bytes);
+  if (sniffed === "audio/webm") {
+    return {
+      ok: false,
+      error:
+        "Áudio em WebM: a Meta não aceita esse container. A gravação precisa ser convertida para OGG/Opus antes do envio.",
+    };
+  }
+  // O tipo real manda: um .m4a que na verdade é OGG (ou vice-versa) é recusado.
+  const effective = sniffed && META_AUDIO_TYPES[sniffed] ? sniffed : declared;
+  const ext = META_AUDIO_TYPES[effective];
+  if (!ext) {
+    return { ok: false, error: `Formato de áudio não aceito pela Meta: ${effective || "desconhecido"}.` };
+  }
+
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
-  form.append("type", mime);
-  form.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), `audio.${mime.includes("mpeg") || mime.includes("mp3") ? "mp3" : "ogg"}`);
+  form.append("type", effective);
+  form.append("file", new Blob([bytes as unknown as BlobPart], { type: effective }), `audio.${ext}`);
   try {
     const res = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}/media`, {
       method: "POST",
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
       body: form,
     });
-    const json: any = await res.json().catch(() => null);
-    if (!res.ok || !json?.id) {
-      return { ok: false, error: json?.error?.message ?? `HTTP ${res.status} ao subir áudio na Meta.` };
+    const rawText = await res.text().catch(() => "");
+    let json: any = null;
+    try {
+      json = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      json = null;
     }
-    return { ok: true, mediaId: String(json.id) };
+    // Log da resposta BRUTA do /media: é aqui que a Meta devolve o código real.
+    console.log(
+      `[meta:media:upload] status=${res.status} declared=${declared} sniffed=${sniffed ?? "?"} sent=${effective} bytes=${bytes.length} raw=${rawText.slice(0, 1200)}`,
+    );
+    if (!res.ok || !json?.id) {
+      const parts = [
+        json?.error?.message ? String(json.error.message) : `HTTP ${res.status} ao subir áudio na Meta`,
+        json?.error?.code != null ? `code ${json.error.code}` : null,
+        json?.error?.error_subcode != null ? `subcode ${json.error.error_subcode}` : null,
+        json?.error?.error_data?.details ? String(json.error.error_data.details) : null,
+        `type ${effective}`,
+      ].filter(Boolean);
+      return { ok: false, error: parts.join(" · "), raw: json ?? rawText };
+    }
+    return { ok: true, mediaId: String(json.id), raw: json };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

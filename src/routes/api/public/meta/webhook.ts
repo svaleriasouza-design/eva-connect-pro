@@ -90,10 +90,32 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 const externalId = s?.id as string | undefined;
                 const status = String(s?.status ?? "").toUpperCase();
                 if (!externalId || !status) continue;
-                console.log(`[webhook:status] ${externalId} -> ${status}`);
+                // A Meta manda o motivo real em statuses[].errors — guardamos
+                // para não ficar com FAILED sem código no banco.
+                const errs = Array.isArray(s?.errors) ? s.errors : [];
+                const errText = errs.length
+                  ? errs
+                      .map((e: any) =>
+                        [
+                          e?.title ?? e?.message ?? "erro Meta",
+                          e?.code != null ? `code ${e.code}` : null,
+                          e?.error_data?.details ? String(e.error_data.details) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · "),
+                      )
+                      .join(" | ")
+                  : null;
+                console.log(
+                  `[webhook:status] ${externalId} -> ${status}${errText ? ` :: ${errText}` : ""}${errs.length ? ` raw=${JSON.stringify(errs).slice(0, 800)}` : ""}`,
+                );
                 await supabaseAdmin
                   .from("activities")
-                  .update({ status, status_updated_at: now })
+                  .update({
+                    status,
+                    status_updated_at: now,
+                    ...(errText ? { error_message: errText } : {}),
+                  })
                   .eq("external_id", externalId);
                 await supabaseAdmin
                   .from("campaign_targets")

@@ -279,7 +279,11 @@ export function WhatsappConversations() {
     }
     setSending(true);
     try {
-      const buf = new Uint8Array(await file.arrayBuffer());
+      // A Meta só aceita OGG/Opus, MP3, AAC/M4A(AAC real) ou AMR. O WebM do
+      // MediaRecorder é remuxado para Ogg/Opus aqui (sem recodificar).
+      const { normalizeRecordingForWhatsapp } = await import("@/lib/audio-ogg");
+      const normalized = await normalizeRecordingForWhatsapp(file);
+      const buf = new Uint8Array(await normalized.blob.arrayBuffer());
       let bin = "";
       for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
       const res = await audioFn({
@@ -287,7 +291,7 @@ export function WhatsappConversations() {
           contactId: selected.id,
           to,
           base64: btoa(bin),
-          mime: (file.type || "audio/ogg").split(";")[0],
+          mime: normalized.mime,
           ...(seconds ? { seconds } : {}),
         },
       });
@@ -309,7 +313,14 @@ export function WhatsappConversations() {
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const candidates = ["audio/ogg;codecs=opus", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+      // Ordem por compatibilidade com a Meta: Ogg/Opus, WebM/Opus (remuxado
+      // para Ogg antes do envio) e, por último, MP4 com AAC de verdade.
+      const candidates = [
+        "audio/ogg;codecs=opus",
+        "audio/webm;codecs=opus",
+        "audio/mp4;codecs=mp4a.40.2",
+        "audio/webm",
+      ];
       const type = candidates.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
       const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       const chunks: BlobPart[] = [];
@@ -318,7 +329,7 @@ export function WhatsappConversations() {
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
-        const blob = new Blob(chunks, { type: rec.mimeType || "audio/ogg" });
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
         if (blob.size > 0) void sendAudioFile(blob, (Date.now() - startedAt) / 1000);
       };
       recorderRef.current = rec;
