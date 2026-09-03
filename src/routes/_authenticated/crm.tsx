@@ -347,16 +347,20 @@ export function CrmList() {
   async function exportXlsx() {
     const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at","import_batch_id"];
     setExporting(true);
+    setExportCount(0);
     try {
       const CHUNK = 1000;
       const all: any[] = [];
-      for (let from = 0; ; from += CHUNK) {
+      // Paginação por cursor (id) — estável e sem limite de total de linhas.
+      let lastId: string | null = null;
+      for (;;) {
         let query: any = supabase
           .from("contacts")
-          .select(headers.join(","))
+          .select(["id", ...headers].join(","))
           .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .range(from, from + CHUNK - 1);
+          .order("id", { ascending: true })
+          .limit(CHUNK);
+        if (lastId) query = query.gt("id", lastId);
         if (stage !== "all") query = query.eq("funnel_stage", stage);
         if (batch === "none") query = query.is("import_batch_id", null);
         else if (batch !== "all") query = query.eq("import_batch_id", batch);
@@ -365,8 +369,12 @@ export function CrmList() {
         if (error) throw error;
         const rows = data ?? [];
         all.push(...rows);
+        setExportCount(all.length);
+        if (rows.length === 0) break;
+        lastId = rows[rows.length - 1].id;
         if (rows.length < CHUNK) break;
       }
+
 
       if (all.length === 0) {
         toast.error("Nenhum contato para exportar com os filtros atuais.");
