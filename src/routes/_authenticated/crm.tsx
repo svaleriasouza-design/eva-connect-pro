@@ -52,6 +52,8 @@ export function CrmList() {
   const PAGE_SIZE = 200;
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const deleteContacts = useServerFn(deleteContactsFn);
   const deleteContactsByFilter = useServerFn(deleteContactsByFilterFn);
 
@@ -341,17 +343,51 @@ export function CrmList() {
     }
   }
 
+  /** Exporta TODOS os contatos que atendem aos filtros atuais (não só a página). */
   async function exportXlsx() {
     const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at","import_batch_id"];
-    const XLSX = await import("xlsx");
-    const rows = filtered.map((c: any) => headers.map((h) => (c[h] ?? "")));
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws["!cols"] = headers.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contatos");
-    // writeFile já usa UTF-8 no XLSX, então os acentos vêm corretos.
-    XLSX.writeFile(wb, "contatos.xlsx", { bookType: "xlsx" });
+    setExporting(true);
+    try {
+      const CHUNK = 1000;
+      const all: any[] = [];
+      for (let from = 0; ; from += CHUNK) {
+        let query: any = supabase
+          .from("contacts")
+          .select(headers.join(","))
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .range(from, from + CHUNK - 1);
+        if (stage !== "all") query = query.eq("funnel_stage", stage);
+        if (batch === "none") query = query.is("import_batch_id", null);
+        else if (batch !== "all") query = query.eq("import_batch_id", batch);
+        if (q.trim()) query = query.or(`name.ilike.%${q.trim()}%,company_name.ilike.%${q.trim()}%,email.ilike.%${q.trim()}%`);
+        const { data, error } = await query;
+        if (error) throw error;
+        const rows = data ?? [];
+        all.push(...rows);
+        if (rows.length < CHUNK) break;
+      }
+
+      if (all.length === 0) {
+        toast.error("Nenhum contato para exportar com os filtros atuais.");
+        return;
+      }
+
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...all.map((c: any) => headers.map((h) => c[h] ?? ""))]);
+      ws["!cols"] = headers.map(() => ({ wch: 22 }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Contatos");
+      // writeFile já usa UTF-8 no XLSX, então os acentos vêm corretos.
+      XLSX.writeFile(wb, "contatos.xlsx", { bookType: "xlsx" });
+      toast.success(`${all.length.toLocaleString("pt-BR")} contatos exportados.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível exportar os contatos.");
+    } finally {
+      setExporting(false);
+    }
   }
+
 
 
   return (
@@ -378,7 +414,11 @@ export function CrmList() {
               <span><Upload className="mr-2 h-4 w-4" /> {importing ? "Importando…" : "Importar planilha (.xlsx ou .csv)"}</span>
             </Button>
           </label>
-          <Button variant="outline" onClick={exportXlsx}><Download className="mr-2 h-4 w-4" /> Exportar Excel</Button>
+          <Button variant="outline" onClick={exportXlsx} disabled={exporting}>
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            {exporting ? "Exportando…" : "Exportar Excel"}
+          </Button>
+
           <NewContactDialog />
         </div>
       </div>
