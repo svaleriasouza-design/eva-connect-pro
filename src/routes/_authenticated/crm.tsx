@@ -53,6 +53,7 @@ export function CrmList() {
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportCount, setExportCount] = useState(0);
 
   const deleteContacts = useServerFn(deleteContactsFn);
   const deleteContactsByFilter = useServerFn(deleteContactsByFilterFn);
@@ -424,7 +425,7 @@ export function CrmList() {
           </label>
           <Button variant="outline" onClick={exportXlsx} disabled={exporting}>
             {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {exporting ? "Exportando…" : "Exportar Excel"}
+            {exporting ? `Exportando… ${exportCount.toLocaleString("pt-BR")}` : "Exportar Excel"}
           </Button>
 
           <NewContactDialog />
