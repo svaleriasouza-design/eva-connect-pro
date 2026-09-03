@@ -378,7 +378,7 @@ export function CrmList() {
               <span><Upload className="mr-2 h-4 w-4" /> {importing ? "Importando…" : "Importar planilha (.xlsx ou .csv)"}</span>
             </Button>
           </label>
-          <Button variant="outline" onClick={exportCsv}><Download className="mr-2 h-4 w-4" /> Exportar</Button>
+          <Button variant="outline" onClick={exportXlsx}><Download className="mr-2 h-4 w-4" /> Exportar Excel</Button>
           <NewContactDialog />
         </div>
       </div>
