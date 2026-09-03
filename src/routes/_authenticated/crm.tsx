@@ -52,6 +52,8 @@ export function CrmList() {
   const PAGE_SIZE = 200;
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const deleteContacts = useServerFn(deleteContactsFn);
   const deleteContactsByFilter = useServerFn(deleteContactsByFilterFn);
 
