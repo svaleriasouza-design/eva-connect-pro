@@ -341,15 +341,18 @@ export function CrmList() {
     }
   }
 
-  function exportCsv() {
+  async function exportXlsx() {
     const headers = ["name","company_name","whatsapp","email","funnel_stage","city","created_at","import_batch_id"];
-    const csv = [headers.join(",")].concat(
-      filtered.map((c: any) => headers.map((h) => JSON.stringify(c[h] ?? "")).join(","))
-    ).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "contatos.csv"; a.click();
+    const XLSX = await import("xlsx");
+    const rows = filtered.map((c: any) => headers.map((h) => (c[h] ?? "")));
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws["!cols"] = headers.map(() => ({ wch: 22 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contatos");
+    // writeFile já usa UTF-8 no XLSX, então os acentos vêm corretos.
+    XLSX.writeFile(wb, "contatos.xlsx", { bookType: "xlsx" });
   }
+
 
   return (
     <div className="p-6 space-y-4">
