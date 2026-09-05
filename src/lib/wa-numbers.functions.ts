@@ -136,27 +136,43 @@ export const toggleWhatsappNumberFn = createServerFn({ method: "POST" })
   });
 
 /**
- * Remoção segura: se o número já tem histórico (mensagens, contatos ou disparos),
- * ele é apenas DESATIVADO para preservar o histórico.
+ * Remoção do número.
+ * - Padrão (force=false): se houver histórico vinculado, apenas DESATIVA.
+ * - force=true: desvincula todo o rastro (histórico, contatos, disparos) e
+ *   apaga o número definitivamente. O histórico das conversas é preservado,
+ *   apenas deixa de apontar para o número excluído.
  */
 export const deleteWhatsappNumberFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => idSchema.parse(d))
+  .inputValidator((d: unknown) => idSchema.extend({ force: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const workspaceId = await adminGuard(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
+
+    // Garante que o número pertence ao workspace de quem pediu.
+    const { data: target } = await db
+      .from("whatsapp_numbers")
+      .select("id, is_primary")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (!target) return { ok: false as const, error: "Número não encontrado neste workspace." };
+
+    const linked = ["activities", "contacts", "campaign_targets"];
     const counts = await Promise.all(
-      ["activities", "contacts", "campaign_targets"].map(async (t) => {
+      linked.map(async (t) => {
         const { count } = await db
           .from(t)
           .select("id", { count: "exact", head: true })
-          .eq("whatsapp_number_id", data.id);
+          .eq("whatsapp_number_id", data.id)
+          .eq("workspace_id", workspaceId);
         return count ?? 0;
       }),
     );
     const used = counts.reduce((a, b) => a + b, 0);
-    if (used > 0) {
+
+    if (used > 0 && !data.force) {
       await db
         .from("whatsapp_numbers")
         .update({ active: false, is_primary: false })
@@ -164,10 +180,38 @@ export const deleteWhatsappNumberFn = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId);
       return { ok: true as const, deactivated: true, used };
     }
+
+    if (data.force) {
+      // Desvincula (não apaga conversas) apenas no workspace de quem pediu.
+      for (const t of linked) {
+        const { error } = await db
+          .from(t)
+          .update({ whatsapp_number_id: null })
+          .eq("whatsapp_number_id", data.id)
+          .eq("workspace_id", workspaceId);
+        if (error) return { ok: false as const, error: error.message };
+      }
+    }
+
     const { error } = await db.from("whatsapp_numbers").delete().eq("id", data.id).eq("workspace_id", workspaceId);
     if (error) return { ok: false as const, error: error.message };
-    return { ok: true as const, deactivated: false, used: 0 };
+
+    // Se o excluído era o principal, promove outro número ativo do workspace.
+    if (target.is_primary) {
+      const { data: next } = await db
+        .from("whatsapp_numbers")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("active", true)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const nextId = (next ?? [])[0]?.id;
+      if (nextId) await makePrimary(db, workspaceId, nextId);
+    }
+
+    return { ok: true as const, deactivated: false, used, unlinked: data.force ? used : 0 };
   });
+
 
 /** Testa as credenciais daquele número específico contra a Graph API. */
 export const testWhatsappNumberFn = createServerFn({ method: "POST" })
