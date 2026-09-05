@@ -371,16 +371,23 @@ export function WhatsappNumbersCard() {
           <DialogHeader>
             <DialogTitle>Remover “{confirmRemove?.label}”?</DialogTitle>
             <DialogDescription>
-              Se esse número já tiver conversas, contatos ou disparos, ele será apenas desativado para preservar todo o
-              histórico.
+              “Remover” mantém o número na lista como inativo quando ele já tem conversas ou disparos. Use “Excluir
+              definitivamente” para tirá-lo de todas as telas: as conversas e contatos continuam salvos, apenas deixam de
+              ficar ligados a esse número. Os outros números não são afetados.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => setConfirmRemove(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => confirmRemove && onRemove(confirmRemove)}>
-              Remover
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => confirmRemove && onRemove(confirmRemove)}>
+                Remover
+              </Button>
+              <Button variant="destructive" onClick={() => confirmRemove && onRemove(confirmRemove, true)}>
+                Excluir definitivamente
+              </Button>
+            </div>
           </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </Card>
