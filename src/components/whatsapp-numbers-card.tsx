@@ -164,20 +164,23 @@ export function WhatsappNumbersCard() {
     refresh();
   }
 
-  async function onRemove(n: NumberRow) {
+  async function onRemove(n: NumberRow, force = false) {
     setBusy(n.id);
-    const res: any = await removeFn({ data: { id: n.id } });
+    const res: any = await removeFn({ data: { id: n.id, force } });
     setBusy(null);
     setConfirmRemove(null);
     if (res?.ok) {
       toast.success(
         res.deactivated
           ? "O número tem histórico e foi apenas desativado (nada foi apagado)."
-          : "Número removido",
+          : force
+            ? "Número excluído definitivamente. O histórico foi mantido, sem vínculo com o número."
+            : "Número removido",
       );
       refresh();
     } else toast.error(res?.error || "Falha ao remover");
   }
+
 
   return (
     <Card>
@@ -368,16 +371,23 @@ export function WhatsappNumbersCard() {
           <DialogHeader>
             <DialogTitle>Remover “{confirmRemove?.label}”?</DialogTitle>
             <DialogDescription>
-              Se esse número já tiver conversas, contatos ou disparos, ele será apenas desativado para preservar todo o
-              histórico.
+              “Remover” mantém o número na lista como inativo quando ele já tem conversas ou disparos. Use “Excluir
+              definitivamente” para tirá-lo de todas as telas: as conversas e contatos continuam salvos, apenas deixam de
+              ficar ligados a esse número. Os outros números não são afetados.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => setConfirmRemove(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => confirmRemove && onRemove(confirmRemove)}>
-              Remover
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => confirmRemove && onRemove(confirmRemove)}>
+                Remover
+              </Button>
+              <Button variant="destructive" onClick={() => confirmRemove && onRemove(confirmRemove, true)}>
+                Excluir definitivamente
+              </Button>
+            </div>
           </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </Card>
