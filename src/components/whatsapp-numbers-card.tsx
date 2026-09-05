@@ -164,20 +164,23 @@ export function WhatsappNumbersCard() {
     refresh();
   }
 
-  async function onRemove(n: NumberRow) {
+  async function onRemove(n: NumberRow, force = false) {
     setBusy(n.id);
-    const res: any = await removeFn({ data: { id: n.id } });
+    const res: any = await removeFn({ data: { id: n.id, force } });
     setBusy(null);
     setConfirmRemove(null);
     if (res?.ok) {
       toast.success(
         res.deactivated
           ? "O número tem histórico e foi apenas desativado (nada foi apagado)."
-          : "Número removido",
+          : force
+            ? "Número excluído definitivamente. O histórico foi mantido, sem vínculo com o número."
+            : "Número removido",
       );
       refresh();
     } else toast.error(res?.error || "Falha ao remover");
   }
+
 
   return (
     <Card>
