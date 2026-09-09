@@ -349,15 +349,19 @@ export function WhatsappConversations() {
 
 
   return (
-    <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[280px_1fr_320px]">
+    <div className="grid gap-4 h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)_300px]">
       {/* Coluna 1: Conversas */}
-      <div className="flex min-h-0 min-w-0 flex-col border-r bg-card">
-        <div className="border-b p-3">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)]">
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="text-base font-semibold tracking-tight">Conversas</h2>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{filtered.length}</span>
+        </div>
+        <div className="space-y-2.5 px-3 py-3">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="pl-8" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="h-9 rounded-xl border-transparent bg-muted/60 pl-8 text-sm" />
           </div>
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {([
               ["todas", "Todas"],
               ["aguardando", "Aguardando resposta"],
@@ -369,7 +373,7 @@ export function WhatsappConversations() {
                 key={key}
                 type="button"
                 onClick={() => setFilter(key)}
-                className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${filter === key ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:border-primary/50"}`}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${filter === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"}`}
               >
                 {label}
               </button>
