@@ -12,6 +12,7 @@ import { CadenceModal } from "@/components/cadence-modal";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { SaturdayRequestsCard } from "@/components/saturday-requests-card";
 import { CadenceDispatchCard } from "@/components/cadence-dispatch-card";
+import { applyEligibilityFilters, isEligibleForAttendance } from "@/lib/conversation-eligibility";
 
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
