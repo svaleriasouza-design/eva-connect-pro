@@ -65,14 +65,18 @@ export function isEligibleForAttendance(
  * para que a filtragem aconteça na origem dos dados e não só na tela.
  */
 export function applyEligibilityFilters(q: any, opts: { ignoreTakeover?: boolean } = {}) {
+  const statuses = CLOSED_CONTACT_STATUSES.join(",");
+  const stages = CLOSED_STAGES.join(",");
+  // Cada .or() é somado com AND; a variante ".is.null" preserva contatos sem
+  // status/etapa preenchidos (NOT IN sozinho descartaria linhas nulas).
   let out = q
     .is("deleted_at", null)
     .or("is_bot.is.null,is_bot.eq.false")
     .or("do_not_contact.is.null,do_not_contact.eq.false")
-    .not("status", "in", `(${CLOSED_CONTACT_STATUSES.join(",")})`)
-    .not("funnel_stage", "in", `(${CLOSED_STAGES.join(",")})`)
-    .not("presale_stage", "in", `(${CLOSED_STAGES.join(",")})`)
-    .not("sales_stage", "in", `(${CLOSED_STAGES.join(",")})`);
+    .or(`status.is.null,status.not.in.(${statuses})`)
+    .or(`funnel_stage.is.null,funnel_stage.not.in.(${stages})`)
+    .or(`presale_stage.is.null,presale_stage.not.in.(${stages})`)
+    .or(`sales_stage.is.null,sales_stage.not.in.(${stages})`);
   if (!opts.ignoreTakeover) out = out.or("human_takeover.is.null,human_takeover.eq.false");
   return out;
 }
