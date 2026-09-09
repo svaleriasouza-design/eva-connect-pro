@@ -111,7 +111,9 @@ function Dashboard() {
         reunioesHoje,
         prioridades: {
           semContatoLongo: semContatoList.data ?? [],
-          respondeuHoje: (respondeuList.data ?? []).filter((c: any) => isEligibleForAttendance(c, { requireInbound: true })),
+          respondeuHoje: (respondeuList.data ?? []).filter((c: any) =>
+            isEligibleForAttendance(c, { requireInbound: true, ignoreTakeover: true }),
+          ),
           propostaAberta: priorities.data ?? [],
           foraCadencia: [],
           tasks: overdueList.data ?? [],
