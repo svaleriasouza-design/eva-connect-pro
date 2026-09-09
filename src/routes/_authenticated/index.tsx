@@ -83,10 +83,14 @@ function Dashboard() {
           .eq("funnel_stage", "proposta_enviada").is("deleted_at", null).order("updated_at", { ascending: false }).limit(5),
         supabase.from("tasks").select("id, title, due_at, contact_id")
           .eq("done", false).lt("due_at", startIso).order("due_at", { ascending: true }).limit(5),
-        // Só entram aqui leads com mensagem RECEBIDA (inbound) hoje — nunca envios nossos.
-        supabase.from("contacts").select("id, name, last_contact_at:last_inbound_at")
-          .is("deleted_at", null).gte("last_inbound_at", startIso).lte("last_inbound_at", endIso)
-          .order("last_inbound_at", { ascending: false }).limit(5),
+        // Fila de atendimento: primeiro a regra central de elegibilidade
+        // (sem robôs, sem recusas, sem conversas encerradas) e só depois a
+        // ordenação por quem respondeu primeiro (mais antigo aguardando).
+        applyEligibilityFilters(
+          supabase.from("contacts").select("id, name, last_contact_at:last_inbound_at, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at"),
+        )
+          .gte("last_inbound_at", startIso).lte("last_inbound_at", endIso)
+          .order("last_inbound_at", { ascending: true }).limit(5),
         supabase.from("contacts").select("id, name, last_contact_at")
           .is("deleted_at", null).eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
           .order("last_contact_at", { ascending: true }).limit(5),
