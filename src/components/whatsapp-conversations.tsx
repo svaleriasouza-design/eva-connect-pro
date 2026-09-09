@@ -433,34 +433,46 @@ export function WhatsappConversations() {
       </div>
 
       {/* Coluna 2: Thread */}
-      <div className="flex min-h-0 min-w-0 flex-col bg-background">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)]">
         {!selected ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             Selecione uma conversa
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b px-4 py-2.5">
-              <MessageCircle className="h-4 w-4 text-primary" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">{selected.name}</div>
-                <div className="truncate text-xs text-muted-foreground">{selected.whatsapp ?? selected.phone ?? "—"}</div>
+            <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <div className="relative shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary/70" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{selected.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {[selected.company_name, selected.whatsapp ?? selected.phone].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                </div>
               </div>
-              {selected.ai_paused || selected.human_takeover ? (
-                <Button variant="default" size="sm" onClick={() => toggleManual(selected)}>
-                  <Sparkles className="mr-1 h-3 w-3" />
-                  Retomar EVA
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => toggleManual(selected)}>
-                  <Sparkles className="mr-1 h-3 w-3" />
-                  EVA respondendo
-                </Button>
-              )}
-              <Link to="/crm/$id" params={{ id: selected.id }}>
-                <Button variant="ghost" size="sm">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
-              </Link>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {selected.ai_paused || selected.human_takeover ? (
+                  <Button variant="default" size="sm" className="rounded-full" onClick={() => toggleManual(selected)}>
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Retomar EVA
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="rounded-full" onClick={() => toggleManual(selected)}>
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    EVA respondendo
+                  </Button>
+                )}
+                <Link to="/crm/$id" params={{ id: selected.id }}>
+                  <Button variant="ghost" size="sm" className="rounded-full">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
+                </Link>
+              </div>
             </div>
+
 
             {selected.is_bot && (
               <div className="border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
