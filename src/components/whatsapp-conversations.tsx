@@ -152,7 +152,8 @@ export function WhatsappConversations() {
       if (filter === "robos") return Boolean(c.is_bot);
       if (c.is_bot) return false;
       if (filter === "manual") return Boolean(c.ai_paused || c.human_takeover);
-      if (filter === "aguardando") return Boolean(m?.unread);
+      // "Aguardando" = fila de atendimento: usa a regra central de elegibilidade.
+      if (filter === "aguardando") return Boolean(m?.unread) && isEligibleForAttendance(c as any, { ignoreTakeover: true });
       if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
       return true;
     });
