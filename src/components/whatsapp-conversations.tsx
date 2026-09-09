@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
+import { isEligibleForAttendance } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
