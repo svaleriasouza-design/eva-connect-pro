@@ -598,9 +598,12 @@ export function WhatsappConversations() {
         ) : (
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-4 p-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="relative">
+                  <div className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+                    {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card bg-primary/70" />
                 </div>
                 <div className="min-w-0">
                   <div className="truncate font-semibold">{selected.name}</div>
@@ -608,7 +611,7 @@ export function WhatsappConversations() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap justify-center gap-1">
                 <Badge variant="secondary" className="text-[10px]">{FUNNEL_STAGES.find(s => s.key === selected.funnel_stage)?.label ?? selected.funnel_stage}</Badge>
                 {selected.cadence_active ? (
                   <Badge className="text-[10px]">Cadência Dia {selected.cadence_day ?? 0}/5</Badge>
@@ -620,17 +623,23 @@ export function WhatsappConversations() {
                 {(selected.ai_paused || selected.human_takeover) && <Badge variant="outline" className="text-[10px]">Modo manual</Badge>}
               </div>
 
-              <InfoBlock label="Objetivo" value={selected.goal} />
-              <InfoBlock label="Dor principal" value={selected.main_pain} />
-              <InfoBlock label="Próxima ação" value={selected.next_action} />
-              <InfoBlock label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : "—"} />
+              <div className="space-y-2 rounded-xl bg-muted/40 p-3 text-center">
+                <InfoBlock label="Telefone" value={selected.whatsapp ?? selected.phone} />
+                <InfoBlock label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : "—"} />
+              </div>
 
-              <div className="space-y-2 pt-2">
+              <div className="space-y-3 rounded-xl border p-3">
+                <InfoBlock label="Objetivo" value={selected.goal} />
+                <InfoBlock label="Dor principal" value={selected.main_pain} />
+                <InfoBlock label="Próxima ação" value={selected.next_action} />
+              </div>
+
+              <div className="space-y-2 pt-1">
                 <Link to="/crm/$id" params={{ id: selected.id }} className="block">
-                  <Button variant="outline" className="w-full justify-start"><UserIcon className="mr-2 h-4 w-4" /> Abrir ficha completa</Button>
+                  <Button variant="outline" className="w-full justify-start rounded-xl"><UserIcon className="mr-2 h-4 w-4" /> Abrir ficha completa</Button>
                 </Link>
                 <Link to="/agenda" className="block">
-                  <Button variant="outline" className="w-full justify-start"><Calendar className="mr-2 h-4 w-4" /> Agendar reunião</Button>
+                  <Button variant="outline" className="w-full justify-start rounded-xl"><Calendar className="mr-2 h-4 w-4" /> Agendar reunião</Button>
                 </Link>
               </div>
             </div>
