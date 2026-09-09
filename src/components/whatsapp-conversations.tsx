@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
+import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
 type ActivityRow = {
@@ -349,15 +349,19 @@ export function WhatsappConversations() {
 
 
   return (
-    <div className="grid gap-0 rounded-lg border overflow-hidden h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[280px_1fr_320px]">
+    <div className="grid gap-4 h-[calc(100dvh-13rem)] min-h-[420px] md:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)_300px]">
       {/* Coluna 1: Conversas */}
-      <div className="flex min-h-0 min-w-0 flex-col border-r bg-card">
-        <div className="border-b p-3">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)]">
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="text-base font-semibold tracking-tight">Conversas</h2>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{filtered.length}</span>
+        </div>
+        <div className="space-y-2.5 px-3 py-3">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="pl-8" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="h-9 rounded-xl border-transparent bg-muted/60 pl-8 text-sm" />
           </div>
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {([
               ["todas", "Todas"],
               ["aguardando", "Aguardando resposta"],
@@ -369,7 +373,7 @@ export function WhatsappConversations() {
                 key={key}
                 type="button"
                 onClick={() => setFilter(key)}
-                className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${filter === key ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:border-primary/50"}`}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${filter === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"}`}
               >
                 {label}
               </button>
@@ -380,6 +384,7 @@ export function WhatsappConversations() {
           {filtered.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">Nenhum contato.</div>
           )}
+          <div className="space-y-1 px-2 pb-3">
           {filtered.map((c) => {
             const m = meta.get(c.id);
             const last = m?.last;
@@ -390,15 +395,21 @@ export function WhatsappConversations() {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full border-b px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${active ? "bg-muted" : ""}`}
+                className={`relative w-full rounded-xl px-3 py-2.5 text-left transition-colors ${active ? "bg-primary/10" : "hover:bg-muted/60"}`}
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                    {c.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-primary" />}
+                <div className="flex items-center gap-2.5">
+                  <div className="relative shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {c.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    {m?.unread && !c.is_bot && (
+                      <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{c.name}</span>
+                      <span className={`truncate text-sm ${m?.unread ? "font-semibold" : "font-medium"}`}>{c.name}</span>
                       {last && <span className="shrink-0 text-[10px] text-muted-foreground">{formatShort(last.created_at)}</span>}
                     </div>
                     <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
@@ -407,48 +418,61 @@ export function WhatsappConversations() {
                     </div>
                   </div>
                   {c.is_bot ? (
-                    <Bot className="h-3 w-3 shrink-0 text-destructive" />
+                    <Bot className="h-3.5 w-3.5 shrink-0 text-destructive" />
                   ) : c.ai_paused || c.human_takeover ? (
-                    <Hand className="h-3 w-3 shrink-0 text-[color:var(--gold)]" />
+                    <Hand className="h-3.5 w-3.5 shrink-0 text-[color:var(--gold)]" />
                   ) : (
-                    m?.unread && <CircleDot className="h-3 w-3 shrink-0 text-primary" />
+                    m?.unread && <CircleDot className="h-3.5 w-3.5 shrink-0 text-primary" />
                   )}
                 </div>
               </button>
             );
           })}
+          </div>
         </ScrollArea>
       </div>
 
       {/* Coluna 2: Thread */}
-      <div className="flex min-h-0 min-w-0 flex-col bg-background">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)]">
         {!selected ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             Selecione uma conversa
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b px-4 py-2.5">
-              <MessageCircle className="h-4 w-4 text-primary" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">{selected.name}</div>
-                <div className="truncate text-xs text-muted-foreground">{selected.whatsapp ?? selected.phone ?? "—"}</div>
+            <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <div className="relative shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary/70" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{selected.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {[selected.company_name, selected.whatsapp ?? selected.phone].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                </div>
               </div>
-              {selected.ai_paused || selected.human_takeover ? (
-                <Button variant="default" size="sm" onClick={() => toggleManual(selected)}>
-                  <Sparkles className="mr-1 h-3 w-3" />
-                  Retomar EVA
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => toggleManual(selected)}>
-                  <Sparkles className="mr-1 h-3 w-3" />
-                  EVA respondendo
-                </Button>
-              )}
-              <Link to="/crm/$id" params={{ id: selected.id }}>
-                <Button variant="ghost" size="sm">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
-              </Link>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {selected.ai_paused || selected.human_takeover ? (
+                  <Button variant="default" size="sm" className="rounded-full" onClick={() => toggleManual(selected)}>
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Retomar EVA
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="rounded-full" onClick={() => toggleManual(selected)}>
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    EVA respondendo
+                  </Button>
+                )}
+                <Link to="/crm/$id" params={{ id: selected.id }}>
+                  <Button variant="ghost" size="sm" className="rounded-full">Abrir ficha <ArrowRight className="ml-1 h-3 w-3" /></Button>
+                </Link>
+              </div>
             </div>
+
 
             {selected.is_bot && (
               <div className="border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
@@ -461,7 +485,7 @@ export function WhatsappConversations() {
                 Você assumiu esta conversa. A EVA não responde automaticamente aqui até você devolver o controle.
               </div>
             )}
-            <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-2 bg-muted/30 p-4">
+            <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-2.5 bg-muted/25 p-4 sm:p-5">
               {thread.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">Sem histórico ainda. Envie a primeira mensagem.</div>
               )}
@@ -477,7 +501,7 @@ export function WhatsappConversations() {
                 const manual = a.send_mode === "manual" && !!a.sent_by_name;
                 return (
                   <div key={a.id} className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${outgoing ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                    <div className={`max-w-[85%] px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[75%] ${outgoing ? "rounded-2xl rounded-br-md bg-primary text-primary-foreground" : "rounded-2xl rounded-bl-md border bg-card"}`}>
                       {outgoing && manual && (
                         <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium opacity-80">
                           <Hand className="h-2.5 w-2.5" />
@@ -510,7 +534,7 @@ export function WhatsappConversations() {
               })}
             </div>
 
-            <div className="border-t bg-card p-3">
+            <div className="border-t bg-card p-3 sm:p-4">
               <div className="flex items-end gap-2">
                 <input
                   ref={audioInputRef}
@@ -525,7 +549,7 @@ export function WhatsappConversations() {
                 />
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="icon" className="shrink-0 rounded-xl"
                   title="Anexar arquivo de áudio"
                   disabled={!canSend || sending || recording}
                   onClick={() => audioInputRef.current?.click()}
@@ -534,7 +558,7 @@ export function WhatsappConversations() {
                 </Button>
                 <Button
                   variant={recording ? "destructive" : "outline"}
-                  size="icon"
+                  size="icon" className="shrink-0 rounded-xl"
                   title={recording ? "Parar e enviar áudio" : "Gravar áudio"}
                   disabled={!canSend || sending}
                   onClick={recording ? stopRecording : startRecording}
@@ -547,7 +571,7 @@ export function WhatsappConversations() {
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder={canSend ? "Escreva sua mensagem…" : "Acesso somente leitura — envio bloqueado"}
                   disabled={!canSend}
-                  className="resize-none"
+                  className="min-h-[44px] resize-none rounded-xl bg-muted/40"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
                   }}
@@ -568,15 +592,18 @@ export function WhatsappConversations() {
       </div>
 
       {/* Coluna 3: Ficha rápida */}
-      <div className="hidden min-w-0 flex-col border-l bg-card md:flex">
+      <div className="hidden min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)] xl:flex">
         {!selected ? (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">Selecione um contato para ver a ficha.</div>
         ) : (
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-4 p-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="relative">
+                  <div className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+                    {selected.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card bg-primary/70" />
                 </div>
                 <div className="min-w-0">
                   <div className="truncate font-semibold">{selected.name}</div>
@@ -584,7 +611,7 @@ export function WhatsappConversations() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap justify-center gap-1">
                 <Badge variant="secondary" className="text-[10px]">{FUNNEL_STAGES.find(s => s.key === selected.funnel_stage)?.label ?? selected.funnel_stage}</Badge>
                 {selected.cadence_active ? (
                   <Badge className="text-[10px]">Cadência Dia {selected.cadence_day ?? 0}/5</Badge>
@@ -596,17 +623,23 @@ export function WhatsappConversations() {
                 {(selected.ai_paused || selected.human_takeover) && <Badge variant="outline" className="text-[10px]">Modo manual</Badge>}
               </div>
 
-              <InfoBlock label="Objetivo" value={selected.goal} />
-              <InfoBlock label="Dor principal" value={selected.main_pain} />
-              <InfoBlock label="Próxima ação" value={selected.next_action} />
-              <InfoBlock label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : "—"} />
+              <div className="space-y-2 rounded-xl bg-muted/40 p-3 text-center">
+                <InfoBlock label="Telefone" value={selected.whatsapp ?? selected.phone} />
+                <InfoBlock label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : "—"} />
+              </div>
 
-              <div className="space-y-2 pt-2">
+              <div className="space-y-3 rounded-xl border p-3">
+                <InfoBlock label="Objetivo" value={selected.goal} />
+                <InfoBlock label="Dor principal" value={selected.main_pain} />
+                <InfoBlock label="Próxima ação" value={selected.next_action} />
+              </div>
+
+              <div className="space-y-2 pt-1">
                 <Link to="/crm/$id" params={{ id: selected.id }} className="block">
-                  <Button variant="outline" className="w-full justify-start"><UserIcon className="mr-2 h-4 w-4" /> Abrir ficha completa</Button>
+                  <Button variant="outline" className="w-full justify-start rounded-xl"><UserIcon className="mr-2 h-4 w-4" /> Abrir ficha completa</Button>
                 </Link>
                 <Link to="/agenda" className="block">
-                  <Button variant="outline" className="w-full justify-start"><Calendar className="mr-2 h-4 w-4" /> Agendar reunião</Button>
+                  <Button variant="outline" className="w-full justify-start rounded-xl"><Calendar className="mr-2 h-4 w-4" /> Agendar reunião</Button>
                 </Link>
               </div>
             </div>
