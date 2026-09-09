@@ -12,6 +12,7 @@ import { CadenceModal } from "@/components/cadence-modal";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { SaturdayRequestsCard } from "@/components/saturday-requests-card";
 import { CadenceDispatchCard } from "@/components/cadence-dispatch-card";
+import { applyEligibilityFilters, isEligibleForAttendance } from "@/lib/conversation-eligibility";
 
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
@@ -70,7 +71,7 @@ function Dashboard() {
         cnt(head().eq("cadence_active", true).eq("do_not_contact", false)),
         cnt(head().eq("funnel_stage", "novo_lead")),
         cnt(head().eq("funnel_stage", "reuniao_agendada")),
-        cnt(head().eq("status", "aguardando_contato")),
+        cnt(applyEligibilityFilters(supabase.from("contacts").select("id", { count: "exact", head: true }), { ignoreTakeover: true }).not("last_inbound_at", "is", null)),
         cnt(companyHead().is("next_meeting", null)),
         cnt(supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due_at", startIso)),
         cnt(supabase.from("events").select("id", { count: "exact", head: true }).gte("starts_at", startIso).lte("starts_at", endIso)),
@@ -83,10 +84,15 @@ function Dashboard() {
           .eq("funnel_stage", "proposta_enviada").is("deleted_at", null).order("updated_at", { ascending: false }).limit(5),
         supabase.from("tasks").select("id, title, due_at, contact_id")
           .eq("done", false).lt("due_at", startIso).order("due_at", { ascending: true }).limit(5),
-        // Só entram aqui leads com mensagem RECEBIDA (inbound) hoje — nunca envios nossos.
-        supabase.from("contacts").select("id, name, last_contact_at:last_inbound_at")
-          .is("deleted_at", null).gte("last_inbound_at", startIso).lte("last_inbound_at", endIso)
-          .order("last_inbound_at", { ascending: false }).limit(5),
+        // Fila de atendimento: primeiro a regra central de elegibilidade
+        // (sem robôs, sem recusas, sem conversas encerradas) e só depois a
+        // ordenação por quem respondeu primeiro (mais antigo aguardando).
+        applyEligibilityFilters(
+          supabase.from("contacts").select("id, name, last_contact_at:last_inbound_at, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at"),
+          { ignoreTakeover: true },
+        )
+          .gte("last_inbound_at", startIso).lte("last_inbound_at", endIso)
+          .order("last_inbound_at", { ascending: true }).limit(5),
         supabase.from("contacts").select("id, name, last_contact_at")
           .is("deleted_at", null).eq("do_not_contact", false).lt("last_contact_at", fifteenIso)
           .order("last_contact_at", { ascending: true }).limit(5),
@@ -105,7 +111,9 @@ function Dashboard() {
         reunioesHoje,
         prioridades: {
           semContatoLongo: semContatoList.data ?? [],
-          respondeuHoje: respondeuList.data ?? [],
+          respondeuHoje: (respondeuList.data ?? []).filter((c: any) =>
+            isEligibleForAttendance(c, { requireInbound: true, ignoreTakeover: true }),
+          ),
           propostaAberta: priorities.data ?? [],
           foraCadencia: [],
           tasks: overdueList.data ?? [],

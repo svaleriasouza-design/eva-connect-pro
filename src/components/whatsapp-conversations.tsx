@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
+import { isEligibleForAttendance } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -104,7 +105,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, is_bot, ai_paused, human_takeover, bot_reason")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
@@ -152,7 +153,8 @@ export function WhatsappConversations() {
       if (filter === "robos") return Boolean(c.is_bot);
       if (c.is_bot) return false;
       if (filter === "manual") return Boolean(c.ai_paused || c.human_takeover);
-      if (filter === "aguardando") return Boolean(m?.unread);
+      // "Aguardando" = fila de atendimento: usa a regra central de elegibilidade.
+      if (filter === "aguardando") return Boolean(m?.unread) && isEligibleForAttendance(c as any, { ignoreTakeover: true });
       if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
       return true;
     });

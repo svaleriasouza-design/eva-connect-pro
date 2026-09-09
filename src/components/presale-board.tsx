@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { applyEligibilityFilters } from "@/lib/conversation-eligibility";
 
 const SELECT =
   "id, name, company_name, whatsapp, phone, last_contact_at, last_inbound_at, next_action, cadence_active, cadence_day, funnel_stage, presale_stage";
@@ -28,8 +29,10 @@ const COLUMNS: Col[] = [
   {
     key: "responsivos",
     label: "Responsivos",
-    hint: "responderam",
-    derive: (q) => q.not("last_inbound_at", "is", null),
+    hint: "responderam e precisam de atendimento",
+    // Mesma regra central do Dashboard: robôs, recusas e conversas encerradas
+    // ficam fora da coluna de responsivos (continuam no histórico/CRM).
+    derive: (q) => applyEligibilityFilters(q.not("last_inbound_at", "is", null), { ignoreTakeover: true }),
   },
   {
     key: "pre_agendado_qualificado",
