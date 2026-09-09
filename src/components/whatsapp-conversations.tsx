@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, MessageCircle, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
+import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
 type ActivityRow = {
@@ -549,7 +549,7 @@ export function WhatsappConversations() {
                 />
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="icon" className="shrink-0 rounded-xl"
                   title="Anexar arquivo de áudio"
                   disabled={!canSend || sending || recording}
                   onClick={() => audioInputRef.current?.click()}
@@ -558,7 +558,7 @@ export function WhatsappConversations() {
                 </Button>
                 <Button
                   variant={recording ? "destructive" : "outline"}
-                  size="icon"
+                  size="icon" className="shrink-0 rounded-xl"
                   title={recording ? "Parar e enviar áudio" : "Gravar áudio"}
                   disabled={!canSend || sending}
                   onClick={recording ? stopRecording : startRecording}
