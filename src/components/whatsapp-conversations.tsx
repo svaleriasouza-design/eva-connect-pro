@@ -485,7 +485,7 @@ export function WhatsappConversations() {
                 Você assumiu esta conversa. A EVA não responde automaticamente aqui até você devolver o controle.
               </div>
             )}
-            <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-2 bg-muted/30 p-4">
+            <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-2.5 bg-muted/25 p-4 sm:p-5">
               {thread.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">Sem histórico ainda. Envie a primeira mensagem.</div>
               )}
@@ -501,7 +501,7 @@ export function WhatsappConversations() {
                 const manual = a.send_mode === "manual" && !!a.sent_by_name;
                 return (
                   <div key={a.id} className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${outgoing ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                    <div className={`max-w-[85%] px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[75%] ${outgoing ? "rounded-2xl rounded-br-md bg-primary text-primary-foreground" : "rounded-2xl rounded-bl-md border bg-card"}`}>
                       {outgoing && manual && (
                         <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium opacity-80">
                           <Hand className="h-2.5 w-2.5" />
@@ -534,7 +534,7 @@ export function WhatsappConversations() {
               })}
             </div>
 
-            <div className="border-t bg-card p-3">
+            <div className="border-t bg-card p-3 sm:p-4">
               <div className="flex items-end gap-2">
                 <input
                   ref={audioInputRef}
@@ -571,7 +571,7 @@ export function WhatsappConversations() {
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder={canSend ? "Escreva sua mensagem…" : "Acesso somente leitura — envio bloqueado"}
                   disabled={!canSend}
-                  className="resize-none"
+                  className="min-h-[44px] resize-none rounded-xl bg-muted/40"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
                   }}
@@ -592,7 +592,7 @@ export function WhatsappConversations() {
       </div>
 
       {/* Coluna 3: Ficha rápida */}
-      <div className="hidden min-w-0 flex-col border-l bg-card md:flex">
+      <div className="hidden min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[0_8px_24px_-18px_oklch(0.42_0.055_210_/_0.5)] xl:flex">
         {!selected ? (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">Selecione um contato para ver a ficha.</div>
         ) : (
