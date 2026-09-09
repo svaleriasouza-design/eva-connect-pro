@@ -384,6 +384,7 @@ export function WhatsappConversations() {
           {filtered.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">Nenhum contato.</div>
           )}
+          <div className="space-y-1 px-2 pb-3">
           {filtered.map((c) => {
             const m = meta.get(c.id);
             const last = m?.last;
@@ -394,15 +395,21 @@ export function WhatsappConversations() {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full border-b px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${active ? "bg-muted" : ""}`}
+                className={`relative w-full rounded-xl px-3 py-2.5 text-left transition-colors ${active ? "bg-primary/10" : "hover:bg-muted/60"}`}
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                    {c.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-primary" />}
+                <div className="flex items-center gap-2.5">
+                  <div className="relative shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {c.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    {m?.unread && !c.is_bot && (
+                      <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{c.name}</span>
+                      <span className={`truncate text-sm ${m?.unread ? "font-semibold" : "font-medium"}`}>{c.name}</span>
                       {last && <span className="shrink-0 text-[10px] text-muted-foreground">{formatShort(last.created_at)}</span>}
                     </div>
                     <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
@@ -411,16 +418,17 @@ export function WhatsappConversations() {
                     </div>
                   </div>
                   {c.is_bot ? (
-                    <Bot className="h-3 w-3 shrink-0 text-destructive" />
+                    <Bot className="h-3.5 w-3.5 shrink-0 text-destructive" />
                   ) : c.ai_paused || c.human_takeover ? (
-                    <Hand className="h-3 w-3 shrink-0 text-[color:var(--gold)]" />
+                    <Hand className="h-3.5 w-3.5 shrink-0 text-[color:var(--gold)]" />
                   ) : (
-                    m?.unread && <CircleDot className="h-3 w-3 shrink-0 text-primary" />
+                    m?.unread && <CircleDot className="h-3.5 w-3.5 shrink-0 text-primary" />
                   )}
                 </div>
               </button>
             );
           })}
+          </div>
         </ScrollArea>
       </div>
 
