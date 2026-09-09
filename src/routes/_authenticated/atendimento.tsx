@@ -18,15 +18,20 @@ export const Route = createFileRoute("/_authenticated/atendimento")({
 
 function Atendimento() {
   return (
-    <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Headphones className="h-5 w-5 text-primary" /> Atendimento
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Converse com o lead em tempo real: texto, áudio gravado (🎤) ou arquivo de áudio (📎). O envio manual pausa a EVA neste contato.
-        </p>
-      </div>
+    <div className="space-y-4 p-4 sm:p-6">
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Headphones className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">Atendimento · Conversas</h1>
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              Texto, áudio gravado (🎤) ou arquivo (📎). O envio manual pausa a EVA neste contato.
+            </p>
+          </div>
+        </div>
+      </header>
       <WhatsappConversations />
     </div>
   );
