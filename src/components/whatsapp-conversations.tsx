@@ -190,7 +190,7 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
       const lb = meta.get(b.id)?.last?.created_at ?? b.last_contact_at ?? "";
       return lb.localeCompare(la);
     });
-  }, [contacts, search, meta, filter]);
+  }, [contacts, search, meta, filter, origin]);
 
   useEffect(() => {
     if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
