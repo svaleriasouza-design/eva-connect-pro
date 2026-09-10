@@ -90,7 +90,12 @@ export const runCampaignBatchFn = createServerFn({ method: "POST" })
 export const setCampaignStatusFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ campaignId: z.string().uuid(), status: z.enum(["paused", "ready"]) }).parse(d),
+    z
+      .object({
+        campaignId: z.string().uuid(),
+        status: z.enum(["paused", "ready", "scheduled", "cancelled", "draft"]),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const workspaceId = await wid(context);
