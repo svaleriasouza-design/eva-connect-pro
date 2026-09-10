@@ -350,13 +350,41 @@ function Disparos() {
               </div>
             </div>
 
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="font-medium">Agendamento</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Data do disparo</Label>
+                  <Input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Horário do disparo</Label>
+                  <Input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O disparo será iniciado automaticamente nesta data e horário.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={onPreview} disabled={busy || selected.length === 0}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
                 Ver distribuição prevista
               </Button>
-              <Button onClick={onCreate} disabled={busy || selected.length === 0}>Criar disparo</Button>
+              <Button onClick={onSchedule} disabled={busy || selected.length === 0}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
+                Agendar disparo
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. O envio só começa no horário
+              agendado.
+            </p>
+
+            {confirmation && (
+              <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-xs">{confirmation}</div>
+            )}
 
             {preview && (
               <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
