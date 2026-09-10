@@ -293,16 +293,15 @@ export async function scheduleDraftCampaign(params: {
   const db = await admin();
   const { data: existing } = await db
     .from("campaigns")
-    .select("id, status")
+    .select("id, status, sent_count")
     .eq("workspace_id", params.workspaceId)
     .eq("id", params.campaignId)
     .maybeSingle();
-  if (!existing) return { ok: false as const, error: "Rascunho não encontrado." };
-  if ((existing as any).status !== "draft") {
-    return { ok: false as const, error: "Este disparo já foi agendado." };
-  }
+  if (!existing) return { ok: false as const, error: "Disparo não encontrado." };
+  // Rascunho ou já agendado/pausado/cancelado podem ser (re)agendados; em andamento não.
+  if (editBlocked(existing)) return { ok: false as const, error: EDIT_BLOCKED_MESSAGE };
 
-  // Limpa alvos antigos (rascunho não deveria ter, mas garante idempotência).
+  // Limpa alvos antigos e redistribui conforme a configuração atual.
   await db.from("campaign_targets").delete().eq("campaign_id", params.campaignId);
 
   const built = await materializeTargets({
