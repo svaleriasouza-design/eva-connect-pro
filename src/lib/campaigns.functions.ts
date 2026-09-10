@@ -118,6 +118,7 @@ export const saveDraftCampaignFn = createServerFn({ method: "POST" })
       batchSize: data.batchSize,
       aiInstructions: data.aiInstructions ?? null,
       draftConfig: data.draftConfig,
+      scheduledAt: data.scheduledAt ?? null,
       createdBy: context.userId,
       createdByName: name,
     });
