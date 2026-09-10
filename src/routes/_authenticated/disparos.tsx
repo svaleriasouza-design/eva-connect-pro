@@ -19,9 +19,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Megaphone, Play, Pause, Users } from "lucide-react";
+import { Loader2, Megaphone, Play, Pause, Users, Save } from "lucide-react";
 import { toast } from "sonner";
 import { FUNNEL_STAGES } from "@/lib/db";
+import { supabase } from "@/integrations/supabase/client";
+
+const SAVED_PREFIX = "Disparo: ";
 
 export const Route = createFileRoute("/_authenticated/disparos")({
   component: Disparos,
@@ -66,6 +69,37 @@ function Disparos() {
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Mensagens salvas para reutilizar nos disparos.
+  const { data: saved = [] } = useQuery({
+    queryKey: ["saved-campaign-messages"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("message_templates")
+        .select("id, category, content")
+        .like("category", `${SAVED_PREFIX}%`)
+        .order("created_at", { ascending: false });
+      return (data ?? []) as { id: string; category: string; content: string }[];
+    },
+  });
+
+  async function onSaveMessage() {
+    if (!name.trim() || !body.trim()) {
+      toast.error("Informe o nome e a mensagem antes de salvar.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("message_templates")
+      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: body.trim() });
+    setSaving(false);
+    if (error) toast.error("Não foi possível salvar a mensagem.");
+    else {
+      toast.success("Mensagem salva.");
+      qc.invalidateQueries({ queryKey: ["saved-campaign-messages"] });
+    }
+  }
 
   const filter = useMemo(
     () => ({ q: q.trim() || null, stage: stage === "todos" ? null : stage, batch: null }),
@@ -149,6 +183,34 @@ function Disparos() {
             <div className="space-y-1">
               <Label>Mensagem</Label>
               <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Texto que será enviado…" />
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar mensagem
+                </Button>
+                {saved.length > 0 && (
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const t = saved.find((s) => s.id === id);
+                      if (!t) return;
+                      setName(t.category.replace(SAVED_PREFIX, ""));
+                      setBody(t.content);
+                      setPreview(null);
+                      toast.success("Mensagem carregada.");
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-64">
+                      <SelectValue placeholder="Usar mensagem salva" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {saved.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.category.replace(SAVED_PREFIX, "")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Como a EVA deve responder?</Label>
