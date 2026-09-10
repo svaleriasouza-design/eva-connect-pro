@@ -196,21 +196,14 @@ export async function runCadenceBatch(
 
   const { data: steps } = await admin
     .from("cadence_steps")
-    .select("day, script, active, reply_type, audio_path, audio_name")
+    .select("day, script, active")
     .eq("active", true)
     .order("day", { ascending: true });
-  const stepList = (steps ?? []) as Array<{
-    day: number;
-    script: string;
-    active: boolean;
-    reply_type?: string | null;
-    audio_path?: string | null;
-    audio_name?: string | null;
-  }>;
+  const stepList = (steps ?? []) as Array<{ day: number; script: string; active: boolean }>;
   if (stepList.length === 0) return result;
   const maxDay = stepList[stepList.length - 1].day;
   const scriptByDay = new Map<number, string>(stepList.map((s) => [s.day, s.script]));
-  const stepByDay = new Map<number, (typeof stepList)[number]>(stepList.map((s) => [s.day, s]));
+
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -344,52 +337,22 @@ export async function runCadenceBatch(
     }
     const body = renderScript(tpl, { nome: firstName(c.name ?? "") });
 
-    const step = stepByDay.get(nextDay);
-    const replyType = (step?.reply_type ?? "texto") as string;
-    const audioPath = step?.audio_path ?? null;
-    const wantsAudio = Boolean(audioPath) && (replyType === "audio" || replyType === "texto_audio");
     const slotLabel = slot === "morning" ? "manhã" : "tarde";
     const title = `Cadência Dia ${nextDay} (${slotLabel})`;
 
-    const sendText = () =>
-      sendAndLog({
-        workspaceId,
-        to,
-        body,
-        contactId: c.id,
-        title,
-        tag: `cadence-day-${nextDay}-${slot}`,
-        templateName: templateForDay(nextDay),
-      });
+    // A mensagem do dia (template da Meta) é SEMPRE texto. O áudio configurado
+    // na etapa pertence à árvore de respostas da EVA e é enviado apenas quando
+    // o cliente responde (ver evaAutoReply).
+    const send = await sendAndLog({
+      workspaceId,
+      to,
+      body,
+      contactId: c.id,
+      title,
+      tag: `cadence-day-${nextDay}-${slot}`,
+      templateName: templateForDay(nextDay),
+    });
 
-    let send: Awaited<ReturnType<typeof sendAndLog>>;
-    if (wantsAudio && replyType === "audio") {
-      // Somente áudio: se a janela de 24h estiver fechada a Meta recusa áudio,
-      // então o texto/template do dia é usado para não travar a etapa.
-      const audio = await sendStepAudio({
-        workspaceId,
-        to,
-        contactId: c.id,
-        audioPath: audioPath!,
-        title: `${title} — áudio`,
-        tag: `cadence-day-${nextDay}-${slot}-audio`,
-      });
-      send = audio.ok ? (audio as any) : await sendText();
-    } else {
-      send = await sendText();
-      if (send.ok && wantsAudio) {
-        // Texto + Áudio: o áudio é complementar; falha nele não desfaz a etapa.
-        const audio = await sendStepAudio({
-          workspaceId,
-          to,
-          contactId: c.id,
-          audioPath: audioPath!,
-          title: `${title} — áudio`,
-          tag: `cadence-day-${nextDay}-${slot}-audio`,
-        });
-        if (!audio.ok && audio.error) result.errors.push(`${c.name} (áudio): ${audio.error}`);
-      }
-    }
     if (send.ok) {
       result.sent++;
       if (nextDay === 1) result.newLeads++;
@@ -469,10 +432,17 @@ export async function autoReplyToInbound(params: {
   const day = Math.max(1, params.currentDay || 1);
   const { data: stepRow } = await (admin as any)
     .from("cadence_steps")
-    .select("script, ai_instructions")
+    .select("script, ai_instructions, reply_type, audio_path, audio_name")
     .eq("day", day)
     .maybeSingle();
-  const step = (stepRow ?? {}) as { script?: string; ai_instructions?: string };
+  const step = (stepRow ?? {}) as {
+    script?: string;
+    ai_instructions?: string;
+    reply_type?: string | null;
+    audio_path?: string | null;
+    audio_name?: string | null;
+  };
+
 
   // Fallback: se o dia atual não tiver instrução, usa a primeira instrução cadastrada.
   let instructions = (step.ai_instructions ?? "").trim();
@@ -578,6 +548,28 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     }
   }
 
+  // Tipo de resposta configurado na etapa (árvore de respostas da EVA):
+  // texto, áudio ou texto + áudio. Vale APENAS para a resposta automática.
+  const replyType = (step.reply_type ?? "texto") as string;
+  const audioPath = step.audio_path ?? null;
+  const wantsAudio = Boolean(audioPath) && (replyType === "audio" || replyType === "texto_audio");
+
+  if (wantsAudio && replyType === "audio") {
+    const audio = await sendStepAudio({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      audioPath: audioPath!,
+      title: "EVA respondeu automaticamente (áudio)",
+      tag: "eva-auto-reply-audio",
+    });
+    if (audio.ok) {
+      console.log(`[eva auto-reply] áudio enviado contact=${params.contactId}`);
+      return "sent:audio";
+    }
+    console.warn(`[eva auto-reply] áudio falhou, enviando texto: ${audio.error ?? ""}`);
+  }
+
   const res = await sendAndLog({
     workspaceId: params.workspaceId,
     to: params.to,
@@ -586,8 +578,20 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     title: "EVA respondeu automaticamente",
     tag: "eva-auto-reply",
   });
+  if (res.ok && wantsAudio && replyType === "texto_audio") {
+    const audio = await sendStepAudio({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      audioPath: audioPath!,
+      title: "EVA respondeu automaticamente (áudio)",
+      tag: "eva-auto-reply-audio",
+    });
+    if (!audio.ok) console.warn(`[eva auto-reply] áudio complementar falhou: ${audio.error ?? ""}`);
+  }
   console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
   return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;
+
 }
 
 /** Extrai o dia da cadência a partir do título da atividade ("Cadência Dia 3 (manhã)"). */
