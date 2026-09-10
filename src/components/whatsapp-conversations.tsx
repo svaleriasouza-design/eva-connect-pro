@@ -193,6 +193,12 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
         ? c.conversation_origin === CAMPAIGN_ORIGIN
         : c.conversation_origin !== CAMPAIGN_ORIGIN,
     );
+    // Cada conversa aparece só na divisão do número (chip) responsável por ela.
+    if (chip !== "todos") {
+      list = chip === "sem-numero"
+        ? list.filter((c) => !c.whatsapp_number_id)
+        : list.filter((c) => c.whatsapp_number_id === chip);
+    }
     list = list.filter((c) => {
       const m = meta.get(c.id);
       if (filter === "robos") return Boolean(c.is_bot);
@@ -222,7 +228,7 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
       const lb = meta.get(b.id)?.last?.created_at ?? b.last_contact_at ?? "";
       return lb.localeCompare(la);
     });
-  }, [contacts, search, meta, filter, origin]);
+  }, [contacts, search, meta, filter, origin, chip]);
 
   useEffect(() => {
     if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
