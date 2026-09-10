@@ -14,6 +14,7 @@ import { SaturdayRequestsCard } from "@/components/saturday-requests-card";
 import { CadenceDispatchCard } from "@/components/cadence-dispatch-card";
 import { applyEligibilityFilters, isEligibleForAttendance } from "@/lib/conversation-eligibility";
 import { AttendancePanel } from "@/components/attendance-panel";
+import { CampaignConversationsPanel } from "@/components/campaign-conversations-panel";
 
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
@@ -160,6 +161,8 @@ function Dashboard() {
       </div>
 
       <AttendancePanel />
+
+      <CampaignConversationsPanel />
 
       <SaturdayRequestsCard />
 
