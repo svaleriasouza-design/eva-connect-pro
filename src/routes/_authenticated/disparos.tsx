@@ -244,30 +244,44 @@ function Disparos() {
       toast.error("Escolha uma data e horário no futuro.");
       return;
     }
+    const ok = window.confirm(
+      `Agendar este disparo para ${fmtWhen(when.toISOString())}? Nenhuma mensagem é enviada agora — o envio começa automaticamente no horário.`,
+    );
+    if (!ok) return;
+
     setBusy(true);
     try {
-      const res: any = await createFn({
-        data: {
-          name,
-          body,
-          numberIds: selected,
-          filter,
-          strategy: "balanced",
-          batchSize,
-          aiInstructions: aiInstructions.trim() || null,
-          scheduledAt: when.toISOString(),
-          status: "scheduled",
-        },
+      const payload = {
+        name: name.trim(),
+        body,
+        numberIds: selected,
+        filter,
+        batchSize,
+        aiInstructions,
+        draftConfig,
+      };
+      // Garante um rascunho salvo (mesmo registro) antes de agendar.
+      let id = draftId;
+      if (!id) {
+        const saved: any = await saveDraftFn({ data: { ...payload, campaignId: null } });
+        if (!saved?.ok) {
+          toast.error(saved?.error || "Falha ao salvar o disparo.");
+          return;
+        }
+        id = saved.campaignId as string;
+        setDraftId(id);
+      }
+      const res: any = await scheduleFn({
+        data: { ...payload, campaignId: id, scheduledAt: when.toISOString() },
       });
       if (res?.ok) {
         const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
         toast.success(msg);
         setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
-        setName("");
-        setBody("");
-        setAiInstructions("");
+        setDraftId(null);
         setPreview(null);
         qc.invalidateQueries({ queryKey: ["campaigns"] });
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
       } else toast.error(res?.error || "Falha ao agendar o disparo.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao agendar o disparo.");
