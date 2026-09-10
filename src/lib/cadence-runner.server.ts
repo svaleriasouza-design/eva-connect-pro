@@ -315,7 +315,7 @@ export async function runCadenceBatch(
     // Revalidação antes de cada disparo: respondeu? robô? ainda em cadência?
     const { data: fresh } = await admin
       .from("contacts")
-      .select("cadence_active, cadence_day, do_not_contact, is_bot, ai_paused, human_takeover")
+      .select("cadence_active, cadence_day, do_not_contact, is_bot, ai_paused, human_takeover, whatsapp_number_id")
       .eq("id", c.id)
       .maybeSingle();
     const f = (fresh ?? {}) as any;
