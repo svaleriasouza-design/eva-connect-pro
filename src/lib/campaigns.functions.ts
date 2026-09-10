@@ -94,6 +94,73 @@ export const createCampaignFn = createServerFn({ method: "POST" })
     });
   });
 
+/** Salva/atualiza um RASCUNHO. Nunca envia, nunca agenda, nunca cria fila. */
+export const saveDraftCampaignFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => draftSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole, displayNameFor } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const name = await displayNameFor(
+      context.userId,
+      ((context.claims as any)?.email as string | undefined) ?? "atendente",
+    );
+    const { saveDraftCampaign } = await import("./campaigns.server");
+    return saveDraftCampaign({
+      workspaceId,
+      campaignId: data.campaignId ?? null,
+      name: data.name,
+      body: data.body,
+      numberIds: data.numberIds,
+      filter: data.filter,
+      batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
+      draftConfig: data.draftConfig,
+      createdBy: context.userId,
+      createdByName: name,
+    });
+  });
+
+/** Agenda um rascunho já salvo: distribui os contatos e marca como "Agendado". */
+export const scheduleDraftCampaignFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => scheduleSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const { scheduleDraftCampaign } = await import("./campaigns.server");
+    return scheduleDraftCampaign({
+      workspaceId,
+      campaignId: data.campaignId,
+      scheduledAt: data.scheduledAt,
+      name: data.name,
+      body: data.body,
+      numberIds: data.numberIds,
+      filter: data.filter,
+      batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
+      draftConfig: data.draftConfig,
+    });
+  });
+
+/** Rascunhos salvos, com todos os campos do formulário para reabrir e editar. */
+export const listDraftCampaignsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = await wid(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as any)
+      .from("campaigns")
+      .select("id, name, body, ai_instructions, number_ids, batch_size, draft_config, updated_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "draft")
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    return (data ?? []) as any[];
+  });
+
 export const runCampaignBatchFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ campaignId: z.string().uuid() }).parse(d))
