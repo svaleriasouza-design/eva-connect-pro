@@ -92,8 +92,10 @@ function Disparos() {
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
   const [saving, setSaving] = useState(false);
-  // Id do rascunho em edição — garante UPDATE do mesmo registro, sem duplicar.
+  // Id do disparo em edição — garante UPDATE do mesmo registro, sem duplicar.
   const [draftId, setDraftId] = useState<string | null>(null);
+  // Status do disparo em edição ("draft" | "scheduled" | ...).
+  const [editStatus, setEditStatus] = useState<string>("draft");
 
   // Rascunhos salvos (mesma tabela de disparos, status "Rascunho").
   const { data: drafts = [] } = useQuery({
