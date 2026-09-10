@@ -26,6 +26,8 @@ const createSchema = z.object({
   strategy: z.enum(["balanced"]).default("balanced"),
   batchSize: z.number().int().min(1).max(500).default(50),
   aiInstructions: z.string().trim().max(4000).optional().nullable(),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
+  status: z.enum(["scheduled", "draft"]).default("scheduled"),
 });
 
 /** Prévia da distribuição: quantos contatos e quanto vai para cada número. */
