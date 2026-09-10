@@ -298,18 +298,84 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
   const [script, setScript] = useState(step.script);
   const [instructions, setInstructions] = useState(step.ai_instructions);
   const [active, setActive] = useState(step.active);
+  const [replyType, setReplyType] = useState<CadenceReplyType>(step.reply_type ?? "texto");
+  const [audioPath, setAudioPath] = useState<string | null>(step.audio_path ?? null);
+  const [audioName, setAudioName] = useState<string | null>(step.audio_name ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploadAudio = useServerFn(uploadCadenceAudioFn);
+  const getAudioUrl = useServerFn(getCadenceAudioUrlFn);
 
   useEffect(() => {
     setScript(step.script);
     setInstructions(step.ai_instructions);
     setActive(step.active);
-  }, [step.day, step.script, step.ai_instructions, step.active]);
+    setReplyType(step.reply_type ?? "texto");
+    setAudioPath(step.audio_path ?? null);
+    setAudioName(step.audio_name ?? null);
+    setAudioUrl(null);
+  }, [step.day, step.script, step.ai_instructions, step.active, step.reply_type, step.audio_path, step.audio_name]);
+
+  const needsAudio = replyType === "audio" || replyType === "texto_audio";
+
+  async function pickAudio(file: File) {
+    setUploading(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const res = await uploadAudio({
+        data: {
+          day: step.day,
+          fileName: file.name,
+          mime: file.type || "audio/mpeg",
+          base64: btoa(bin),
+        },
+      });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setAudioPath(res.path);
+      setAudioName(res.name);
+      setAudioUrl(null);
+      toast.success("Áudio anexado. Clique em Salvar para vincular a este dia.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao anexar o áudio");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function playAudio() {
+    if (!audioPath) return;
+    const res = await getAudioUrl({ data: { path: audioPath } });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setAudioUrl(res.url);
+  }
 
   async function submit() {
+    if (needsAudio && !audioPath) {
+      toast.error("Anexe o áudio desta etapa ou volte o tipo de resposta para Texto.");
+      return;
+    }
     setSaving(true);
     try {
-      await onSave({ day: step.day, script, ai_instructions: instructions, active });
+      await onSave({
+        day: step.day,
+        script,
+        ai_instructions: instructions,
+        active,
+        reply_type: replyType,
+        audio_path: needsAudio ? audioPath : null,
+        audio_name: needsAudio ? audioName : null,
+      });
       toast.success(`Dia ${step.day} salvo`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao salvar");
@@ -345,6 +411,76 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
           <Textarea rows={6} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Ex.: Se o cliente perguntar preço, diga que enviaremos a proposta e proponha reunião de 15 min. Se pedir para não receber mais, encerre educadamente." />
           <div className="mt-1 text-[11px] text-muted-foreground">A EVA usa estas regras quando o cliente responde neste dia.</div>
         </div>
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+        <div>
+          <Label className="text-xs">Tipo de resposta</Label>
+          <RadioGroup
+            className="mt-2 flex flex-wrap gap-4"
+            value={replyType}
+            onValueChange={(v) => setReplyType(v as CadenceReplyType)}
+          >
+            {[
+              { v: "texto", l: "Texto" },
+              { v: "audio", l: "Áudio" },
+              { v: "texto_audio", l: "Texto + Áudio" },
+            ].map((o) => (
+              <label key={o.v} className="flex items-center gap-2 text-sm">
+                <RadioGroupItem value={o.v} id={`rt-${step.day}-${o.v}`} />
+                {o.l}
+              </label>
+            ))}
+          </RadioGroup>
+        </div>
+
+        {needsAudio && (
+          <div className="space-y-2">
+            <Label className="text-xs">Áudio desta etapa</Label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="audio/mpeg,audio/mp3,audio/ogg,audio/mp4,audio/aac,audio/amr,audio/x-m4a,.mp3,.ogg,.m4a,.aac,.amr"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void pickAudio(f);
+              }}
+            />
+            {!audioPath ? (
+              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                Adicionar áudio
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Music className="h-4 w-4 text-[color:var(--gold)]" />
+                  <span className="truncate">{audioName ?? audioPath.split("/").pop()}</span>
+                  <Button size="sm" variant="outline" onClick={playAudio}>
+                    <Play className="mr-1 h-3 w-3" /> Reproduzir
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setAudioPath(null);
+                      setAudioName(null);
+                      setAudioUrl(null);
+                    }}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" /> Remover
+                  </Button>
+                </div>
+                {audioUrl && <audio controls src={audioUrl} className="w-full max-w-sm" />}
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground">
+              Formatos aceitos pelo WhatsApp: MP3, OGG/Opus, M4A (AAC) ou AMR. O arquivo é guardado uma única vez e
+              reutilizado em todos os contatos deste dia.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
