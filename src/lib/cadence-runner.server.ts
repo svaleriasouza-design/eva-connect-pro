@@ -209,7 +209,7 @@ export async function runCadenceBatch(
   today.setHours(0, 0, 0, 0);
   const todayIso = today.toISOString();
 
-  const select = "id, name, whatsapp, phone, cadence_day, last_contact_at, funnel_stage";
+  const select = "id, name, whatsapp, phone, cadence_day, last_contact_at, funnel_stage, whatsapp_number_id";
   const eligible = (q: any) =>
     q
       .eq("cadence_active", true)
@@ -284,6 +284,25 @@ export async function runCadenceBatch(
   const list = [...followUps, ...newLeads, ...pending];
   result.attempted = list.length;
   const nowIso = new Date().toISOString();
+
+  // ALTERNÂNCIA DE NÚMEROS (chips): quantidade totalmente dinâmica, lida dos
+  // números já cadastrados e ativos em Configurações. A alternância vale só
+  // para quem AINDA não tem número vinculado (novas conversas). Quem já tem
+  // `whatsapp_number_id` continua sempre no mesmo chip.
+  const { listActiveWaNumbers } = await import("./wa-numbers.server");
+  const actives = await listActiveWaNumbers(workspaceId);
+  let rr = 0;
+  const pickNumberId = (contact: any): string | null => {
+    const bound = (contact?.whatsapp_number_id as string | null) ?? null;
+    if (bound && actives.some((n) => n.id === bound)) return bound;
+    if (bound) return bound; // número inativo/legado: mantém o vínculo existente
+    if (actives.length === 0) return null;
+    const chosen = actives[rr % actives.length];
+    rr++;
+    return chosen.id;
+  };
+
+
 
 
   for (const c of list) {
