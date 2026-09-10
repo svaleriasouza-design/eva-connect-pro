@@ -120,7 +120,9 @@ export const listCampaignsFn = createServerFn({ method: "GET" })
     const db = supabaseAdmin as any;
     const { data: campaigns } = await db
       .from("campaigns")
-      .select("id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name")
+      .select(
+        "id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name, scheduled_at",
+      )
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(30);
