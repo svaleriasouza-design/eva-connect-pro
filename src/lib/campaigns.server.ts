@@ -76,6 +76,10 @@ export type CreateCampaignInput = {
   batchSize?: number;
   /** Como a EVA deve responder às respostas DESTE disparo (opcional). */
   aiInstructions?: string | null;
+  /** Data/hora em que o disparo deve começar automaticamente (ISO). */
+  scheduledAt?: string | null;
+  /** "scheduled" (padrão) ou "draft" — rascunho nunca envia. */
+  status?: "scheduled" | "draft";
   createdBy?: string | null;
   createdByName?: string | null;
 };
@@ -100,7 +104,8 @@ export async function createCampaign(input: CreateCampaignInput) {
       name: input.name,
       body: input.body,
       strategy: input.strategy ?? "balanced",
-      status: "ready",
+      status: input.status ?? "scheduled",
+      scheduled_at: input.scheduledAt ?? null,
       number_ids: chosen.map((n) => n.id),
       total_targets: contacts.length,
       batch_size: input.batchSize ?? 50,
@@ -150,7 +155,11 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
     .eq("id", campaignId)
     .maybeSingle();
   if (!campaign) return { ok: false as const, error: "Disparo não encontrado." };
-  if ((campaign as any).status === "paused") return { ok: false as const, error: "Disparo pausado." };
+  const st = (campaign as any).status as string;
+  if (st === "paused") return { ok: false as const, error: "Disparo pausado." };
+  if (st === "draft") return { ok: false as const, error: "Este disparo é um rascunho — agende antes de enviar." };
+  if (st === "cancelled") return { ok: false as const, error: "Disparo cancelado." };
+  if (st === "done") return { ok: false as const, error: "Disparo já concluído." };
 
   const { listActiveWaNumbers } = await import("./wa-numbers.server");
   const actives = await listActiveWaNumbers(workspaceId);
@@ -254,6 +263,11 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
 /** Campanhas com envios pendentes (usado pelo cron). */
 export async function listRunnableCampaigns(): Promise<{ id: string; workspace_id: string }[]> {
   const db = await admin();
-  const { data } = await db.from("campaigns").select("id, workspace_id").in("status", ["ready", "running"]);
+  // Só entra na fila o que está em andamento ou já chegou na hora agendada.
+  const { data } = await db
+    .from("campaigns")
+    .select("id, workspace_id")
+    .in("status", ["ready", "running", "scheduled"])
+    .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`);
   return (data ?? []) as any[];
 }

@@ -26,6 +26,8 @@ const createSchema = z.object({
   strategy: z.enum(["balanced"]).default("balanced"),
   batchSize: z.number().int().min(1).max(500).default(50),
   aiInstructions: z.string().trim().max(4000).optional().nullable(),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
+  status: z.enum(["scheduled", "draft"]).default("scheduled"),
 });
 
 /** Prévia da distribuição: quantos contatos e quanto vai para cada número. */
@@ -67,6 +69,8 @@ export const createCampaignFn = createServerFn({ method: "POST" })
       strategy: data.strategy,
       batchSize: data.batchSize,
       aiInstructions: data.aiInstructions ?? null,
+      scheduledAt: data.scheduledAt ?? null,
+      status: data.status,
       createdBy: context.userId,
       createdByName: name,
     });
@@ -86,7 +90,12 @@ export const runCampaignBatchFn = createServerFn({ method: "POST" })
 export const setCampaignStatusFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ campaignId: z.string().uuid(), status: z.enum(["paused", "ready"]) }).parse(d),
+    z
+      .object({
+        campaignId: z.string().uuid(),
+        status: z.enum(["paused", "ready", "scheduled", "cancelled", "draft"]),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const workspaceId = await wid(context);
@@ -111,7 +120,9 @@ export const listCampaignsFn = createServerFn({ method: "GET" })
     const db = supabaseAdmin as any;
     const { data: campaigns } = await db
       .from("campaigns")
-      .select("id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name")
+      .select(
+        "id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name, scheduled_at",
+      )
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(30);

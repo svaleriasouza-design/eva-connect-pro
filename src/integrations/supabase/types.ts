@@ -278,6 +278,7 @@ export type Database = {
           id: string
           name: string
           number_ids: string[]
+          scheduled_at: string | null
           sent_count: number
           started_at: string | null
           status: string
@@ -298,6 +299,7 @@ export type Database = {
           id?: string
           name: string
           number_ids?: string[]
+          scheduled_at?: string | null
           sent_count?: number
           started_at?: string | null
           status?: string
@@ -318,6 +320,7 @@ export type Database = {
           id?: string
           name?: string
           number_ids?: string[]
+          scheduled_at?: string | null
           sent_count?: number
           started_at?: string | null
           status?: string

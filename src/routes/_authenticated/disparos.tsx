@@ -19,12 +19,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Megaphone, Play, Pause, Users, Save } from "lucide-react";
+import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X } from "lucide-react";
 import { toast } from "sonner";
 import { FUNNEL_STAGES } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 
 const SAVED_PREFIX = "Disparo: ";
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "📝 Rascunho",
+  scheduled: "🕐 Agendado",
+  ready: "🕐 Agendado",
+  running: "🟢 Em andamento",
+  done: "✅ Concluído",
+  paused: "⏸️ Pausado",
+  cancelled: "❌ Cancelado",
+};
+
+function fmtWhen(iso: string | null) {
+  if (!iso) return "sem agendamento";
+  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
 
 export const Route = createFileRoute("/_authenticated/disparos")({
   component: Disparos,
@@ -65,6 +80,9 @@ function Disparos() {
   const [batchSize, setBatchSize] = useState(50);
   const [aiInstructions, setAiInstructions] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [schedDate, setSchedDate] = useState("");
+  const [schedTime, setSchedTime] = useState("09:30");
+  const [confirmation, setConfirmation] = useState<string | null>(null);
   const [preview, setPreview] = useState<null | { total: number; distribution: { id: string; label: string; count: number }[] }>(null);
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
@@ -154,32 +172,54 @@ function Disparos() {
     setPreview(res);
   }
 
-  async function onCreate() {
+  async function onSchedule() {
     if (!name.trim() || !body.trim() || selected.length === 0) {
       toast.error("Informe nome, mensagem e ao menos um número de envio.");
       return;
     }
+    if (!schedDate || !schedTime) {
+      toast.error("Escolha a data e o horário do disparo.");
+      return;
+    }
+    const when = new Date(`${schedDate}T${schedTime}:00`);
+    if (Number.isNaN(when.getTime())) {
+      toast.error("Data ou horário inválidos.");
+      return;
+    }
+    if (when.getTime() < Date.now() - 60_000) {
+      toast.error("Escolha uma data e horário no futuro.");
+      return;
+    }
     setBusy(true);
-    const res: any = await createFn({
-      data: {
-        name,
-        body,
-        numberIds: selected,
-        filter,
-        strategy: "balanced",
-        batchSize,
-        aiInstructions: aiInstructions.trim() || null,
-      },
-    });
-    setBusy(false);
-    if (res?.ok) {
-      toast.success(`Disparo criado · ${res.total} contatos distribuídos entre ${res.per.length} número(s).`);
-      setName("");
-      setBody("");
-      setAiInstructions("");
-      setPreview(null);
-      qc.invalidateQueries({ queryKey: ["campaigns"] });
-    } else toast.error(res?.error || "Falha ao criar o disparo.");
+    try {
+      const res: any = await createFn({
+        data: {
+          name,
+          body,
+          numberIds: selected,
+          filter,
+          strategy: "balanced",
+          batchSize,
+          aiInstructions: aiInstructions.trim() || null,
+          scheduledAt: when.toISOString(),
+          status: "scheduled",
+        },
+      });
+      if (res?.ok) {
+        const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
+        toast.success(msg);
+        setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
+        setName("");
+        setBody("");
+        setAiInstructions("");
+        setPreview(null);
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+      } else toast.error(res?.error || "Falha ao agendar o disparo.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao agendar o disparo.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onRun(id: string) {
@@ -310,13 +350,41 @@ function Disparos() {
               </div>
             </div>
 
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="font-medium">Agendamento</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Data do disparo</Label>
+                  <Input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Horário do disparo</Label>
+                  <Input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O disparo será iniciado automaticamente nesta data e horário.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={onPreview} disabled={busy || selected.length === 0}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
                 Ver distribuição prevista
               </Button>
-              <Button onClick={onCreate} disabled={busy || selected.length === 0}>Criar disparo</Button>
+              <Button onClick={onSchedule} disabled={busy || selected.length === 0}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
+                Agendar disparo
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. O envio só começa no horário
+              agendado.
+            </p>
+
+            {confirmation && (
+              <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-xs">{confirmation}</div>
+            )}
 
             {preview && (
               <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
@@ -337,7 +405,7 @@ function Disparos() {
               <div key={c.id} className="rounded-md border p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{c.name}</span>
-                  <Badge variant="outline">{c.status}</Badge>
+                  <Badge variant="outline">{STATUS_LABEL[c.status] ?? c.status}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {c.sent_count}/{c.total_targets} enviadas · {c.failed_count} falhas
                   </span>
@@ -345,20 +413,51 @@ function Disparos() {
                 <div className="text-xs text-muted-foreground">
                   Números: {c.numbers.map((n: any) => n.label).join(", ")}
                 </div>
+                {c.scheduled_at && (
+                  <div className="text-xs text-muted-foreground">
+                    Início programado: <strong>{fmtWhen(c.scheduled_at)}</strong>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => onRun(c.id)} disabled={running === c.id || c.status === "done" || c.status === "paused"}>
+                  <Button
+                    size="sm"
+                    onClick={() => onRun(c.id)}
+                    disabled={
+                      running === c.id ||
+                      c.status === "done" ||
+                      c.status === "paused" ||
+                      c.status === "draft" ||
+                      c.status === "cancelled"
+                    }
+                  >
                     {running === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-                    Processar lote
+                    Enviar agora (1 lote)
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={c.status === "done" || c.status === "cancelled"}
                     onClick={async () => {
-                      await statusFn({ data: { campaignId: c.id, status: c.status === "paused" ? "ready" : "paused" } });
+                      await statusFn({
+                        data: { campaignId: c.id, status: c.status === "paused" ? "scheduled" : "paused" },
+                      });
                       qc.invalidateQueries({ queryKey: ["campaigns"] });
+                      toast.success(c.status === "paused" ? "Disparo retomado." : "Disparo pausado.");
                     }}
                   >
                     <Pause className="mr-1 h-3 w-3" /> {c.status === "paused" ? "Retomar" : "Pausar"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={c.status === "cancelled" || c.status === "done"}
+                    onClick={async () => {
+                      await statusFn({ data: { campaignId: c.id, status: "cancelled" } });
+                      qc.invalidateQueries({ queryKey: ["campaigns"] });
+                      toast.success("Disparo cancelado.");
+                    }}
+                  >
+                    <X className="mr-1 h-3 w-3" /> Cancelar
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => onDetail(c.id)}>Ver por número</Button>
                 </div>
