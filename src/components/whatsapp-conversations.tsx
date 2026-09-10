@@ -230,6 +230,13 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     });
   }, [contacts, search, meta, filter, origin, chip]);
 
+  // Número inativado/removido em Configurações deixa de ter divisão própria.
+  useEffect(() => {
+    if (chip === "todos" || chip === "sem-numero") return;
+    if (numbers.length > 0 && !numbers.some((n: any) => n.id === chip)) setChip("todos");
+  }, [numbers, chip]);
+
+
   useEffect(() => {
     if (filtered.length === 0) return;
     if (!selectedId || !filtered.some((c) => c.id === selectedId)) setSelectedId(filtered[0].id);
