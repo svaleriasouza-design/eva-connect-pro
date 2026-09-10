@@ -67,7 +67,12 @@ function StatusIcon({ status }: { status: string | null }) {
   return null;
 }
 
-export function WhatsappConversations() {
+/**
+ * `origin`:
+ *  - "atendimento" (padrão) → conversas da cadência/atendimento (exclui Disparos);
+ *  - "disparo" → apenas conversas originadas dos Disparos (aba WhatsApp).
+ */
+export function WhatsappConversations({ origin = "atendimento" }: { origin?: "atendimento" | "disparo" } = {}) {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -107,7 +112,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
