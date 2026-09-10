@@ -183,6 +183,34 @@ function Disparos() {
             <div className="space-y-1">
               <Label>Mensagem</Label>
               <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Texto que será enviado…" />
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar mensagem
+                </Button>
+                {saved.length > 0 && (
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const t = saved.find((s) => s.id === id);
+                      if (!t) return;
+                      setName(t.category.replace(SAVED_PREFIX, ""));
+                      setBody(t.content);
+                      setPreview(null);
+                      toast.success("Mensagem carregada.");
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-64">
+                      <SelectValue placeholder="Usar mensagem salva" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {saved.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.category.replace(SAVED_PREFIX, "")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Como a EVA deve responder?</Label>
