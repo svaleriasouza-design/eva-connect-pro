@@ -181,18 +181,30 @@ export type DraftInput = {
   aiInstructions?: string | null;
   /** Configurações do formulário (filtros, data/horário escolhidos). */
   draftConfig?: Record<string, unknown>;
+  /** Novo horário ao editar um disparo já agendado (mantém o agendamento). */
+  scheduledAt?: string | null;
   createdBy?: string | null;
   createdByName?: string | null;
 };
 
+/** Um disparo só pode ser editado enquanto nada foi enviado. */
+export const EDIT_BLOCKED_MESSAGE =
+  "Este disparo já está em andamento — não é possível editar. Pause e crie um novo disparo.";
+
+function editBlocked(row: any) {
+  const st = row?.status as string;
+  return st === "running" || st === "done" || ((row?.sent_count ?? 0) as number) > 0;
+}
+
 /**
- * Salva um RASCUNHO no próprio registro de disparos.
- * Com `campaignId` faz UPDATE do mesmo registro (nunca duplica); sem ele, INSERT.
- * Nunca cria alvos, nunca agenda e nunca envia.
+ * Salva/atualiza o próprio registro de disparos.
+ * Com `campaignId` faz UPDATE do mesmo registro (nunca duplica), tanto para
+ * Rascunho como para Agendado; sem ele, INSERT como rascunho.
+ * Nunca envia. Rascunho nunca cria alvos; agendado recria os alvos pendentes.
  */
 export async function saveDraftCampaign(input: DraftInput) {
   const db = await admin();
-  const payload = {
+  const payload: Record<string, unknown> = {
     name: input.name,
     body: input.body,
     number_ids: input.numberIds,
@@ -208,18 +220,44 @@ export async function saveDraftCampaign(input: DraftInput) {
   if (input.campaignId) {
     const { data: existing } = await db
       .from("campaigns")
-      .select("id, status")
+      .select("id, status, sent_count, scheduled_at")
       .eq("workspace_id", input.workspaceId)
       .eq("id", input.campaignId)
       .maybeSingle();
-    if (existing && (existing as any).status === "draft") {
+    if (existing) {
+      if (editBlocked(existing)) return { ok: false as const, error: EDIT_BLOCKED_MESSAGE };
+      const st = (existing as any).status as string;
+      const keepStatus = st !== "draft";
+      if (keepStatus) {
+        // Continua Agendado (ou pausado/cancelado) com a nova configuração.
+        payload.status = st;
+        payload.scheduled_at = input.scheduledAt ?? (existing as any).scheduled_at ?? null;
+      }
+      if (keepStatus) {
+        // Redistribui os contatos conforme a nova configuração (nada foi enviado).
+        await db.from("campaign_targets").delete().eq("campaign_id", input.campaignId);
+        const built = await materializeTargets({
+          workspaceId: input.workspaceId,
+          campaignId: input.campaignId,
+          numberIds: input.numberIds,
+          filter: input.filter,
+        });
+        if (!built.ok) return built;
+        payload.number_ids = built.chosenIds;
+        payload.total_targets = built.total;
+      }
       const { error } = await db
         .from("campaigns")
         .update(payload)
         .eq("id", input.campaignId)
         .eq("workspace_id", input.workspaceId);
       if (error) return { ok: false as const, error: error.message };
-      return { ok: true as const, campaignId: input.campaignId, created: false as const };
+      return {
+        ok: true as const,
+        campaignId: input.campaignId,
+        created: false as const,
+        status: payload.status as string,
+      };
     }
   }
 
@@ -236,7 +274,7 @@ export async function saveDraftCampaign(input: DraftInput) {
     .select("id")
     .maybeSingle();
   if (error || !data) return { ok: false as const, error: error?.message ?? "Falha ao salvar o rascunho." };
-  return { ok: true as const, campaignId: (data as any).id as string, created: true as const };
+  return { ok: true as const, campaignId: (data as any).id as string, created: true as const, status: "draft" };
 }
 
 /** Agenda um rascunho existente: cria os alvos e muda o status para "scheduled". */
@@ -255,16 +293,15 @@ export async function scheduleDraftCampaign(params: {
   const db = await admin();
   const { data: existing } = await db
     .from("campaigns")
-    .select("id, status")
+    .select("id, status, sent_count")
     .eq("workspace_id", params.workspaceId)
     .eq("id", params.campaignId)
     .maybeSingle();
-  if (!existing) return { ok: false as const, error: "Rascunho não encontrado." };
-  if ((existing as any).status !== "draft") {
-    return { ok: false as const, error: "Este disparo já foi agendado." };
-  }
+  if (!existing) return { ok: false as const, error: "Disparo não encontrado." };
+  // Rascunho ou já agendado/pausado/cancelado podem ser (re)agendados; em andamento não.
+  if (editBlocked(existing)) return { ok: false as const, error: EDIT_BLOCKED_MESSAGE };
 
-  // Limpa alvos antigos (rascunho não deveria ter, mas garante idempotência).
+  // Limpa alvos antigos e redistribui conforme a configuração atual.
   await db.from("campaign_targets").delete().eq("campaign_id", params.campaignId);
 
   const built = await materializeTargets({

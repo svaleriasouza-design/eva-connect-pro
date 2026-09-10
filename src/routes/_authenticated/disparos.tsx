@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X } from "lucide-react";
+import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { FUNNEL_STAGES } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,8 +92,10 @@ function Disparos() {
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
   const [saving, setSaving] = useState(false);
-  // Id do rascunho em edição — garante UPDATE do mesmo registro, sem duplicar.
+  // Id do disparo em edição — garante UPDATE do mesmo registro, sem duplicar.
   const [draftId, setDraftId] = useState<string | null>(null);
+  // Status do disparo em edição ("draft" | "scheduled" | ...).
+  const [editStatus, setEditStatus] = useState<string>("draft");
 
   // Rascunhos salvos (mesma tabela de disparos, status "Rascunho").
   const { data: drafts = [] } = useQuery({
@@ -119,11 +121,38 @@ function Disparos() {
     [stage, q, schedDate, schedTime, batchSize, selected],
   );
 
-  /** Salva como rascunho. Nunca envia, nunca agenda, e não limpa o formulário. */
+  const isScheduledEdit = Boolean(draftId) && editStatus !== "draft";
+
+  /** Data/horário agendados em campos separados (para reabrir na edição). */
+  function localParts(iso: string | null) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const p = (n: number) => String(n).padStart(2, "0");
+    return {
+      date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+      time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    };
+  }
+
+  /** Salva o disparo. Nunca envia e não limpa o formulário. */
   async function onSaveDraft() {
     if (!name.trim() || !body.trim()) {
       toast.error("Informe o nome e a mensagem antes de salvar.");
       return;
+    }
+    if (isScheduledEdit && selected.length === 0) {
+      toast.error("Selecione ao menos um número de envio.");
+      return;
+    }
+    let scheduledAt: string | null = null;
+    if (isScheduledEdit && schedDate && schedTime) {
+      const when = new Date(`${schedDate}T${schedTime}:00`);
+      if (Number.isNaN(when.getTime())) {
+        toast.error("Data ou horário inválidos.");
+        return;
+      }
+      scheduledAt = when.toISOString();
     }
     setSaving(true);
     try {
@@ -137,25 +166,33 @@ function Disparos() {
           batchSize,
           aiInstructions,
           draftConfig,
+          scheduledAt,
         },
       });
       if (res?.ok) {
         setDraftId(res.campaignId);
-        toast.success("Disparo salvo como rascunho.");
+        setEditStatus(res.status ?? "draft");
+        toast.success(
+          res.status && res.status !== "draft"
+            ? "Disparo atualizado — continua agendado."
+            : "Disparo salvo como rascunho.",
+        );
         qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
         qc.invalidateQueries({ queryKey: ["campaigns"] });
-      } else toast.error(res?.error || "Não foi possível salvar o rascunho.");
+      } else toast.error(res?.error || "Não foi possível salvar o disparo.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o rascunho.");
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o disparo.");
     } finally {
       setSaving(false);
     }
   }
 
-  /** Abre um rascunho para edição, recuperando todos os campos salvos. */
+  /** Abre um disparo (rascunho ou agendado) para edição, com todos os campos. */
   function loadDraft(d: any) {
     const cfg = (d.draft_config ?? {}) as any;
+    const sched = localParts(d.scheduled_at ?? null);
     setDraftId(d.id);
+    setEditStatus((d.status as string) ?? "draft");
     setName(d.name ?? "");
     setBody(d.body ?? "");
     setAiInstructions(d.ai_instructions ?? "");
@@ -163,10 +200,21 @@ function Disparos() {
     setQ(cfg.q ?? "");
     setBatchSize(Number(d.batch_size) > 0 ? Number(d.batch_size) : 50);
     setSelected(Array.isArray(d.number_ids) ? d.number_ids : []);
-    setSchedDate(cfg.schedDate ?? "");
-    setSchedTime(cfg.schedTime || "09:30");
+    setSchedDate(cfg.schedDate ?? sched?.date ?? "");
+    setSchedTime(cfg.schedTime || sched?.time || "09:30");
     setPreview(null);
     setConfirmation(null);
+  }
+
+  /** Editar pela lista "Disparos criados" — bloqueado se o envio já começou. */
+  function onEditCampaign(c: any) {
+    if (c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0) {
+      toast.error("Este disparo já está em andamento — não é possível editar.");
+      return;
+    }
+    loadDraft(c);
+    toast.success("Disparo aberto para edição.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function loadSaved(raw: string, fallbackName: string) {
@@ -178,6 +226,7 @@ function Disparos() {
       parsed = null;
     }
     setDraftId(null);
+    setEditStatus("draft");
     if (!parsed) {
       // Modelos antigos guardavam apenas o texto da mensagem.
       setName(fallbackName);
@@ -197,6 +246,7 @@ function Disparos() {
 
   function onNewDraft() {
     setDraftId(null);
+    setEditStatus("draft");
     setName("");
     setBody("");
     setAiInstructions("");
@@ -278,7 +328,8 @@ function Disparos() {
         const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
         toast.success(msg);
         setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
-        setDraftId(null);
+        // Mantém o mesmo registro aberto: novos salvamentos atualizam este disparo.
+        setEditStatus("scheduled");
         setPreview(null);
         qc.invalidateQueries({ queryKey: ["campaigns"] });
         qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
@@ -325,7 +376,9 @@ function Disparos() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
-            <CardTitle>{draftId ? "Editando rascunho" : "Novo disparo"}</CardTitle>
+            <CardTitle>
+              {!draftId ? "Novo disparo" : isScheduledEdit ? "Editando disparo agendado" : "Editando rascunho"}
+            </CardTitle>
             {draftId && (
               <Button variant="ghost" size="sm" onClick={onNewDraft}>
                 Novo disparo
@@ -343,7 +396,7 @@ function Disparos() {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={onSaveDraft} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Salvar disparo
+                  {isScheduledEdit ? "Salvar alterações" : "Salvar disparo"}
                 </Button>
                 {(drafts.length > 0 || saved.length > 0) && (
                   <Select
@@ -552,6 +605,14 @@ function Disparos() {
                     }}
                   >
                     <X className="mr-1 h-3 w-3" /> Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0}
+                    onClick={() => onEditCampaign(c)}
+                  >
+                    <Pencil className="mr-1 h-3 w-3" /> Editar disparo
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => onDetail(c.id)}>Ver por número</Button>
                 </div>

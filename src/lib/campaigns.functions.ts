@@ -40,6 +40,7 @@ const draftSchema = z.object({
   batchSize: z.number().int().min(1).max(500).default(50),
   aiInstructions: z.string().optional().nullable(),
   draftConfig: z.record(z.string(), z.unknown()).default({}),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
 });
 
 const scheduleSchema = draftSchema.extend({
@@ -117,6 +118,7 @@ export const saveDraftCampaignFn = createServerFn({ method: "POST" })
       batchSize: data.batchSize,
       aiInstructions: data.aiInstructions ?? null,
       draftConfig: data.draftConfig,
+      scheduledAt: data.scheduledAt ?? null,
       createdBy: context.userId,
       createdByName: name,
     });
@@ -206,7 +208,7 @@ export const listCampaignsFn = createServerFn({ method: "GET" })
     const { data: campaigns } = await db
       .from("campaigns")
       .select(
-        "id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name, scheduled_at",
+        "id, name, body, status, strategy, number_ids, total_targets, sent_count, failed_count, created_at, created_by_name, scheduled_at, ai_instructions, batch_size, draft_config",
       )
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
