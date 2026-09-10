@@ -226,6 +226,7 @@ function Disparos() {
       parsed = null;
     }
     setDraftId(null);
+    setEditStatus("draft");
     if (!parsed) {
       // Modelos antigos guardavam apenas o texto da mensagem.
       setName(fallbackName);
