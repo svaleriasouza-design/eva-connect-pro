@@ -396,7 +396,7 @@ function Disparos() {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={onSaveDraft} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Salvar disparo
+                  {isScheduledEdit ? "Salvar alterações" : "Salvar disparo"}
                 </Button>
                 {(drafts.length > 0 || saved.length > 0) && (
                   <Select
