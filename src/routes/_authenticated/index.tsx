@@ -161,6 +161,8 @@ function Dashboard() {
 
       <AttendancePanel />
 
+      <CampaignConversationsPanel />
+
       <SaturdayRequestsCard />
 
       <CadenceDispatchCard />
