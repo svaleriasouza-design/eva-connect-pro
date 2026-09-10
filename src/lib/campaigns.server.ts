@@ -155,7 +155,11 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
     .eq("id", campaignId)
     .maybeSingle();
   if (!campaign) return { ok: false as const, error: "Disparo não encontrado." };
-  if ((campaign as any).status === "paused") return { ok: false as const, error: "Disparo pausado." };
+  const st = (campaign as any).status as string;
+  if (st === "paused") return { ok: false as const, error: "Disparo pausado." };
+  if (st === "draft") return { ok: false as const, error: "Este disparo é um rascunho — agende antes de enviar." };
+  if (st === "cancelled") return { ok: false as const, error: "Disparo cancelado." };
+  if (st === "done") return { ok: false as const, error: "Disparo já concluído." };
 
   const { listActiveWaNumbers } = await import("./wa-numbers.server");
   const actives = await listActiveWaNumbers(workspaceId);
