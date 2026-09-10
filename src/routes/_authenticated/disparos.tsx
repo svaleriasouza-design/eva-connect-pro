@@ -64,7 +64,9 @@ function Disparos() {
   const qc = useQueryClient();
   const listNumbers = useServerFn(listWhatsappNumbersFn);
   const previewFn = useServerFn(previewCampaignFn);
-  const createFn = useServerFn(createCampaignFn);
+  const saveDraftFn = useServerFn(saveDraftCampaignFn);
+  const scheduleFn = useServerFn(scheduleDraftCampaignFn);
+  const listDraftsFn = useServerFn(listDraftCampaignsFn);
   const listFn = useServerFn(listCampaignsFn);
   const runFn = useServerFn(runCampaignBatchFn);
   const statusFn = useServerFn(setCampaignStatusFn);
@@ -90,8 +92,16 @@ function Disparos() {
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
   const [saving, setSaving] = useState(false);
+  // Id do rascunho em edição — garante UPDATE do mesmo registro, sem duplicar.
+  const [draftId, setDraftId] = useState<string | null>(null);
 
-  // Mensagens salvas para reutilizar nos disparos.
+  // Rascunhos salvos (mesma tabela de disparos, status "Rascunho").
+  const { data: drafts = [] } = useQuery({
+    queryKey: ["campaign-drafts"],
+    queryFn: () => listDraftsFn(),
+  });
+
+  // Modelos antigos salvos na aba Campanhas (compatibilidade).
   const { data: saved = [] } = useQuery({
     queryKey: ["saved-campaign-messages"],
     queryFn: async () => {
@@ -104,32 +114,59 @@ function Disparos() {
     },
   });
 
-  async function onSaveMessage() {
+  const draftConfig = useMemo(
+    () => ({ stage, q, schedDate, schedTime, batchSize, numberIds: selected }),
+    [stage, q, schedDate, schedTime, batchSize, selected],
+  );
+
+  /** Salva como rascunho. Nunca envia, nunca agenda, e não limpa o formulário. */
+  async function onSaveDraft() {
     if (!name.trim() || !body.trim()) {
       toast.error("Informe o nome e a mensagem antes de salvar.");
       return;
     }
     setSaving(true);
-    // Guarda todos os campos editáveis do disparo, não só a mensagem.
-    const payload = JSON.stringify({
-      __eva: 1,
-      name: name.trim(),
-      body: body.trim(),
-      aiInstructions,
-      stage,
-      q,
-      batchSize,
-      numberIds: selected,
-    });
-    const { error } = await supabase
-      .from("message_templates")
-      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: payload });
-    setSaving(false);
-    if (error) toast.error("Não foi possível salvar o disparo.");
-    else {
-      toast.success("Disparo salvo com todos os campos.");
-      qc.invalidateQueries({ queryKey: ["saved-campaign-messages"] });
+    try {
+      const res: any = await saveDraftFn({
+        data: {
+          campaignId: draftId,
+          name: name.trim(),
+          body,
+          numberIds: selected,
+          filter,
+          batchSize,
+          aiInstructions,
+          draftConfig,
+        },
+      });
+      if (res?.ok) {
+        setDraftId(res.campaignId);
+        toast.success("Disparo salvo como rascunho.");
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+      } else toast.error(res?.error || "Não foi possível salvar o rascunho.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o rascunho.");
+    } finally {
+      setSaving(false);
     }
+  }
+
+  /** Abre um rascunho para edição, recuperando todos os campos salvos. */
+  function loadDraft(d: any) {
+    const cfg = (d.draft_config ?? {}) as any;
+    setDraftId(d.id);
+    setName(d.name ?? "");
+    setBody(d.body ?? "");
+    setAiInstructions(d.ai_instructions ?? "");
+    setStage(cfg.stage ?? "todos");
+    setQ(cfg.q ?? "");
+    setBatchSize(Number(d.batch_size) > 0 ? Number(d.batch_size) : 50);
+    setSelected(Array.isArray(d.number_ids) ? d.number_ids : []);
+    setSchedDate(cfg.schedDate ?? "");
+    setSchedTime(cfg.schedTime || "09:30");
+    setPreview(null);
+    setConfirmation(null);
   }
 
   function loadSaved(raw: string, fallbackName: string) {
@@ -140,6 +177,7 @@ function Disparos() {
     } catch {
       parsed = null;
     }
+    setDraftId(null);
     if (!parsed) {
       // Modelos antigos guardavam apenas o texto da mensagem.
       setName(fallbackName);
@@ -155,6 +193,20 @@ function Disparos() {
     setBatchSize(Number(parsed.batchSize) > 0 ? Number(parsed.batchSize) : 50);
     setSelected(Array.isArray(parsed.numberIds) ? parsed.numberIds : []);
     setPreview(null);
+  }
+
+  function onNewDraft() {
+    setDraftId(null);
+    setName("");
+    setBody("");
+    setAiInstructions("");
+    setStage("todos");
+    setQ("");
+    setSelected([]);
+    setSchedDate("");
+    setSchedTime("09:30");
+    setPreview(null);
+    setConfirmation(null);
   }
 
   const filter = useMemo(
