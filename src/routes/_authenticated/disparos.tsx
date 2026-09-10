@@ -291,6 +291,12 @@ function Disparos() {
   }
 
   async function onRun(id: string) {
+    // Ação separada e sempre confirmada — nunca acionada por "Salvar" ou "Agendar".
+    const c = (campaigns as any[]).find((x) => x.id === id);
+    const ok = window.confirm(
+      `Enviar agora um lote do disparo "${c?.name ?? ""}"? As mensagens serão enviadas imediatamente.`,
+    );
+    if (!ok) return;
     setRunning(id);
     const res: any = await runFn({ data: { campaignId: id } });
     setRunning(null);
@@ -375,13 +381,15 @@ function Disparos() {
             <div className="space-y-1">
               <Label>Como a EVA deve responder?</Label>
               <Textarea
-                rows={4}
+                rows={10}
+                className="min-h-[220px]"
                 value={aiInstructions}
                 onChange={(e) => setAiInstructions(e.target.value)}
                 placeholder="Descreva como a EVA deve se comportar quando alguém responder a este disparo..."
               />
               <p className="text-xs text-muted-foreground">
-                Defina o comportamento da EVA para as respostas recebidas nesta campanha.
+                Defina o comportamento da EVA para as respostas recebidas nesta campanha. Sem limite de caracteres —{" "}
+                {aiInstructions.length.toLocaleString("pt-BR")} caractere(s) escritos.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
