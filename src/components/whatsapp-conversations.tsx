@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
-import { isEligibleForAttendance } from "@/lib/conversation-eligibility";
+import { isEligibleForAttendance, CAMPAIGN_ORIGIN } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -155,13 +155,23 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     const q = search.trim().toLowerCase();
     // Só contatos com histórico de WhatsApp OU em cadência ativa.
     let list = contacts.filter((c) => meta.has(c.id) || c.cadence_active);
+    // Separação por origem: Disparos ficam na aba WhatsApp; cadência no Atendimento.
+    list = list.filter((c) =>
+      origin === "disparo"
+        ? c.conversation_origin === CAMPAIGN_ORIGIN
+        : c.conversation_origin !== CAMPAIGN_ORIGIN,
+    );
     list = list.filter((c) => {
       const m = meta.get(c.id);
       if (filter === "robos") return Boolean(c.is_bot);
       if (c.is_bot) return false;
       if (filter === "manual") return Boolean(c.ai_paused || c.human_takeover);
       // "Aguardando" = fila de atendimento: usa a regra central de elegibilidade.
-      if (filter === "aguardando") return Boolean(m?.unread) && isEligibleForAttendance(c as any, { ignoreTakeover: true });
+      if (filter === "aguardando")
+        return (
+          Boolean(m?.unread) &&
+          isEligibleForAttendance(c as any, { ignoreTakeover: true, includeCampaignOrigin: origin === "disparo" })
+        );
       if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
       return true;
     });
