@@ -231,7 +231,8 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
   }, [contacts, search, meta, filter, origin, chip]);
 
   useEffect(() => {
-    if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
+    if (filtered.length === 0) return;
+    if (!selectedId || !filtered.some((c) => c.id === selectedId)) setSelectedId(filtered[0].id);
   }, [filtered, selectedId]);
 
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
@@ -412,6 +413,23 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{filtered.length}</span>
         </div>
         <div className="space-y-2.5 px-3 py-3">
+          {numbers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {([["todos", "Todos os números"] as [string, string]])
+                .concat(numbers.map((n: any, i: number) => [n.id, `Atendimento ${i + 1} — ${n.label}`] as [string, string]))
+                .concat(contacts.some((c) => !c.whatsapp_number_id) ? [["sem-numero", "Sem número"] as [string, string]] : [])
+                .map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setChip(key)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${chip === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+            </div>
+          )}
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="h-9 rounded-xl border-transparent bg-muted/60 pl-8 text-sm" />
