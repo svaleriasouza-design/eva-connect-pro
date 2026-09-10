@@ -74,6 +74,8 @@ export type CreateCampaignInput = {
   filter: ContactFilter;
   strategy?: DistributionStrategy;
   batchSize?: number;
+  /** Como a EVA deve responder às respostas DESTE disparo (opcional). */
+  aiInstructions?: string | null;
   createdBy?: string | null;
   createdByName?: string | null;
 };
@@ -102,6 +104,7 @@ export async function createCampaign(input: CreateCampaignInput) {
       number_ids: chosen.map((n) => n.id),
       total_targets: contacts.length,
       batch_size: input.batchSize ?? 50,
+      ai_instructions: (input.aiInstructions ?? "").trim(),
       created_by: input.createdBy ?? null,
       created_by_name: input.createdByName ?? null,
     })
