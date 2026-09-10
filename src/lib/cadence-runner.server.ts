@@ -25,6 +25,46 @@ function templateForDay(day: number) {
   return `cadencia_dia_${day}`;
 }
 
+/**
+ * Envia o áudio configurado na etapa da cadência.
+ * O arquivo já está no bucket `whatsapp-audio` (upload único na configuração):
+ * aqui apenas baixamos os bytes e usamos o MESMO fluxo oficial de envio de áudio
+ * (`sendAudioAndLog` → Meta Cloud API), com o histórico gravado em `activities`.
+ */
+async function sendStepAudio(params: {
+  workspaceId: string;
+  to: string;
+  contactId: string;
+  audioPath: string;
+  title: string;
+  tag: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const dl = await supabaseAdmin.storage.from("whatsapp-audio").download(params.audioPath);
+    if (dl.error || !dl.data) return { ok: false, error: dl.error?.message ?? "Áudio da etapa não encontrado." };
+    const bytes = new Uint8Array(await dl.data.arrayBuffer());
+    const ext = params.audioPath.split(".").pop()?.toLowerCase() ?? "ogg";
+    const mime =
+      ext === "mp3" ? "audio/mpeg" : ext === "m4a" || ext === "aac" ? "audio/mp4" : ext === "amr" ? "audio/amr" : "audio/ogg";
+    const { sendAudioAndLog } = await import("./messaging.server");
+    const res = await sendAudioAndLog({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      bytes,
+      mime,
+      storagePath: params.audioPath,
+      title: params.title,
+      tag: params.tag,
+      sendMode: "cadencia",
+    });
+    return { ok: res.ok, error: res.error };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Falha ao enviar o áudio da etapa." };
+  }
+}
+
 /** Encerra a cadência e agenda a reativação em 60 dias. */
 async function endCadence(admin: any, contactId: string, reason: string) {
   const in60 = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
