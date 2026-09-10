@@ -79,6 +79,8 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConvFilter>("todas");
+  // Divisão dinâmica por número (chip) responsável pela conversa.
+  const [chip, setChip] = useState<string>("todos");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -114,7 +116,7 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id, whatsapp_number_id")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
