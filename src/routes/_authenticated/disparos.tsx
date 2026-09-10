@@ -26,6 +26,21 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SAVED_PREFIX = "Disparo: ";
 
+const STATUS_LABEL: Record<string, string> = {
+  draft: "📝 Rascunho",
+  scheduled: "🕐 Agendado",
+  ready: "🕐 Agendado",
+  running: "🟢 Em andamento",
+  done: "✅ Concluído",
+  paused: "⏸️ Pausado",
+  cancelled: "❌ Cancelado",
+};
+
+function fmtWhen(iso: string | null) {
+  if (!iso) return "sem agendamento";
+  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
 export const Route = createFileRoute("/_authenticated/disparos")({
   component: Disparos,
   head: () => ({
