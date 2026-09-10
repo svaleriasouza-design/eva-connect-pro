@@ -124,6 +124,20 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     refetchInterval: 15000,
   });
 
+  // Números ativos cadastrados em Configurações — geram automaticamente uma
+  // divisão de Atendimento para cada chip (quantidade dinâmica).
+  const listNumbersFn = useServerFn(listWhatsappNumbersFn);
+  const { data: numbers = [] } = useQuery({
+    queryKey: ["wa-numbers-tabs"],
+    queryFn: async () => {
+      const rows = await listNumbersFn();
+      return (rows as any[]).filter((n) => n.active);
+    },
+    staleTime: 60000,
+  });
+
+
+
   const { data: recentActs = [] } = useQuery<ActivityRow[]>({
     queryKey: ["wa-recent-acts"],
     queryFn: async () => {
