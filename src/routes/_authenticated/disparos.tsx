@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X } from "lucide-react";
+import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { FUNNEL_STAGES } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
