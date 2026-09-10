@@ -76,6 +76,10 @@ export type CreateCampaignInput = {
   batchSize?: number;
   /** Como a EVA deve responder às respostas DESTE disparo (opcional). */
   aiInstructions?: string | null;
+  /** Data/hora em que o disparo deve começar automaticamente (ISO). */
+  scheduledAt?: string | null;
+  /** "scheduled" (padrão) ou "draft" — rascunho nunca envia. */
+  status?: "scheduled" | "draft";
   createdBy?: string | null;
   createdByName?: string | null;
 };
