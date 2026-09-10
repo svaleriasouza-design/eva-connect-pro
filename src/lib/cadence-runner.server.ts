@@ -548,6 +548,28 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     }
   }
 
+  // Tipo de resposta configurado na etapa (árvore de respostas da EVA):
+  // texto, áudio ou texto + áudio. Vale APENAS para a resposta automática.
+  const replyType = (step.reply_type ?? "texto") as string;
+  const audioPath = step.audio_path ?? null;
+  const wantsAudio = Boolean(audioPath) && (replyType === "audio" || replyType === "texto_audio");
+
+  if (wantsAudio && replyType === "audio") {
+    const audio = await sendStepAudio({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      audioPath: audioPath!,
+      title: "EVA respondeu automaticamente (áudio)",
+      tag: "eva-auto-reply-audio",
+    });
+    if (audio.ok) {
+      console.log(`[eva auto-reply] áudio enviado contact=${params.contactId}`);
+      return "sent:audio";
+    }
+    console.warn(`[eva auto-reply] áudio falhou, enviando texto: ${audio.error ?? ""}`);
+  }
+
   const res = await sendAndLog({
     workspaceId: params.workspaceId,
     to: params.to,
@@ -556,8 +578,20 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     title: "EVA respondeu automaticamente",
     tag: "eva-auto-reply",
   });
+  if (res.ok && wantsAudio && replyType === "texto_audio") {
+    const audio = await sendStepAudio({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      audioPath: audioPath!,
+      title: "EVA respondeu automaticamente (áudio)",
+      tag: "eva-auto-reply-audio",
+    });
+    if (!audio.ok) console.warn(`[eva auto-reply] áudio complementar falhou: ${audio.error ?? ""}`);
+  }
   console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
   return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;
+
 }
 
 /** Extrai o dia da cadência a partir do título da atividade ("Cadência Dia 3 (manhã)"). */
