@@ -274,7 +274,7 @@ export async function saveDraftCampaign(input: DraftInput) {
     .select("id")
     .maybeSingle();
   if (error || !data) return { ok: false as const, error: error?.message ?? "Falha ao salvar o rascunho." };
-  return { ok: true as const, campaignId: (data as any).id as string, created: true as const };
+  return { ok: true as const, campaignId: (data as any).id as string, created: true as const, status: "draft" };
 }
 
 /** Agenda um rascunho existente: cria os alvos e muda o status para "scheduled". */
