@@ -151,6 +151,20 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     return m;
   }, [recentActs]);
 
+  // Nome do disparo que originou cada conversa (identificação da origem).
+  const { data: campaignRows = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["wa-campaign-names"],
+    queryFn: async () => {
+      const { data } = await supabase.from("campaigns").select("id, name").limit(200);
+      return (data as { id: string; name: string }[] | null) ?? [];
+    },
+    staleTime: 60000,
+  });
+  const campaignNames = useMemo(
+    () => new Map(campaignRows.map((c) => [c.id, c.name])),
+    [campaignRows],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Só contatos com histórico de WhatsApp OU em cadência ativa.
@@ -466,7 +480,14 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary/70" />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{selected.name}</div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-semibold">{selected.name}</span>
+                    {selected.conversation_origin === CAMPAIGN_ORIGIN && (
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        Origem: Disparo{campaignNames.get(selected.origin_campaign_id ?? "") ? ` · ${campaignNames.get(selected.origin_campaign_id ?? "")}` : ""}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {[selected.company_name, selected.whatsapp ?? selected.phone].filter(Boolean).join(" · ") || "—"}
                   </div>
