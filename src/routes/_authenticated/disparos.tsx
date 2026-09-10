@@ -222,7 +222,7 @@ function Disparos() {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Salvar mensagem
+                  Salvar disparo
                 </Button>
                 {saved.length > 0 && (
                   <Select
@@ -230,14 +230,12 @@ function Disparos() {
                     onValueChange={(id) => {
                       const t = saved.find((s) => s.id === id);
                       if (!t) return;
-                      setName(t.category.replace(SAVED_PREFIX, ""));
-                      setBody(t.content);
-                      setPreview(null);
-                      toast.success("Mensagem carregada.");
+                      loadSaved(t.content, t.category.replace(SAVED_PREFIX, ""));
+                      toast.success("Disparo carregado.");
                     }}
                   >
                     <SelectTrigger className="h-9 w-full sm:w-64">
-                      <SelectValue placeholder="Usar mensagem salva" />
+                      <SelectValue placeholder="Usar disparo salvo" />
                     </SelectTrigger>
                     <SelectContent>
                       {saved.map((s) => (
