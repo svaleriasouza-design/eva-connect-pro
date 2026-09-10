@@ -82,7 +82,15 @@ function Cadencias() {
 
   async function addDay() {
     const day = Math.min(30, nextDay);
-    await persistStep({ day, script: "", ai_instructions: "", active: true });
+    await persistStep({
+      day,
+      script: "",
+      ai_instructions: "",
+      active: true,
+      reply_type: "texto",
+      audio_path: null,
+      audio_name: null,
+    });
     toast.success(`Dia ${day} adicionado`);
   }
 
