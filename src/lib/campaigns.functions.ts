@@ -40,6 +40,7 @@ const draftSchema = z.object({
   batchSize: z.number().int().min(1).max(500).default(50),
   aiInstructions: z.string().optional().nullable(),
   draftConfig: z.record(z.string(), z.unknown()).default({}),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
 });
 
 const scheduleSchema = draftSchema.extend({
