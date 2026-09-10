@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
+import { listWhatsappNumbersFn } from "@/lib/wa-numbers.functions";
 import { useAccess } from "@/hooks/use-access";
 import { isEligibleForAttendance, CAMPAIGN_ORIGIN } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ type ContactRow = {
   bot_reason: string | null;
   conversation_origin?: string | null;
   origin_campaign_id?: string | null;
+  whatsapp_number_id?: string | null;
 };
 
 type ConvFilter = "todas" | "responderam" | "aguardando" | "manual" | "robos";
@@ -77,6 +79,8 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConvFilter>("todas");
+  // Divisão dinâmica por número (chip) responsável pela conversa.
+  const [chip, setChip] = useState<string>("todos");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -112,13 +116,27 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id, whatsapp_number_id")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
     },
     refetchInterval: 15000,
   });
+
+  // Números ativos cadastrados em Configurações — geram automaticamente uma
+  // divisão de Atendimento para cada chip (quantidade dinâmica).
+  const listNumbersFn = useServerFn(listWhatsappNumbersFn);
+  const { data: numbers = [] } = useQuery({
+    queryKey: ["wa-numbers-tabs"],
+    queryFn: async () => {
+      const rows = await listNumbersFn();
+      return (rows as any[]).filter((n) => n.active);
+    },
+    staleTime: 60000,
+  });
+
+
 
   const { data: recentActs = [] } = useQuery<ActivityRow[]>({
     queryKey: ["wa-recent-acts"],
@@ -175,6 +193,12 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
         ? c.conversation_origin === CAMPAIGN_ORIGIN
         : c.conversation_origin !== CAMPAIGN_ORIGIN,
     );
+    // Cada conversa aparece só na divisão do número (chip) responsável por ela.
+    if (chip !== "todos") {
+      list = chip === "sem-numero"
+        ? list.filter((c) => !c.whatsapp_number_id)
+        : list.filter((c) => c.whatsapp_number_id === chip);
+    }
     list = list.filter((c) => {
       const m = meta.get(c.id);
       if (filter === "robos") return Boolean(c.is_bot);
@@ -204,10 +228,18 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
       const lb = meta.get(b.id)?.last?.created_at ?? b.last_contact_at ?? "";
       return lb.localeCompare(la);
     });
-  }, [contacts, search, meta, filter, origin]);
+  }, [contacts, search, meta, filter, origin, chip]);
+
+  // Número inativado/removido em Configurações deixa de ter divisão própria.
+  useEffect(() => {
+    if (chip === "todos" || chip === "sem-numero") return;
+    if (numbers.length > 0 && !numbers.some((n: any) => n.id === chip)) setChip("todos");
+  }, [numbers, chip]);
+
 
   useEffect(() => {
-    if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
+    if (filtered.length === 0) return;
+    if (!selectedId || !filtered.some((c) => c.id === selectedId)) setSelectedId(filtered[0].id);
   }, [filtered, selectedId]);
 
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
@@ -388,6 +420,23 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{filtered.length}</span>
         </div>
         <div className="space-y-2.5 px-3 py-3">
+          {numbers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {([["todos", "Todos os números"] as [string, string]])
+                .concat(numbers.map((n: any, i: number) => [n.id, `Atendimento ${i + 1} — ${n.label}`] as [string, string]))
+                .concat(contacts.some((c) => !c.whatsapp_number_id) ? [["sem-numero", "Sem número"] as [string, string]] : [])
+                .map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setChip(key)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${chip === key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+            </div>
+          )}
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato…" className="h-9 rounded-xl border-transparent bg-muted/60 pl-8 text-sm" />
