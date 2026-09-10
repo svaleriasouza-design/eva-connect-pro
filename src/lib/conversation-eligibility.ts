@@ -15,7 +15,10 @@
 
 /** Colunas mínimas necessárias para avaliar a elegibilidade. */
 export const ELIGIBILITY_COLUMNS =
-  "id, name, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at, last_outbound_at";
+  "id, name, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at, last_outbound_at, conversation_origin, origin_campaign_id";
+
+/** Origem de conversa criada pelos Disparos (campanhas) — fica na aba WhatsApp. */
+export const CAMPAIGN_ORIGIN = "disparo";
 
 /** Status de contato que indicam conversa encerrada / sem interesse. */
 export const CLOSED_CONTACT_STATUSES = ["perdido", "encerrado", "descartado", "automacao"] as const;
@@ -40,6 +43,7 @@ export type EligibilityContact = {
   sales_stage?: string | null;
   human_takeover?: boolean | null;
   last_inbound_at?: string | null;
+  conversation_origin?: string | null;
 };
 
 function isClosedStage(v?: string | null) {
