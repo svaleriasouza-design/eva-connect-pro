@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -10,8 +10,11 @@ import {
   runCadenceNowFn,
   startCadenceForAllEligibleFn,
   getCadenceStatsFn,
+  uploadCadenceAudioFn,
+  getCadenceAudioUrlFn,
   type CadenceStep,
   type CadenceSettings,
+  type CadenceReplyType,
 } from "@/lib/cadence.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CadenceFailuresCard } from "@/components/cadence-failures-card";
@@ -22,7 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare, Rocket } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare, Rocket, Music } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cadencias")({ component: Cadencias });
