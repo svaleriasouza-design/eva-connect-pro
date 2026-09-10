@@ -416,84 +416,92 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
         <div>
           <Label className="text-xs">Mensagem enviada neste dia</Label>
           <Textarea rows={6} value={script} onChange={(e) => setScript(e.target.value)} placeholder="Use {{nome}} para o primeiro nome do contato…" />
-          <div className="mt-1 text-[11px] text-muted-foreground">Variáveis: {"{{nome}}"}</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            Variáveis: {"{{nome}}"} · esta mensagem é sempre enviada como texto (template da Meta).
+          </div>
         </div>
-        <div>
-          <Label className="text-xs flex items-center gap-1"><Sparkles className="h-3 w-3 text-[color:var(--gold)]" /> Instruções para a EVA responder</Label>
-          <Textarea rows={6} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Ex.: Se o cliente perguntar preço, diga que enviaremos a proposta e proponha reunião de 15 min. Se pedir para não receber mais, encerre educadamente." />
-          <div className="mt-1 text-[11px] text-muted-foreground">A EVA usa estas regras quando o cliente responde neste dia.</div>
-        </div>
-      </div>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs flex items-center gap-1"><Sparkles className="h-3 w-3 text-[color:var(--gold)]" /> Instruções para a EVA responder</Label>
+            <Textarea rows={6} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Ex.: Se o cliente perguntar preço, diga que enviaremos a proposta e proponha reunião de 15 min. Se pedir para não receber mais, encerre educadamente." />
+            <div className="mt-1 text-[11px] text-muted-foreground">A EVA usa estas regras quando o cliente responde neste dia.</div>
+          </div>
 
-      <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-        <div>
-          <Label className="text-xs">Tipo de resposta</Label>
-          <RadioGroup
-            className="mt-2 flex flex-wrap gap-4"
-            value={replyType}
-            onValueChange={(v) => setReplyType(v as CadenceReplyType)}
-          >
-            {[
-              { v: "texto", l: "Texto" },
-              { v: "audio", l: "Áudio" },
-              { v: "texto_audio", l: "Texto + Áudio" },
-            ].map((o) => (
-              <label key={o.v} className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value={o.v} id={`rt-${step.day}-${o.v}`} />
-                {o.l}
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div>
+              <Label className="text-xs">Como a EVA responde neste dia</Label>
+              <RadioGroup
+                className="mt-2 flex flex-wrap gap-4"
+                value={replyType}
+                onValueChange={(v) => setReplyType(v as CadenceReplyType)}
+              >
+                {[
+                  { v: "texto", l: "Texto" },
+                  { v: "audio", l: "Áudio" },
+                  { v: "texto_audio", l: "Texto + Áudio" },
+                ].map((o) => (
+                  <label key={o.v} className="flex items-center gap-2 text-sm">
+                    <RadioGroupItem value={o.v} id={`rt-${step.day}-${o.v}`} />
+                    {o.l}
+                  </label>
+                ))}
+              </RadioGroup>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                Vale só para a resposta automática da EVA quando o cliente responder — não altera a mensagem do disparo.
+              </div>
+            </div>
 
-        {needsAudio && (
-          <div className="space-y-2">
-            <Label className="text-xs">Áudio desta etapa</Label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="audio/mpeg,audio/mp3,audio/ogg,audio/mp4,audio/aac,audio/amr,audio/x-m4a,.mp3,.ogg,.m4a,.aac,.amr"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void pickAudio(f);
-              }}
-            />
-            {!audioPath ? (
-              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                {uploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
-                Adicionar áudio
-              </Button>
-            ) : (
+            {needsAudio && (
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <Music className="h-4 w-4 text-[color:var(--gold)]" />
-                  <span className="truncate">{audioName ?? audioPath.split("/").pop()}</span>
-                  <Button size="sm" variant="outline" onClick={playAudio}>
-                    <Play className="mr-1 h-3 w-3" /> Reproduzir
+                <Label className="text-xs">Áudio da resposta da EVA</Label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/ogg,audio/mp4,audio/aac,audio/amr,audio/x-m4a,.mp3,.ogg,.m4a,.aac,.amr"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void pickAudio(f);
+                  }}
+                />
+                {!audioPath ? (
+                  <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                    {uploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                    Adicionar áudio
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setAudioPath(null);
-                      setAudioName(null);
-                      setAudioUrl(null);
-                    }}
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" /> Remover
-                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Music className="h-4 w-4 text-[color:var(--gold)]" />
+                      <span className="truncate">{audioName ?? audioPath.split("/").pop()}</span>
+                      <Button size="sm" variant="outline" onClick={playAudio}>
+                        <Play className="mr-1 h-3 w-3" /> Reproduzir
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setAudioPath(null);
+                          setAudioName(null);
+                          setAudioUrl(null);
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" /> Remover
+                      </Button>
+                    </div>
+                    {audioUrl && <audio controls src={audioUrl} className="w-full max-w-sm" />}
+                  </div>
+                )}
+                <div className="text-[11px] text-muted-foreground">
+                  Formatos aceitos pelo WhatsApp: MP3, OGG/Opus, M4A (AAC) ou AMR. O arquivo é guardado uma única vez e
+                  reutilizado nas respostas deste dia.
                 </div>
-                {audioUrl && <audio controls src={audioUrl} className="w-full max-w-sm" />}
               </div>
             )}
-            <div className="text-[11px] text-muted-foreground">
-              Formatos aceitos pelo WhatsApp: MP3, OGG/Opus, M4A (AAC) ou AMR. O arquivo é guardado uma única vez e
-              reutilizado em todos os contatos deste dia.
-            </div>
           </div>
-        )}
+        </div>
       </div>
+
     </div>
   );
 }
