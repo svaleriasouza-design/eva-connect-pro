@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import evaLogo from "@/assets/eva-logo.png";
 import { useAccess } from "@/hooks/use-access";
-import { Megaphone } from "lucide-react";
+import { Megaphone, BookMarked } from "lucide-react";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -41,6 +41,7 @@ const items = [
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Cadências", url: "/cadencias", icon: KanbanSquare },
   { title: "Disparos", url: "/disparos", icon: Megaphone },
+  { title: "Campanhas", url: "/campanhas", icon: BookMarked },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Funil", url: "/funil", icon: KanbanSquare },
