@@ -405,7 +405,7 @@ function Disparos() {
               <div key={c.id} className="rounded-md border p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{c.name}</span>
-                  <Badge variant="outline">{c.status}</Badge>
+                  <Badge variant="outline">{STATUS_LABEL[c.status] ?? c.status}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {c.sent_count}/{c.total_targets} enviadas · {c.failed_count} falhas
                   </span>
@@ -413,20 +413,51 @@ function Disparos() {
                 <div className="text-xs text-muted-foreground">
                   Números: {c.numbers.map((n: any) => n.label).join(", ")}
                 </div>
+                {c.scheduled_at && (
+                  <div className="text-xs text-muted-foreground">
+                    Início programado: <strong>{fmtWhen(c.scheduled_at)}</strong>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => onRun(c.id)} disabled={running === c.id || c.status === "done" || c.status === "paused"}>
+                  <Button
+                    size="sm"
+                    onClick={() => onRun(c.id)}
+                    disabled={
+                      running === c.id ||
+                      c.status === "done" ||
+                      c.status === "paused" ||
+                      c.status === "draft" ||
+                      c.status === "cancelled"
+                    }
+                  >
                     {running === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-                    Processar lote
+                    Enviar agora (1 lote)
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={c.status === "done" || c.status === "cancelled"}
                     onClick={async () => {
-                      await statusFn({ data: { campaignId: c.id, status: c.status === "paused" ? "ready" : "paused" } });
+                      await statusFn({
+                        data: { campaignId: c.id, status: c.status === "paused" ? "scheduled" : "paused" },
+                      });
                       qc.invalidateQueries({ queryKey: ["campaigns"] });
+                      toast.success(c.status === "paused" ? "Disparo retomado." : "Disparo pausado.");
                     }}
                   >
                     <Pause className="mr-1 h-3 w-3" /> {c.status === "paused" ? "Retomar" : "Pausar"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={c.status === "cancelled" || c.status === "done"}
+                    onClick={async () => {
+                      await statusFn({ data: { campaignId: c.id, status: "cancelled" } });
+                      qc.invalidateQueries({ queryKey: ["campaigns"] });
+                      toast.success("Disparo cancelado.");
+                    }}
+                  >
+                    <X className="mr-1 h-3 w-3" /> Cancelar
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => onDetail(c.id)}>Ver por número</Button>
                 </div>
