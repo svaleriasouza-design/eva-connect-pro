@@ -432,10 +432,17 @@ export async function autoReplyToInbound(params: {
   const day = Math.max(1, params.currentDay || 1);
   const { data: stepRow } = await (admin as any)
     .from("cadence_steps")
-    .select("script, ai_instructions")
+    .select("script, ai_instructions, reply_type, audio_path, audio_name")
     .eq("day", day)
     .maybeSingle();
-  const step = (stepRow ?? {}) as { script?: string; ai_instructions?: string };
+  const step = (stepRow ?? {}) as {
+    script?: string;
+    ai_instructions?: string;
+    reply_type?: string | null;
+    audio_path?: string | null;
+    audio_name?: string | null;
+  };
+
 
   // Fallback: se o dia atual não tiver instrução, usa a primeira instrução cadastrada.
   let instructions = (step.ai_instructions ?? "").trim();
