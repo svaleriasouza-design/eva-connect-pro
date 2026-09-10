@@ -304,15 +304,52 @@ export async function runCadenceBatch(
     }
     const body = renderScript(tpl, { nome: firstName(c.name ?? "") });
 
-    const send = await sendAndLog({
-      workspaceId,
-      to,
-      body,
-      contactId: c.id,
-      title: `Cadência Dia ${nextDay} (${slot === "morning" ? "manhã" : "tarde"})`,
-      tag: `cadence-day-${nextDay}-${slot}`,
-      templateName: templateForDay(nextDay),
-    });
+    const step = stepByDay.get(nextDay);
+    const replyType = (step?.reply_type ?? "texto") as string;
+    const audioPath = step?.audio_path ?? null;
+    const wantsAudio = Boolean(audioPath) && (replyType === "audio" || replyType === "texto_audio");
+    const slotLabel = slot === "morning" ? "manhã" : "tarde";
+    const title = `Cadência Dia ${nextDay} (${slotLabel})`;
+
+    const sendText = () =>
+      sendAndLog({
+        workspaceId,
+        to,
+        body,
+        contactId: c.id,
+        title,
+        tag: `cadence-day-${nextDay}-${slot}`,
+        templateName: templateForDay(nextDay),
+      });
+
+    let send: Awaited<ReturnType<typeof sendAndLog>>;
+    if (wantsAudio && replyType === "audio") {
+      // Somente áudio: se a janela de 24h estiver fechada a Meta recusa áudio,
+      // então o texto/template do dia é usado para não travar a etapa.
+      const audio = await sendStepAudio({
+        workspaceId,
+        to,
+        contactId: c.id,
+        audioPath: audioPath!,
+        title: `${title} — áudio`,
+        tag: `cadence-day-${nextDay}-${slot}-audio`,
+      });
+      send = audio.ok ? (audio as any) : await sendText();
+    } else {
+      send = await sendText();
+      if (send.ok && wantsAudio) {
+        // Texto + Áudio: o áudio é complementar; falha nele não desfaz a etapa.
+        const audio = await sendStepAudio({
+          workspaceId,
+          to,
+          contactId: c.id,
+          audioPath: audioPath!,
+          title: `${title} — áudio`,
+          tag: `cadence-day-${nextDay}-${slot}-audio`,
+        });
+        if (!audio.ok && audio.error) result.errors.push(`${c.name} (áudio): ${audio.error}`);
+      }
+    }
     if (send.ok) {
       result.sent++;
       if (nextDay === 1) result.newLeads++;
