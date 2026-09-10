@@ -197,7 +197,8 @@ export async function saveDraftCampaign(input: DraftInput) {
     body: input.body,
     number_ids: input.numberIds,
     batch_size: input.batchSize ?? 50,
-    ai_instructions: (input.aiInstructions ?? "").trim(),
+    // Sem trim: o texto é gravado exatamente como foi escrito.
+    ai_instructions: input.aiInstructions ?? "",
     draft_config: input.draftConfig ?? {},
     status: "draft",
     scheduled_at: null,
@@ -281,7 +282,7 @@ export async function scheduleDraftCampaign(params: {
       body: params.body,
       number_ids: built.chosenIds,
       batch_size: params.batchSize ?? 50,
-      ai_instructions: (params.aiInstructions ?? "").trim(),
+      ai_instructions: params.aiInstructions ?? "",
       draft_config: params.draftConfig ?? {},
       total_targets: built.total,
       status: "scheduled",
