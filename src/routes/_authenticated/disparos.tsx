@@ -606,6 +606,14 @@ function Disparos() {
                   >
                     <X className="mr-1 h-3 w-3" /> Cancelar
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0}
+                    onClick={() => onEditCampaign(c)}
+                  >
+                    <Pencil className="mr-1 h-3 w-3" /> Editar disparo
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => onDetail(c.id)}>Ver por número</Button>
                 </div>
                 {detail !== null && detail.id === c.id && (
