@@ -220,6 +220,26 @@ export async function routeInbound(params: {
     console.error("[inbound-router] scheduling failed", err);
   }
 
+  // Conversa originada de um DISPARO com instrução própria: responde usando
+  // apenas aquela instrução, sem envolver a cadência de 5 dias.
+  try {
+    const { loadCampaignReplyContext, replyWithCampaignInstructions } = await import("./campaign-reply.server");
+    const campaign = await loadCampaignReplyContext(db, params.contactId);
+    if (campaign) {
+      const status = await replyWithCampaignInstructions({
+        workspaceId: wid,
+        contactId: params.contactId,
+        contactName: params.contactName,
+        to: params.phone,
+        incomingText: grouped,
+        campaign,
+      });
+      return `campaign_reply:${status}`;
+    }
+  } catch (err) {
+    console.error("[inbound-router] campaign reply failed", err);
+  }
+
   const { autoReplyToInbound } = await import("./cadence-runner.server");
   const status = await autoReplyToInbound({
     workspaceId: wid,

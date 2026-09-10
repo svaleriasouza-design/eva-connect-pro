@@ -74,6 +74,8 @@ export type CreateCampaignInput = {
   filter: ContactFilter;
   strategy?: DistributionStrategy;
   batchSize?: number;
+  /** Como a EVA deve responder às respostas DESTE disparo (opcional). */
+  aiInstructions?: string | null;
   createdBy?: string | null;
   createdByName?: string | null;
 };
@@ -102,6 +104,7 @@ export async function createCampaign(input: CreateCampaignInput) {
       number_ids: chosen.map((n) => n.id),
       total_targets: contacts.length,
       batch_size: input.batchSize ?? 50,
+      ai_instructions: (input.aiInstructions ?? "").trim(),
       created_by: input.createdBy ?? null,
       created_by_name: input.createdByName ?? null,
     })
@@ -204,6 +207,15 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
               sent_at: new Date().toISOString(),
             })
             .eq("id", t.id);
+          // Origem da conversa = disparo (respostas ficam na aba WhatsApp).
+          // Não mexe em contatos que estão na cadência automática de 5 dias.
+          if (res.ok && t.contact_id) {
+            await db
+              .from("contacts")
+              .update({ conversation_origin: "disparo", origin_campaign_id: campaignId })
+              .eq("id", t.contact_id)
+              .or("cadence_active.is.null,cadence_active.eq.false");
+          }
           if (res.ok) sent++;
           else failed++;
         } catch (err) {

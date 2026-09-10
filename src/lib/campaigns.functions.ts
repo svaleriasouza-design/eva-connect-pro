@@ -25,6 +25,7 @@ const createSchema = z.object({
   filter: filterSchema.default({}),
   strategy: z.enum(["balanced"]).default("balanced"),
   batchSize: z.number().int().min(1).max(500).default(50),
+  aiInstructions: z.string().trim().max(4000).optional().nullable(),
 });
 
 /** Prévia da distribuição: quantos contatos e quanto vai para cada número. */
@@ -65,6 +66,7 @@ export const createCampaignFn = createServerFn({ method: "POST" })
       filter: data.filter,
       strategy: data.strategy,
       batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
       createdBy: context.userId,
       createdByName: name,
     });

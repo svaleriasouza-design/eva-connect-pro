@@ -15,7 +15,10 @@
 
 /** Colunas mínimas necessárias para avaliar a elegibilidade. */
 export const ELIGIBILITY_COLUMNS =
-  "id, name, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at, last_outbound_at";
+  "id, name, is_bot, do_not_contact, status, funnel_stage, presale_stage, sales_stage, human_takeover, last_inbound_at, last_outbound_at, conversation_origin, origin_campaign_id";
+
+/** Origem de conversa criada pelos Disparos (campanhas) — fica na aba WhatsApp. */
+export const CAMPAIGN_ORIGIN = "disparo";
 
 /** Status de contato que indicam conversa encerrada / sem interesse. */
 export const CLOSED_CONTACT_STATUSES = ["perdido", "encerrado", "descartado", "automacao"] as const;
@@ -40,6 +43,7 @@ export type EligibilityContact = {
   sales_stage?: string | null;
   human_takeover?: boolean | null;
   last_inbound_at?: string | null;
+  conversation_origin?: string | null;
 };
 
 function isClosedStage(v?: string | null) {
@@ -49,8 +53,10 @@ function isClosedStage(v?: string | null) {
 /** Regra central: este contato precisa de atendimento humano? */
 export function isEligibleForAttendance(
   c: EligibilityContact,
-  opts: { requireInbound?: boolean; ignoreTakeover?: boolean } = {},
+  opts: { requireInbound?: boolean; ignoreTakeover?: boolean; includeCampaignOrigin?: boolean } = {},
 ): boolean {
+  // Conversas originadas de Disparos ficam na aba WhatsApp, fora do Atendimento.
+  if (!opts.includeCampaignOrigin && c.conversation_origin === CAMPAIGN_ORIGIN) return false;
   if (c.is_bot) return false;
   if (c.do_not_contact) return false;
   if ((CLOSED_CONTACT_STATUSES as readonly string[]).includes(String(c.status ?? ""))) return false;
@@ -64,7 +70,10 @@ export function isEligibleForAttendance(
  * Aplica a mesma regra diretamente numa consulta ao banco (PostgREST),
  * para que a filtragem aconteça na origem dos dados e não só na tela.
  */
-export function applyEligibilityFilters(q: any, opts: { ignoreTakeover?: boolean } = {}) {
+export function applyEligibilityFilters(
+  q: any,
+  opts: { ignoreTakeover?: boolean; includeCampaignOrigin?: boolean } = {},
+) {
   const statuses = CLOSED_CONTACT_STATUSES.join(",");
   const stages = CLOSED_STAGES.join(",");
   // Cada .or() é somado com AND; a variante ".is.null" preserva contatos sem
@@ -78,5 +87,8 @@ export function applyEligibilityFilters(q: any, opts: { ignoreTakeover?: boolean
     .or(`presale_stage.is.null,presale_stage.not.in.(${stages})`)
     .or(`sales_stage.is.null,sales_stage.not.in.(${stages})`);
   if (!opts.ignoreTakeover) out = out.or("human_takeover.is.null,human_takeover.eq.false");
+  if (!opts.includeCampaignOrigin) {
+    out = out.or(`conversation_origin.is.null,conversation_origin.neq.${CAMPAIGN_ORIGIN}`);
+  }
   return out;
 }

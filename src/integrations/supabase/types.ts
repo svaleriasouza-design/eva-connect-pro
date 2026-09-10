@@ -267,6 +267,7 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          ai_instructions: string
           batch_size: number
           body: string
           created_at: string
@@ -286,6 +287,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          ai_instructions?: string
           batch_size?: number
           body: string
           created_at?: string
@@ -305,6 +307,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          ai_instructions?: string
           batch_size?: number
           body?: string
           created_at?: string
@@ -455,6 +458,7 @@ export type Database = {
           city: string | null
           company_id: string | null
           company_name: string | null
+          conversation_origin: string | null
           created_at: string
           deleted_at: string | null
           do_not_contact: boolean
@@ -479,6 +483,7 @@ export type Database = {
           next_action_at: string | null
           notes: string | null
           origin: string | null
+          origin_campaign_id: string | null
           phone: string | null
           presale_stage: string | null
           profession: string | null
@@ -501,6 +506,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           company_name?: string | null
+          conversation_origin?: string | null
           created_at?: string
           deleted_at?: string | null
           do_not_contact?: boolean
@@ -525,6 +531,7 @@ export type Database = {
           next_action_at?: string | null
           notes?: string | null
           origin?: string | null
+          origin_campaign_id?: string | null
           phone?: string | null
           presale_stage?: string | null
           profession?: string | null
@@ -547,6 +554,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           company_name?: string | null
+          conversation_origin?: string | null
           created_at?: string
           deleted_at?: string | null
           do_not_contact?: boolean
@@ -571,6 +579,7 @@ export type Database = {
           next_action_at?: string | null
           notes?: string | null
           origin?: string | null
+          origin_campaign_id?: string | null
           phone?: string | null
           presale_stage?: string | null
           profession?: string | null
@@ -596,6 +605,13 @@ export type Database = {
             columns: ["import_batch_id"]
             isOneToOne: false
             referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_origin_campaign_id_fkey"
+            columns: ["origin_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
           {

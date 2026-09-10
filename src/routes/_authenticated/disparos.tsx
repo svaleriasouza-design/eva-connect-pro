@@ -60,6 +60,7 @@ function Disparos() {
   const [stage, setStage] = useState<string>("todos");
   const [q, setQ] = useState("");
   const [batchSize, setBatchSize] = useState(50);
+  const [aiInstructions, setAiInstructions] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [preview, setPreview] = useState<null | { total: number; distribution: { id: string; label: string; count: number }[] }>(null);
   const [busy, setBusy] = useState(false);
@@ -90,13 +91,22 @@ function Disparos() {
     }
     setBusy(true);
     const res: any = await createFn({
-      data: { name, body, numberIds: selected, filter, strategy: "balanced", batchSize },
+      data: {
+        name,
+        body,
+        numberIds: selected,
+        filter,
+        strategy: "balanced",
+        batchSize,
+        aiInstructions: aiInstructions.trim() || null,
+      },
     });
     setBusy(false);
     if (res?.ok) {
       toast.success(`Disparo criado · ${res.total} contatos distribuídos entre ${res.per.length} número(s).`);
       setName("");
       setBody("");
+      setAiInstructions("");
       setPreview(null);
       qc.invalidateQueries({ queryKey: ["campaigns"] });
     } else toast.error(res?.error || "Falha ao criar o disparo.");
@@ -139,6 +149,18 @@ function Disparos() {
             <div className="space-y-1">
               <Label>Mensagem</Label>
               <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Texto que será enviado…" />
+            </div>
+            <div className="space-y-1">
+              <Label>Como a EVA deve responder?</Label>
+              <Textarea
+                rows={4}
+                value={aiInstructions}
+                onChange={(e) => setAiInstructions(e.target.value)}
+                placeholder="Descreva como a EVA deve se comportar quando alguém responder a este disparo..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Defina o comportamento da EVA para as respostas recebidas nesta campanha.
+              </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">

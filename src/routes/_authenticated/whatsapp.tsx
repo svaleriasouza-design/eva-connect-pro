@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Trash2, MessageCircle, Info, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { WhatsappConversations } from "@/components/whatsapp-conversations";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({ component: WhatsApp });
 
@@ -24,13 +25,18 @@ function WhatsApp() {
       </div>
       <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground flex items-center gap-2">
         <MessagesSquare className="h-4 w-4 shrink-0" />
-        <span>As conversas agora ficam na aba <Link to="/atendimento" className="font-medium text-primary underline">Atendimento</Link>, com envio de texto e áudio.</span>
+        <span>
+          As conversas da cadência ficam na aba <Link to="/atendimento" className="font-medium text-primary underline">Atendimento</Link>.
+          As respostas de <strong>Disparos</strong> ficam aqui, na aba "Conversas de disparos".
+        </span>
       </div>
-      <Tabs defaultValue="cadencia">
+      <Tabs defaultValue="conversas">
         <TabsList>
+          <TabsTrigger value="conversas">Conversas de disparos</TabsTrigger>
           <TabsTrigger value="cadencia">Cadência</TabsTrigger>
           <TabsTrigger value="biblioteca">Biblioteca</TabsTrigger>
         </TabsList>
+        <TabsContent value="conversas"><WhatsappConversations origin="disparo" /></TabsContent>
         <TabsContent value="cadencia"><Cadencia /></TabsContent>
         <TabsContent value="biblioteca"><Biblioteca /></TabsContent>
       </Tabs>

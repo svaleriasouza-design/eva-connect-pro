@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
 import { useAccess } from "@/hooks/use-access";
-import { isEligibleForAttendance } from "@/lib/conversation-eligibility";
+import { isEligibleForAttendance, CAMPAIGN_ORIGIN } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ type ContactRow = {
   ai_paused: boolean | null;
   human_takeover: boolean | null;
   bot_reason: string | null;
+  conversation_origin?: string | null;
+  origin_campaign_id?: string | null;
 };
 
 type ConvFilter = "todas" | "responderam" | "aguardando" | "manual" | "robos";
@@ -65,7 +67,12 @@ function StatusIcon({ status }: { status: string | null }) {
   return null;
 }
 
-export function WhatsappConversations() {
+/**
+ * `origin`:
+ *  - "atendimento" (padrão) → conversas da cadência/atendimento (exclui Disparos);
+ *  - "disparo" → apenas conversas originadas dos Disparos (aba WhatsApp).
+ */
+export function WhatsappConversations({ origin = "atendimento" }: { origin?: "atendimento" | "disparo" } = {}) {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -105,7 +112,7 @@ export function WhatsappConversations() {
     queryFn: async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason")
+        .select("id, name, company_name, whatsapp, phone, funnel_stage, presale_stage, sales_stage, status, cadence_day, cadence_active, do_not_contact, main_pain, goal, next_action, last_contact_at, last_inbound_at, is_bot, ai_paused, human_takeover, bot_reason, conversation_origin, origin_campaign_id")
         .order("last_contact_at", { ascending: false, nullsFirst: false })
         .limit(300);
       return (data as ContactRow[] | null) ?? [];
@@ -144,17 +151,41 @@ export function WhatsappConversations() {
     return m;
   }, [recentActs]);
 
+  // Nome do disparo que originou cada conversa (identificação da origem).
+  const { data: campaignRows = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["wa-campaign-names"],
+    queryFn: async () => {
+      const { data } = await supabase.from("campaigns").select("id, name").limit(200);
+      return (data as { id: string; name: string }[] | null) ?? [];
+    },
+    staleTime: 60000,
+  });
+  const campaignNames = useMemo(
+    () => new Map(campaignRows.map((c) => [c.id, c.name])),
+    [campaignRows],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Só contatos com histórico de WhatsApp OU em cadência ativa.
     let list = contacts.filter((c) => meta.has(c.id) || c.cadence_active);
+    // Separação por origem: Disparos ficam na aba WhatsApp; cadência no Atendimento.
+    list = list.filter((c) =>
+      origin === "disparo"
+        ? c.conversation_origin === CAMPAIGN_ORIGIN
+        : c.conversation_origin !== CAMPAIGN_ORIGIN,
+    );
     list = list.filter((c) => {
       const m = meta.get(c.id);
       if (filter === "robos") return Boolean(c.is_bot);
       if (c.is_bot) return false;
       if (filter === "manual") return Boolean(c.ai_paused || c.human_takeover);
       // "Aguardando" = fila de atendimento: usa a regra central de elegibilidade.
-      if (filter === "aguardando") return Boolean(m?.unread) && isEligibleForAttendance(c as any, { ignoreTakeover: true });
+      if (filter === "aguardando")
+        return (
+          Boolean(m?.unread) &&
+          isEligibleForAttendance(c as any, { ignoreTakeover: true, includeCampaignOrigin: origin === "disparo" })
+        );
       if (filter === "responderam") return (m?.inbound ?? 0) > 0 && (m?.outbound ?? 0) > 0;
       return true;
     });
@@ -173,7 +204,7 @@ export function WhatsappConversations() {
       const lb = meta.get(b.id)?.last?.created_at ?? b.last_contact_at ?? "";
       return lb.localeCompare(la);
     });
-  }, [contacts, search, meta, filter]);
+  }, [contacts, search, meta, filter, origin]);
 
   useEffect(() => {
     if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
@@ -449,7 +480,14 @@ export function WhatsappConversations() {
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary/70" />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{selected.name}</div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-semibold">{selected.name}</span>
+                    {selected.conversation_origin === CAMPAIGN_ORIGIN && (
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        Origem: Disparo{campaignNames.get(selected.origin_campaign_id ?? "") ? ` · ${campaignNames.get(selected.origin_campaign_id ?? "")}` : ""}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {[selected.company_name, selected.whatsapp ?? selected.phone].filter(Boolean).join(" · ") || "—"}
                   </div>
