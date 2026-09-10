@@ -90,15 +90,51 @@ function Disparos() {
       return;
     }
     setSaving(true);
+    // Guarda todos os campos editáveis do disparo, não só a mensagem.
+    const payload = JSON.stringify({
+      __eva: 1,
+      name: name.trim(),
+      body: body.trim(),
+      aiInstructions,
+      stage,
+      q,
+      batchSize,
+      numberIds: selected,
+    });
     const { error } = await supabase
       .from("message_templates")
-      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: body.trim() });
+      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: payload });
     setSaving(false);
-    if (error) toast.error("Não foi possível salvar a mensagem.");
+    if (error) toast.error("Não foi possível salvar o disparo.");
     else {
-      toast.success("Mensagem salva.");
+      toast.success("Disparo salvo com todos os campos.");
       qc.invalidateQueries({ queryKey: ["saved-campaign-messages"] });
     }
+  }
+
+  function loadSaved(raw: string, fallbackName: string) {
+    let parsed: any = null;
+    try {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object" && p.__eva) parsed = p;
+    } catch {
+      parsed = null;
+    }
+    if (!parsed) {
+      // Modelos antigos guardavam apenas o texto da mensagem.
+      setName(fallbackName);
+      setBody(raw);
+      setPreview(null);
+      return;
+    }
+    setName(parsed.name ?? fallbackName);
+    setBody(parsed.body ?? "");
+    setAiInstructions(parsed.aiInstructions ?? "");
+    setStage(parsed.stage ?? "todos");
+    setQ(parsed.q ?? "");
+    setBatchSize(Number(parsed.batchSize) > 0 ? Number(parsed.batchSize) : 50);
+    setSelected(Array.isArray(parsed.numberIds) ? parsed.numberIds : []);
+    setPreview(null);
   }
 
   const filter = useMemo(
@@ -186,7 +222,7 @@ function Disparos() {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Salvar mensagem
+                  Salvar disparo
                 </Button>
                 {saved.length > 0 && (
                   <Select
@@ -194,14 +230,12 @@ function Disparos() {
                     onValueChange={(id) => {
                       const t = saved.find((s) => s.id === id);
                       if (!t) return;
-                      setName(t.category.replace(SAVED_PREFIX, ""));
-                      setBody(t.content);
-                      setPreview(null);
-                      toast.success("Mensagem carregada.");
+                      loadSaved(t.content, t.category.replace(SAVED_PREFIX, ""));
+                      toast.success("Disparo carregado.");
                     }}
                   >
                     <SelectTrigger className="h-9 w-full sm:w-64">
-                      <SelectValue placeholder="Usar mensagem salva" />
+                      <SelectValue placeholder="Usar disparo salvo" />
                     </SelectTrigger>
                     <SelectContent>
                       {saved.map((s) => (
