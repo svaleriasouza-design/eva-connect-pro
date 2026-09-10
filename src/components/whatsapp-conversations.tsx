@@ -47,6 +47,8 @@ type ContactRow = {
   ai_paused: boolean | null;
   human_takeover: boolean | null;
   bot_reason: string | null;
+  conversation_origin?: string | null;
+  origin_campaign_id?: string | null;
 };
 
 type ConvFilter = "todas" | "responderam" | "aguardando" | "manual" | "robos";
