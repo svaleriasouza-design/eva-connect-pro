@@ -91,13 +91,22 @@ function Disparos() {
     }
     setBusy(true);
     const res: any = await createFn({
-      data: { name, body, numberIds: selected, filter, strategy: "balanced", batchSize },
+      data: {
+        name,
+        body,
+        numberIds: selected,
+        filter,
+        strategy: "balanced",
+        batchSize,
+        aiInstructions: aiInstructions.trim() || null,
+      },
     });
     setBusy(false);
     if (res?.ok) {
       toast.success(`Disparo criado · ${res.total} contatos distribuídos entre ${res.per.length} número(s).`);
       setName("");
       setBody("");
+      setAiInstructions("");
       setPreview(null);
       qc.invalidateQueries({ queryKey: ["campaigns"] });
     } else toast.error(res?.error || "Falha ao criar o disparo.");
