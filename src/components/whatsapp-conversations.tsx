@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
 import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
+import { listWhatsappNumbersFn } from "@/lib/wa-numbers.functions";
 import { useAccess } from "@/hooks/use-access";
 import { isEligibleForAttendance, CAMPAIGN_ORIGIN } from "@/lib/conversation-eligibility";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ type ContactRow = {
   bot_reason: string | null;
   conversation_origin?: string | null;
   origin_campaign_id?: string | null;
+  whatsapp_number_id?: string | null;
 };
 
 type ConvFilter = "todas" | "responderam" | "aguardando" | "manual" | "robos";
