@@ -69,6 +69,37 @@ function Disparos() {
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Mensagens salvas para reutilizar nos disparos.
+  const { data: saved = [] } = useQuery({
+    queryKey: ["saved-campaign-messages"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("message_templates")
+        .select("id, category, content")
+        .like("category", `${SAVED_PREFIX}%`)
+        .order("created_at", { ascending: false });
+      return (data ?? []) as { id: string; category: string; content: string }[];
+    },
+  });
+
+  async function onSaveMessage() {
+    if (!name.trim() || !body.trim()) {
+      toast.error("Informe o nome e a mensagem antes de salvar.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("message_templates")
+      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: body.trim() });
+    setSaving(false);
+    if (error) toast.error("Não foi possível salvar a mensagem.");
+    else {
+      toast.success("Mensagem salva.");
+      qc.invalidateQueries({ queryKey: ["saved-campaign-messages"] });
+    }
+  }
 
   const filter = useMemo(
     () => ({ q: q.trim() || null, stage: stage === "todos" ? null : stage, batch: null }),
