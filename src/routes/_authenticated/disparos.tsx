@@ -121,11 +121,38 @@ function Disparos() {
     [stage, q, schedDate, schedTime, batchSize, selected],
   );
 
-  /** Salva como rascunho. Nunca envia, nunca agenda, e não limpa o formulário. */
+  const isScheduledEdit = Boolean(draftId) && editStatus !== "draft";
+
+  /** Data/horário agendados em campos separados (para reabrir na edição). */
+  function localParts(iso: string | null) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const p = (n: number) => String(n).padStart(2, "0");
+    return {
+      date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+      time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    };
+  }
+
+  /** Salva o disparo. Nunca envia e não limpa o formulário. */
   async function onSaveDraft() {
     if (!name.trim() || !body.trim()) {
       toast.error("Informe o nome e a mensagem antes de salvar.");
       return;
+    }
+    if (isScheduledEdit && selected.length === 0) {
+      toast.error("Selecione ao menos um número de envio.");
+      return;
+    }
+    let scheduledAt: string | null = null;
+    if (isScheduledEdit && schedDate && schedTime) {
+      const when = new Date(`${schedDate}T${schedTime}:00`);
+      if (Number.isNaN(when.getTime())) {
+        toast.error("Data ou horário inválidos.");
+        return;
+      }
+      scheduledAt = when.toISOString();
     }
     setSaving(true);
     try {
@@ -139,25 +166,33 @@ function Disparos() {
           batchSize,
           aiInstructions,
           draftConfig,
+          scheduledAt,
         },
       });
       if (res?.ok) {
         setDraftId(res.campaignId);
-        toast.success("Disparo salvo como rascunho.");
+        setEditStatus(res.status ?? "draft");
+        toast.success(
+          res.status && res.status !== "draft"
+            ? "Disparo atualizado — continua agendado."
+            : "Disparo salvo como rascunho.",
+        );
         qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
         qc.invalidateQueries({ queryKey: ["campaigns"] });
-      } else toast.error(res?.error || "Não foi possível salvar o rascunho.");
+      } else toast.error(res?.error || "Não foi possível salvar o disparo.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o rascunho.");
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o disparo.");
     } finally {
       setSaving(false);
     }
   }
 
-  /** Abre um rascunho para edição, recuperando todos os campos salvos. */
+  /** Abre um disparo (rascunho ou agendado) para edição, com todos os campos. */
   function loadDraft(d: any) {
     const cfg = (d.draft_config ?? {}) as any;
+    const sched = localParts(d.scheduled_at ?? null);
     setDraftId(d.id);
+    setEditStatus((d.status as string) ?? "draft");
     setName(d.name ?? "");
     setBody(d.body ?? "");
     setAiInstructions(d.ai_instructions ?? "");
@@ -165,10 +200,21 @@ function Disparos() {
     setQ(cfg.q ?? "");
     setBatchSize(Number(d.batch_size) > 0 ? Number(d.batch_size) : 50);
     setSelected(Array.isArray(d.number_ids) ? d.number_ids : []);
-    setSchedDate(cfg.schedDate ?? "");
-    setSchedTime(cfg.schedTime || "09:30");
+    setSchedDate(cfg.schedDate ?? sched?.date ?? "");
+    setSchedTime(cfg.schedTime || sched?.time || "09:30");
     setPreview(null);
     setConfirmation(null);
+  }
+
+  /** Editar pela lista "Disparos criados" — bloqueado se o envio já começou. */
+  function onEditCampaign(c: any) {
+    if (c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0) {
+      toast.error("Este disparo já está em andamento — não é possível editar.");
+      return;
+    }
+    loadDraft(c);
+    toast.success("Disparo aberto para edição.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function loadSaved(raw: string, fallbackName: string) {
