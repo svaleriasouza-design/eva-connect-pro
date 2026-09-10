@@ -277,7 +277,6 @@ function Cadencias() {
         </Card>
       </div>
 
-      <CadenceFailuresCard />
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">
