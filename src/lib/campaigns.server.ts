@@ -207,6 +207,15 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
               sent_at: new Date().toISOString(),
             })
             .eq("id", t.id);
+          // Origem da conversa = disparo (respostas ficam na aba WhatsApp).
+          // Não mexe em contatos que estão na cadência automática de 5 dias.
+          if (res.ok && t.contact_id) {
+            await db
+              .from("contacts")
+              .update({ conversation_origin: "disparo", origin_campaign_id: campaignId })
+              .eq("id", t.contact_id)
+              .or("cadence_active.is.null,cadence_active.eq.false");
+          }
           if (res.ok) sent++;
           else failed++;
         } catch (err) {
