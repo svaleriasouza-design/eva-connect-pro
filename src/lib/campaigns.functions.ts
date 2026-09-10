@@ -18,16 +18,34 @@ const previewSchema = z.object({
   filter: filterSchema.default({}),
 });
 
+// Sem limite de tamanho na mensagem e nas instruções da EVA (colunas TEXT).
 const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  body: z.string().trim().min(1).max(4000),
+  body: z.string().trim().min(1),
   numberIds: z.array(z.string().uuid()).min(1).max(50),
   filter: filterSchema.default({}),
   strategy: z.enum(["balanced"]).default("balanced"),
   batchSize: z.number().int().min(1).max(500).default(50),
-  aiInstructions: z.string().trim().max(4000).optional().nullable(),
+  aiInstructions: z.string().optional().nullable(),
   scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
   status: z.enum(["scheduled", "draft"]).default("scheduled"),
+});
+
+const draftSchema = z.object({
+  campaignId: z.string().uuid().optional().nullable(),
+  name: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(1),
+  numberIds: z.array(z.string().uuid()).max(50).default([]),
+  filter: filterSchema.default({}),
+  batchSize: z.number().int().min(1).max(500).default(50),
+  aiInstructions: z.string().optional().nullable(),
+  draftConfig: z.record(z.string(), z.unknown()).default({}),
+});
+
+const scheduleSchema = draftSchema.extend({
+  campaignId: z.string().uuid(),
+  numberIds: z.array(z.string().uuid()).min(1).max(50),
+  scheduledAt: z.string().datetime({ offset: true }),
 });
 
 /** Prévia da distribuição: quantos contatos e quanto vai para cada número. */
