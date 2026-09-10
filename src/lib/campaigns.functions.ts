@@ -66,6 +66,7 @@ export const createCampaignFn = createServerFn({ method: "POST" })
       filter: data.filter,
       strategy: data.strategy,
       batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
       createdBy: context.userId,
       createdByName: name,
     });

@@ -60,6 +60,7 @@ function Disparos() {
   const [stage, setStage] = useState<string>("todos");
   const [q, setQ] = useState("");
   const [batchSize, setBatchSize] = useState(50);
+  const [aiInstructions, setAiInstructions] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [preview, setPreview] = useState<null | { total: number; distribution: { id: string; label: string; count: number }[] }>(null);
   const [busy, setBusy] = useState(false);
