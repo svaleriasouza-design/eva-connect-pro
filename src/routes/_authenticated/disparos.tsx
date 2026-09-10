@@ -376,7 +376,9 @@ function Disparos() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
-            <CardTitle>{draftId ? "Editando rascunho" : "Novo disparo"}</CardTitle>
+            <CardTitle>
+              {!draftId ? "Novo disparo" : isScheduledEdit ? "Editando disparo agendado" : "Editando rascunho"}
+            </CardTitle>
             {draftId && (
               <Button variant="ghost" size="sm" onClick={onNewDraft}>
                 Novo disparo
