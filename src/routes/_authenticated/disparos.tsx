@@ -318,7 +318,14 @@ function Disparos() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Novo disparo</CardTitle></CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <CardTitle>{draftId ? "Editando rascunho" : "Novo disparo"}</CardTitle>
+            {draftId && (
+              <Button variant="ghost" size="sm" onClick={onNewDraft}>
+                Novo disparo
+              </Button>
+            )}
+          </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="space-y-1">
               <Label>Nome do disparo</Label>
@@ -328,14 +335,20 @@ function Disparos() {
               <Label>Mensagem</Label>
               <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Texto que será enviado…" />
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
+                <Button variant="outline" size="sm" onClick={onSaveDraft} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Salvar disparo
                 </Button>
-                {saved.length > 0 && (
+                {(drafts.length > 0 || saved.length > 0) && (
                   <Select
                     value=""
                     onValueChange={(id) => {
+                      const d = (drafts as any[]).find((x) => x.id === id);
+                      if (d) {
+                        loadDraft(d);
+                        toast.success("Rascunho carregado para edição.");
+                        return;
+                      }
                       const t = saved.find((s) => s.id === id);
                       if (!t) return;
                       loadSaved(t.content, t.category.replace(SAVED_PREFIX, ""));
@@ -343,9 +356,14 @@ function Disparos() {
                     }}
                   >
                     <SelectTrigger className="h-9 w-full sm:w-64">
-                      <SelectValue placeholder="Usar disparo salvo" />
+                      <SelectValue placeholder="Usar disparos salvos" />
                     </SelectTrigger>
                     <SelectContent>
+                      {(drafts as any[]).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          📝 {d.name}
+                        </SelectItem>
+                      ))}
                       {saved.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.category.replace(SAVED_PREFIX, "")}</SelectItem>
                       ))}
