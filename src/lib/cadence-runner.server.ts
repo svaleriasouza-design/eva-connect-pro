@@ -25,6 +25,46 @@ function templateForDay(day: number) {
   return `cadencia_dia_${day}`;
 }
 
+/**
+ * Envia o áudio configurado na etapa da cadência.
+ * O arquivo já está no bucket `whatsapp-audio` (upload único na configuração):
+ * aqui apenas baixamos os bytes e usamos o MESMO fluxo oficial de envio de áudio
+ * (`sendAudioAndLog` → Meta Cloud API), com o histórico gravado em `activities`.
+ */
+async function sendStepAudio(params: {
+  workspaceId: string;
+  to: string;
+  contactId: string;
+  audioPath: string;
+  title: string;
+  tag: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const dl = await supabaseAdmin.storage.from("whatsapp-audio").download(params.audioPath);
+    if (dl.error || !dl.data) return { ok: false, error: dl.error?.message ?? "Áudio da etapa não encontrado." };
+    const bytes = new Uint8Array(await dl.data.arrayBuffer());
+    const ext = params.audioPath.split(".").pop()?.toLowerCase() ?? "ogg";
+    const mime =
+      ext === "mp3" ? "audio/mpeg" : ext === "m4a" || ext === "aac" ? "audio/mp4" : ext === "amr" ? "audio/amr" : "audio/ogg";
+    const { sendAudioAndLog } = await import("./messaging.server");
+    const res = await sendAudioAndLog({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      contactId: params.contactId,
+      bytes,
+      mime,
+      storagePath: params.audioPath,
+      title: params.title,
+      tag: params.tag,
+      sendMode: "cadencia",
+    });
+    return { ok: res.ok, error: res.error };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Falha ao enviar o áudio da etapa." };
+  }
+}
+
 /** Encerra a cadência e agenda a reativação em 60 dias. */
 async function endCadence(admin: any, contactId: string, reason: string) {
   const in60 = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
@@ -156,13 +196,21 @@ export async function runCadenceBatch(
 
   const { data: steps } = await admin
     .from("cadence_steps")
-    .select("day, script, active")
+    .select("day, script, active, reply_type, audio_path, audio_name")
     .eq("active", true)
     .order("day", { ascending: true });
-  const stepList = (steps ?? []) as Array<{ day: number; script: string; active: boolean }>;
+  const stepList = (steps ?? []) as Array<{
+    day: number;
+    script: string;
+    active: boolean;
+    reply_type?: string | null;
+    audio_path?: string | null;
+    audio_name?: string | null;
+  }>;
   if (stepList.length === 0) return result;
   const maxDay = stepList[stepList.length - 1].day;
   const scriptByDay = new Map<number, string>(stepList.map((s) => [s.day, s.script]));
+  const stepByDay = new Map<number, (typeof stepList)[number]>(stepList.map((s) => [s.day, s]));
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -296,15 +344,52 @@ export async function runCadenceBatch(
     }
     const body = renderScript(tpl, { nome: firstName(c.name ?? "") });
 
-    const send = await sendAndLog({
-      workspaceId,
-      to,
-      body,
-      contactId: c.id,
-      title: `Cadência Dia ${nextDay} (${slot === "morning" ? "manhã" : "tarde"})`,
-      tag: `cadence-day-${nextDay}-${slot}`,
-      templateName: templateForDay(nextDay),
-    });
+    const step = stepByDay.get(nextDay);
+    const replyType = (step?.reply_type ?? "texto") as string;
+    const audioPath = step?.audio_path ?? null;
+    const wantsAudio = Boolean(audioPath) && (replyType === "audio" || replyType === "texto_audio");
+    const slotLabel = slot === "morning" ? "manhã" : "tarde";
+    const title = `Cadência Dia ${nextDay} (${slotLabel})`;
+
+    const sendText = () =>
+      sendAndLog({
+        workspaceId,
+        to,
+        body,
+        contactId: c.id,
+        title,
+        tag: `cadence-day-${nextDay}-${slot}`,
+        templateName: templateForDay(nextDay),
+      });
+
+    let send: Awaited<ReturnType<typeof sendAndLog>>;
+    if (wantsAudio && replyType === "audio") {
+      // Somente áudio: se a janela de 24h estiver fechada a Meta recusa áudio,
+      // então o texto/template do dia é usado para não travar a etapa.
+      const audio = await sendStepAudio({
+        workspaceId,
+        to,
+        contactId: c.id,
+        audioPath: audioPath!,
+        title: `${title} — áudio`,
+        tag: `cadence-day-${nextDay}-${slot}-audio`,
+      });
+      send = audio.ok ? (audio as any) : await sendText();
+    } else {
+      send = await sendText();
+      if (send.ok && wantsAudio) {
+        // Texto + Áudio: o áudio é complementar; falha nele não desfaz a etapa.
+        const audio = await sendStepAudio({
+          workspaceId,
+          to,
+          contactId: c.id,
+          audioPath: audioPath!,
+          title: `${title} — áudio`,
+          tag: `cadence-day-${nextDay}-${slot}-audio`,
+        });
+        if (!audio.ok && audio.error) result.errors.push(`${c.name} (áudio): ${audio.error}`);
+      }
+    }
     if (send.ok) {
       result.sent++;
       if (nextDay === 1) result.newLeads++;

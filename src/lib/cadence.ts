@@ -23,6 +23,24 @@ export function isWeekendIn(timezone = "America/Sao_Paulo"): boolean {
   return wd === "Sat" || wd === "Sun";
 }
 
+/** Status que representam envio NÃO realizado (falha), em qualquer variação. */
+export function isFailedStatus(status?: string | null): boolean {
+  const s = (status ?? "").trim().toUpperCase();
+  if (!s) return false;
+  return (
+    s === "FAILED" ||
+    s === "FALHOU" ||
+    s === "FALHA" ||
+    s === "ERRO" ||
+    s === "ERROR" ||
+    s === "BLOCKED" ||
+    s.includes("FAIL") ||
+    s.includes("ERRO") ||
+    s.includes("NÃO REALIZADO") ||
+    s.includes("NAO REALIZADO")
+  );
+}
+
 export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -39,6 +57,26 @@ export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
   let eligibles = (contacts ?? []).filter(
     (c) => !c.last_contact_at || new Date(c.last_contact_at) < today,
   );
+
+  // Mensagens com FALHA no envio saem da lista principal da Cadência: elas
+  // aparecem no card "Envios com falha" (auditoria) e continuam registradas no
+  // histórico. Nada é apagado e a lógica de reprocessamento segue intacta.
+  if (eligibles.length > 0) {
+    const ids = eligibles.map((c) => c.id);
+    const { data: lastOut } = await supabase
+      .from("activities")
+      .select("contact_id, status, created_at")
+      .eq("kind", "whatsapp_out")
+      .in("contact_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(4000);
+    const latest = new Map<string, string>();
+    for (const a of (lastOut ?? []) as Array<{ contact_id: string | null; status: string | null }>) {
+      if (a.contact_id && !latest.has(a.contact_id)) latest.set(a.contact_id, (a.status ?? "").toUpperCase());
+    }
+    eligibles = eligibles.filter((c) => !isFailedStatus(latest.get(c.id)));
+  }
+
   if (limit && limit > 0) eligibles = eligibles.slice(0, limit);
   if (eligibles.length === 0) return [];
 

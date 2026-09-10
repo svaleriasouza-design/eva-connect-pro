@@ -157,8 +157,11 @@ export type Database = {
         Row: {
           active: boolean
           ai_instructions: string
+          audio_name: string | null
+          audio_path: string | null
           created_at: string
           day: number
+          reply_type: string
           script: string
           updated_at: string
           workspace_id: string
@@ -166,8 +169,11 @@ export type Database = {
         Insert: {
           active?: boolean
           ai_instructions?: string
+          audio_name?: string | null
+          audio_path?: string | null
           created_at?: string
           day: number
+          reply_type?: string
           script?: string
           updated_at?: string
           workspace_id?: string
@@ -175,8 +181,11 @@ export type Database = {
         Update: {
           active?: boolean
           ai_instructions?: string
+          audio_name?: string | null
+          audio_path?: string | null
           created_at?: string
           day?: number
+          reply_type?: string
           script?: string
           updated_at?: string
           workspace_id?: string

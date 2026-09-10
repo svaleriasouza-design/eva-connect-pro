@@ -2,7 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export type CadenceStep = { day: number; script: string; ai_instructions: string; active: boolean };
+/** Tipo de resposta enviada na etapa: texto, áudio ou os dois. */
+export type CadenceReplyType = "texto" | "audio" | "texto_audio";
+export type CadenceStep = {
+  day: number;
+  script: string;
+  ai_instructions: string;
+  active: boolean;
+  reply_type: CadenceReplyType;
+  audio_path: string | null;
+  audio_name: string | null;
+};
 export type CadenceSettings = {
   morning_time: string;
   afternoon_time: string;
@@ -21,7 +31,7 @@ export const getCadenceConfigFn = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     const { data: steps } = await sb
       .from("cadence_steps")
-      .select("day, script, ai_instructions, active")
+      .select("day, script, ai_instructions, active, reply_type, audio_path, audio_name")
       .order("day", { ascending: true });
     const { data: settings } = await sb.from("cadence_settings").select("*").maybeSingle();
     return {
@@ -35,6 +45,9 @@ const stepSchema = z.object({
   script: z.string().default(""),
   ai_instructions: z.string().default(""),
   active: z.boolean().default(true),
+  reply_type: z.enum(["texto", "audio", "texto_audio"]).default("texto"),
+  audio_path: z.string().nullable().default(null),
+  audio_name: z.string().nullable().default(null),
 });
 
 export const saveCadenceStepFn = createServerFn({ method: "POST" })
@@ -47,11 +60,90 @@ export const saveCadenceStepFn = createServerFn({ method: "POST" })
     const { error } = await sb
       .from("cadence_steps")
       .upsert(
-        { workspace_id, day: data.day, script: data.script, ai_instructions: data.ai_instructions, active: data.active },
+        {
+          workspace_id,
+          day: data.day,
+          script: data.script,
+          ai_instructions: data.ai_instructions,
+          active: data.active,
+          reply_type: data.reply_type,
+          audio_path: data.audio_path,
+          audio_name: data.audio_name,
+        },
         { onConflict: "workspace_id,day" },
       );
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+const AUDIO_MIME_MAP: Record<string, string> = {
+  "audio/opus": "audio/ogg",
+  "audio/mp3": "audio/mpeg",
+  "audio/x-m4a": "audio/mp4",
+};
+const AUDIO_ALLOWED = ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/amr"];
+
+/**
+ * Sobe UMA vez o áudio da etapa para o bucket `whatsapp-audio` (o mesmo já usado
+ * pelo atendimento). O caminho fica salvo na etapa e é reutilizado em todos os
+ * contatos — nunca há novo upload a cada disparo.
+ */
+export const uploadCadenceAudioFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z
+      .object({
+        day: z.number().int().min(1).max(30),
+        fileName: z.string().min(1).max(200),
+        mime: z.string().min(3).max(64),
+        base64: z.string().min(32).max(20_000_000),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+
+    const raw = data.mime.split(";")[0].toLowerCase();
+    const mime = AUDIO_MIME_MAP[raw] ?? raw;
+    if (!AUDIO_ALLOWED.includes(mime)) {
+      return {
+        ok: false as const,
+        error: `Formato de áudio não suportado pelo WhatsApp: ${raw}. Use OGG/Opus, MP3, M4A (AAC) ou AMR.`,
+      };
+    }
+    const bin = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+    if (!bin.length) return { ok: false as const, error: "Áudio vazio." };
+
+    const ext =
+      mime === "audio/mpeg" ? "mp3" : mime === "audio/mp4" || mime === "audio/aac" ? "m4a" : mime === "audio/amr" ? "amr" : "ogg";
+    const path = `cadencia/${workspaceId}/dia-${data.day}-${Date.now()}.${ext}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage
+      .from("whatsapp-audio")
+      .upload(path, bin, { contentType: mime, upsert: false });
+    if (up.error) return { ok: false as const, error: `Falha ao guardar o áudio: ${up.error.message}` };
+    return { ok: true as const, path, name: data.fileName };
+  });
+
+/** URL temporária para ouvir o áudio configurado na etapa. */
+export const getCadenceAudioUrlFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ path: z.string().min(3).max(400) }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    if (!data.path.startsWith(`cadencia/${workspaceId}/`)) {
+      return { ok: false as const, error: "Áudio não pertence a este workspace." };
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("whatsapp-audio")
+      .createSignedUrl(data.path, 3600);
+    if (error || !signed?.signedUrl) return { ok: false as const, error: error?.message ?? "Falha ao gerar link." };
+    return { ok: true as const, url: signed.signedUrl };
   });
 
 export const deleteCadenceStepFn = createServerFn({ method: "POST" })
