@@ -196,21 +196,14 @@ export async function runCadenceBatch(
 
   const { data: steps } = await admin
     .from("cadence_steps")
-    .select("day, script, active, reply_type, audio_path, audio_name")
+    .select("day, script, active")
     .eq("active", true)
     .order("day", { ascending: true });
-  const stepList = (steps ?? []) as Array<{
-    day: number;
-    script: string;
-    active: boolean;
-    reply_type?: string | null;
-    audio_path?: string | null;
-    audio_name?: string | null;
-  }>;
+  const stepList = (steps ?? []) as Array<{ day: number; script: string; active: boolean }>;
   if (stepList.length === 0) return result;
   const maxDay = stepList[stepList.length - 1].day;
   const scriptByDay = new Map<number, string>(stepList.map((s) => [s.day, s.script]));
-  const stepByDay = new Map<number, (typeof stepList)[number]>(stepList.map((s) => [s.day, s]));
+
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
