@@ -362,12 +362,14 @@ export async function runCadenceBatch(
     // A mensagem do dia (template da Meta) é SEMPRE texto. O áudio configurado
     // na etapa pertence à árvore de respostas da EVA e é enviado apenas quando
     // o cliente responde (ver evaAutoReply).
+    const numberId = pickNumberId({ ...c, whatsapp_number_id: (f.whatsapp_number_id ?? c.whatsapp_number_id) ?? null });
     const send = await sendAndLog({
       workspaceId,
       to,
       body,
       contactId: c.id,
       title,
+      whatsappNumberId: numberId,
       tag: `cadence-day-${nextDay}-${slot}`,
       templateName: templateForDay(nextDay),
     });
