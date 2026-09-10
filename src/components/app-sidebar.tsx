@@ -41,6 +41,7 @@ const items = [
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Cadências", url: "/cadencias", icon: KanbanSquare },
   { title: "Disparos", url: "/disparos", icon: Megaphone },
+  { title: "Campanhas", url: "/campanhas", icon: BookMarked },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Funil", url: "/funil", icon: KanbanSquare },

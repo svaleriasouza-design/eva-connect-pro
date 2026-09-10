@@ -25,6 +25,7 @@ import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDisparosRouteImport } from './routes/_authenticated/disparos'
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedCampanhasRouteImport } from './routes/_authenticated/campanhas'
 import { Route as AuthenticatedCadenciasRouteImport } from './routes/_authenticated/cadencias'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
@@ -116,6 +117,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCampanhasRoute = AuthenticatedCampanhasRouteImport.update({
+  id: '/campanhas',
+  path: '/campanhas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCadenciasRoute = AuthenticatedCadenciasRouteImport.update({
   id: '/cadencias',
   path: '/cadencias',
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
+  '/campanhas': typeof AuthenticatedCampanhasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/crm': typeof AuthenticatedCrmRouteWithChildren
   '/disparos': typeof AuthenticatedDisparosRoute
@@ -207,6 +214,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/cadencias': typeof AuthenticatedCadenciasRoute
+  '/campanhas': typeof AuthenticatedCampanhasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/disparos': typeof AuthenticatedDisparosRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
@@ -235,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
   '/_authenticated/cadencias': typeof AuthenticatedCadenciasRoute
+  '/_authenticated/campanhas': typeof AuthenticatedCampanhasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRouteWithChildren
   '/_authenticated/disparos': typeof AuthenticatedDisparosRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/atendimento'
     | '/cadencias'
+    | '/campanhas'
     | '/configuracoes'
     | '/crm'
     | '/disparos'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/atendimento'
     | '/cadencias'
+    | '/campanhas'
     | '/configuracoes'
     | '/disparos'
     | '/empresas'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/_authenticated/agenda'
     | '/_authenticated/atendimento'
     | '/_authenticated/cadencias'
+    | '/_authenticated/campanhas'
     | '/_authenticated/configuracoes'
     | '/_authenticated/crm'
     | '/_authenticated/disparos'
@@ -463,6 +475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/campanhas': {
+      id: '/_authenticated/campanhas'
+      path: '/campanhas'
+      fullPath: '/campanhas'
+      preLoaderRoute: typeof AuthenticatedCampanhasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/cadencias': {
       id: '/_authenticated/cadencias'
       path: '/cadencias'
@@ -554,6 +573,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
   AuthenticatedCadenciasRoute: typeof AuthenticatedCadenciasRoute
+  AuthenticatedCampanhasRoute: typeof AuthenticatedCampanhasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRouteWithChildren
   AuthenticatedDisparosRoute: typeof AuthenticatedDisparosRoute
@@ -572,6 +592,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
   AuthenticatedCadenciasRoute: AuthenticatedCadenciasRoute,
+  AuthenticatedCampanhasRoute: AuthenticatedCampanhasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRouteWithChildren,
   AuthenticatedDisparosRoute: AuthenticatedDisparosRoute,
