@@ -328,7 +328,8 @@ function Disparos() {
         const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
         toast.success(msg);
         setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
-        setDraftId(null);
+        // Mantém o mesmo registro aberto: novos salvamentos atualizam este disparo.
+        setEditStatus("scheduled");
         setPreview(null);
         qc.invalidateQueries({ queryKey: ["campaigns"] });
         qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
