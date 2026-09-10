@@ -84,45 +84,32 @@ export type CreateCampaignInput = {
   createdByName?: string | null;
 };
 
-/** Cria a campanha e distribui os contatos entre os números escolhidos. */
-export async function createCampaign(input: CreateCampaignInput) {
+/**
+ * Distribui os contatos elegíveis entre os números escolhidos e grava os alvos.
+ * Usado tanto na criação direta quanto ao agendar um rascunho já existente.
+ */
+async function materializeTargets(params: {
+  workspaceId: string;
+  campaignId: string;
+  numberIds: string[];
+  filter: ContactFilter;
+}) {
   const db = await admin();
   const { listActiveWaNumbers } = await import("./wa-numbers.server");
-  const actives = await listActiveWaNumbers(input.workspaceId);
-  const chosen = actives.filter((n) => input.numberIds.includes(n.id));
+  const actives = await listActiveWaNumbers(params.workspaceId);
+  const chosen = actives.filter((n) => params.numberIds.includes(n.id));
   if (chosen.length === 0) {
     return { ok: false as const, error: "Selecione pelo menos um número ativo e configurado." };
   }
-
-  const contacts = await fetchEligible(input.workspaceId, input.filter);
+  const contacts = await fetchEligible(params.workspaceId, params.filter);
   if (contacts.length === 0) return { ok: false as const, error: "Nenhum contato elegível para este filtro." };
-
-  const { data: campaign, error } = await db
-    .from("campaigns")
-    .insert({
-      workspace_id: input.workspaceId,
-      name: input.name,
-      body: input.body,
-      strategy: input.strategy ?? "balanced",
-      status: input.status ?? "scheduled",
-      scheduled_at: input.scheduledAt ?? null,
-      number_ids: chosen.map((n) => n.id),
-      total_targets: contacts.length,
-      batch_size: input.batchSize ?? 50,
-      ai_instructions: (input.aiInstructions ?? "").trim(),
-      created_by: input.createdBy ?? null,
-      created_by_name: input.createdByName ?? null,
-    })
-    .select("id")
-    .maybeSingle();
-  if (error || !campaign) return { ok: false as const, error: error?.message ?? "Falha ao criar o disparo." };
 
   // Distribuição equilibrada (round-robin) — 1 contato = 1 número.
   const rows = contacts.map((c, i) => {
     const n = chosen[i % chosen.length]!;
     return {
-      workspace_id: input.workspaceId,
-      campaign_id: (campaign as any).id as string,
+      workspace_id: params.workspaceId,
+      campaign_id: params.campaignId,
       contact_id: c.id,
       whatsapp_number_id: n.id,
       phone_number_id: n.phone_number_id,
@@ -133,13 +120,178 @@ export async function createCampaign(input: CreateCampaignInput) {
   for (let i = 0; i < rows.length; i += 500) {
     await db.from("campaign_targets").insert(rows.slice(i, i + 500));
   }
-
   const per = chosen.map((n) => ({
     id: n.id,
     label: n.label,
     count: rows.filter((r) => r.whatsapp_number_id === n.id).length,
   }));
-  return { ok: true as const, campaignId: (campaign as any).id as string, total: rows.length, per };
+  return { ok: true as const, total: rows.length, per, chosenIds: chosen.map((n) => n.id) };
+}
+
+/** Cria a campanha e distribui os contatos entre os números escolhidos. */
+export async function createCampaign(input: CreateCampaignInput) {
+  const db = await admin();
+
+  const { data: campaign, error } = await db
+    .from("campaigns")
+    .insert({
+      workspace_id: input.workspaceId,
+      name: input.name,
+      body: input.body,
+      strategy: input.strategy ?? "balanced",
+      status: input.status ?? "scheduled",
+      scheduled_at: input.scheduledAt ?? null,
+      number_ids: input.numberIds,
+      total_targets: 0,
+      batch_size: input.batchSize ?? 50,
+      ai_instructions: (input.aiInstructions ?? "").trim(),
+      created_by: input.createdBy ?? null,
+      created_by_name: input.createdByName ?? null,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !campaign) return { ok: false as const, error: error?.message ?? "Falha ao criar o disparo." };
+  const campaignId = (campaign as any).id as string;
+
+  const built = await materializeTargets({
+    workspaceId: input.workspaceId,
+    campaignId,
+    numberIds: input.numberIds,
+    filter: input.filter,
+  });
+  if (!built.ok) {
+    await db.from("campaigns").delete().eq("id", campaignId);
+    return built;
+  }
+  await db
+    .from("campaigns")
+    .update({ total_targets: built.total, number_ids: built.chosenIds })
+    .eq("id", campaignId);
+  return { ok: true as const, campaignId, total: built.total, per: built.per };
+}
+
+export type DraftInput = {
+  workspaceId: string;
+  campaignId?: string | null;
+  name: string;
+  body: string;
+  numberIds: string[];
+  filter: ContactFilter;
+  batchSize?: number;
+  aiInstructions?: string | null;
+  /** Configurações do formulário (filtros, data/horário escolhidos). */
+  draftConfig?: Record<string, unknown>;
+  createdBy?: string | null;
+  createdByName?: string | null;
+};
+
+/**
+ * Salva um RASCUNHO no próprio registro de disparos.
+ * Com `campaignId` faz UPDATE do mesmo registro (nunca duplica); sem ele, INSERT.
+ * Nunca cria alvos, nunca agenda e nunca envia.
+ */
+export async function saveDraftCampaign(input: DraftInput) {
+  const db = await admin();
+  const payload = {
+    name: input.name,
+    body: input.body,
+    number_ids: input.numberIds,
+    batch_size: input.batchSize ?? 50,
+    ai_instructions: (input.aiInstructions ?? "").trim(),
+    draft_config: input.draftConfig ?? {},
+    status: "draft",
+    scheduled_at: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.campaignId) {
+    const { data: existing } = await db
+      .from("campaigns")
+      .select("id, status")
+      .eq("workspace_id", input.workspaceId)
+      .eq("id", input.campaignId)
+      .maybeSingle();
+    if (existing && (existing as any).status === "draft") {
+      const { error } = await db
+        .from("campaigns")
+        .update(payload)
+        .eq("id", input.campaignId)
+        .eq("workspace_id", input.workspaceId);
+      if (error) return { ok: false as const, error: error.message };
+      return { ok: true as const, campaignId: input.campaignId, created: false as const };
+    }
+  }
+
+  const { data, error } = await db
+    .from("campaigns")
+    .insert({
+      workspace_id: input.workspaceId,
+      strategy: "balanced",
+      total_targets: 0,
+      created_by: input.createdBy ?? null,
+      created_by_name: input.createdByName ?? null,
+      ...payload,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !data) return { ok: false as const, error: error?.message ?? "Falha ao salvar o rascunho." };
+  return { ok: true as const, campaignId: (data as any).id as string, created: true as const };
+}
+
+/** Agenda um rascunho existente: cria os alvos e muda o status para "scheduled". */
+export async function scheduleDraftCampaign(params: {
+  workspaceId: string;
+  campaignId: string;
+  scheduledAt: string;
+  name: string;
+  body: string;
+  numberIds: string[];
+  filter: ContactFilter;
+  batchSize?: number;
+  aiInstructions?: string | null;
+  draftConfig?: Record<string, unknown>;
+}) {
+  const db = await admin();
+  const { data: existing } = await db
+    .from("campaigns")
+    .select("id, status")
+    .eq("workspace_id", params.workspaceId)
+    .eq("id", params.campaignId)
+    .maybeSingle();
+  if (!existing) return { ok: false as const, error: "Rascunho não encontrado." };
+  if ((existing as any).status !== "draft") {
+    return { ok: false as const, error: "Este disparo já foi agendado." };
+  }
+
+  // Limpa alvos antigos (rascunho não deveria ter, mas garante idempotência).
+  await db.from("campaign_targets").delete().eq("campaign_id", params.campaignId);
+
+  const built = await materializeTargets({
+    workspaceId: params.workspaceId,
+    campaignId: params.campaignId,
+    numberIds: params.numberIds,
+    filter: params.filter,
+  });
+  if (!built.ok) return built;
+
+  const { error } = await db
+    .from("campaigns")
+    .update({
+      name: params.name,
+      body: params.body,
+      number_ids: built.chosenIds,
+      batch_size: params.batchSize ?? 50,
+      ai_instructions: (params.aiInstructions ?? "").trim(),
+      draft_config: params.draftConfig ?? {},
+      total_targets: built.total,
+      status: "scheduled",
+      scheduled_at: params.scheduledAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.campaignId)
+    .eq("workspace_id", params.workspaceId);
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, campaignId: params.campaignId, total: built.total, per: built.per };
 }
 
 /**
