@@ -263,6 +263,11 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
 /** Campanhas com envios pendentes (usado pelo cron). */
 export async function listRunnableCampaigns(): Promise<{ id: string; workspace_id: string }[]> {
   const db = await admin();
-  const { data } = await db.from("campaigns").select("id, workspace_id").in("status", ["ready", "running"]);
+  // Só entra na fila o que está em andamento ou já chegou na hora agendada.
+  const { data } = await db
+    .from("campaigns")
+    .select("id, workspace_id")
+    .in("status", ["ready", "running", "scheduled"])
+    .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`);
   return (data ?? []) as any[];
 }
