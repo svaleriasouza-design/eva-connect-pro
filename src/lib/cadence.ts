@@ -23,6 +23,24 @@ export function isWeekendIn(timezone = "America/Sao_Paulo"): boolean {
   return wd === "Sat" || wd === "Sun";
 }
 
+/** Status que representam envio NÃO realizado (falha), em qualquer variação. */
+export function isFailedStatus(status?: string | null): boolean {
+  const s = (status ?? "").trim().toUpperCase();
+  if (!s) return false;
+  return (
+    s === "FAILED" ||
+    s === "FALHOU" ||
+    s === "FALHA" ||
+    s === "ERRO" ||
+    s === "ERROR" ||
+    s === "BLOCKED" ||
+    s.includes("FAIL") ||
+    s.includes("ERRO") ||
+    s.includes("NÃO REALIZADO") ||
+    s.includes("NAO REALIZADO")
+  );
+}
+
 export async function fetchDueCadence(limit?: number): Promise<DueContact[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
