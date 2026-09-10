@@ -273,6 +273,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           created_by_name: string | null
+          draft_config: Json
           failed_count: number
           finished_at: string | null
           id: string
@@ -294,6 +295,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          draft_config?: Json
           failed_count?: number
           finished_at?: string | null
           id?: string
@@ -315,6 +317,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
+          draft_config?: Json
           failed_count?: number
           finished_at?: string | null
           id?: string

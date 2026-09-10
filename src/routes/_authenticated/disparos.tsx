@@ -5,11 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { listWhatsappNumbersFn } from "@/lib/wa-numbers.functions";
 import {
   previewCampaignFn,
-  createCampaignFn,
   listCampaignsFn,
   runCampaignBatchFn,
   setCampaignStatusFn,
   campaignBreakdownFn,
+  saveDraftCampaignFn,
+  scheduleDraftCampaignFn,
+  listDraftCampaignsFn,
 } from "@/lib/campaigns.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,7 +64,9 @@ function Disparos() {
   const qc = useQueryClient();
   const listNumbers = useServerFn(listWhatsappNumbersFn);
   const previewFn = useServerFn(previewCampaignFn);
-  const createFn = useServerFn(createCampaignFn);
+  const saveDraftFn = useServerFn(saveDraftCampaignFn);
+  const scheduleFn = useServerFn(scheduleDraftCampaignFn);
+  const listDraftsFn = useServerFn(listDraftCampaignsFn);
   const listFn = useServerFn(listCampaignsFn);
   const runFn = useServerFn(runCampaignBatchFn);
   const statusFn = useServerFn(setCampaignStatusFn);
@@ -88,8 +92,16 @@ function Disparos() {
   const [running, setRunning] = useState<string | null>(null);
   const [detail, setDetail] = useState<null | { id: string; rows: any[] }>(null);
   const [saving, setSaving] = useState(false);
+  // Id do rascunho em edição — garante UPDATE do mesmo registro, sem duplicar.
+  const [draftId, setDraftId] = useState<string | null>(null);
 
-  // Mensagens salvas para reutilizar nos disparos.
+  // Rascunhos salvos (mesma tabela de disparos, status "Rascunho").
+  const { data: drafts = [] } = useQuery({
+    queryKey: ["campaign-drafts"],
+    queryFn: () => listDraftsFn(),
+  });
+
+  // Modelos antigos salvos na aba Campanhas (compatibilidade).
   const { data: saved = [] } = useQuery({
     queryKey: ["saved-campaign-messages"],
     queryFn: async () => {
@@ -102,32 +114,59 @@ function Disparos() {
     },
   });
 
-  async function onSaveMessage() {
+  const draftConfig = useMemo(
+    () => ({ stage, q, schedDate, schedTime, batchSize, numberIds: selected }),
+    [stage, q, schedDate, schedTime, batchSize, selected],
+  );
+
+  /** Salva como rascunho. Nunca envia, nunca agenda, e não limpa o formulário. */
+  async function onSaveDraft() {
     if (!name.trim() || !body.trim()) {
       toast.error("Informe o nome e a mensagem antes de salvar.");
       return;
     }
     setSaving(true);
-    // Guarda todos os campos editáveis do disparo, não só a mensagem.
-    const payload = JSON.stringify({
-      __eva: 1,
-      name: name.trim(),
-      body: body.trim(),
-      aiInstructions,
-      stage,
-      q,
-      batchSize,
-      numberIds: selected,
-    });
-    const { error } = await supabase
-      .from("message_templates")
-      .insert({ category: `${SAVED_PREFIX}${name.trim()}`, content: payload });
-    setSaving(false);
-    if (error) toast.error("Não foi possível salvar o disparo.");
-    else {
-      toast.success("Disparo salvo com todos os campos.");
-      qc.invalidateQueries({ queryKey: ["saved-campaign-messages"] });
+    try {
+      const res: any = await saveDraftFn({
+        data: {
+          campaignId: draftId,
+          name: name.trim(),
+          body,
+          numberIds: selected,
+          filter,
+          batchSize,
+          aiInstructions,
+          draftConfig,
+        },
+      });
+      if (res?.ok) {
+        setDraftId(res.campaignId);
+        toast.success("Disparo salvo como rascunho.");
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+      } else toast.error(res?.error || "Não foi possível salvar o rascunho.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar o rascunho.");
+    } finally {
+      setSaving(false);
     }
+  }
+
+  /** Abre um rascunho para edição, recuperando todos os campos salvos. */
+  function loadDraft(d: any) {
+    const cfg = (d.draft_config ?? {}) as any;
+    setDraftId(d.id);
+    setName(d.name ?? "");
+    setBody(d.body ?? "");
+    setAiInstructions(d.ai_instructions ?? "");
+    setStage(cfg.stage ?? "todos");
+    setQ(cfg.q ?? "");
+    setBatchSize(Number(d.batch_size) > 0 ? Number(d.batch_size) : 50);
+    setSelected(Array.isArray(d.number_ids) ? d.number_ids : []);
+    setSchedDate(cfg.schedDate ?? "");
+    setSchedTime(cfg.schedTime || "09:30");
+    setPreview(null);
+    setConfirmation(null);
   }
 
   function loadSaved(raw: string, fallbackName: string) {
@@ -138,6 +177,7 @@ function Disparos() {
     } catch {
       parsed = null;
     }
+    setDraftId(null);
     if (!parsed) {
       // Modelos antigos guardavam apenas o texto da mensagem.
       setName(fallbackName);
@@ -153,6 +193,20 @@ function Disparos() {
     setBatchSize(Number(parsed.batchSize) > 0 ? Number(parsed.batchSize) : 50);
     setSelected(Array.isArray(parsed.numberIds) ? parsed.numberIds : []);
     setPreview(null);
+  }
+
+  function onNewDraft() {
+    setDraftId(null);
+    setName("");
+    setBody("");
+    setAiInstructions("");
+    setStage("todos");
+    setQ("");
+    setSelected([]);
+    setSchedDate("");
+    setSchedTime("09:30");
+    setPreview(null);
+    setConfirmation(null);
   }
 
   const filter = useMemo(
@@ -190,30 +244,44 @@ function Disparos() {
       toast.error("Escolha uma data e horário no futuro.");
       return;
     }
+    const ok = window.confirm(
+      `Agendar este disparo para ${fmtWhen(when.toISOString())}? Nenhuma mensagem é enviada agora — o envio começa automaticamente no horário.`,
+    );
+    if (!ok) return;
+
     setBusy(true);
     try {
-      const res: any = await createFn({
-        data: {
-          name,
-          body,
-          numberIds: selected,
-          filter,
-          strategy: "balanced",
-          batchSize,
-          aiInstructions: aiInstructions.trim() || null,
-          scheduledAt: when.toISOString(),
-          status: "scheduled",
-        },
+      const payload = {
+        name: name.trim(),
+        body,
+        numberIds: selected,
+        filter,
+        batchSize,
+        aiInstructions,
+        draftConfig,
+      };
+      // Garante um rascunho salvo (mesmo registro) antes de agendar.
+      let id = draftId;
+      if (!id) {
+        const saved: any = await saveDraftFn({ data: { ...payload, campaignId: null } });
+        if (!saved?.ok) {
+          toast.error(saved?.error || "Falha ao salvar o disparo.");
+          return;
+        }
+        id = saved.campaignId as string;
+        setDraftId(id);
+      }
+      const res: any = await scheduleFn({
+        data: { ...payload, campaignId: id, scheduledAt: when.toISOString() },
       });
       if (res?.ok) {
         const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
         toast.success(msg);
         setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
-        setName("");
-        setBody("");
-        setAiInstructions("");
+        setDraftId(null);
         setPreview(null);
         qc.invalidateQueries({ queryKey: ["campaigns"] });
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
       } else toast.error(res?.error || "Falha ao agendar o disparo.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao agendar o disparo.");
@@ -223,6 +291,12 @@ function Disparos() {
   }
 
   async function onRun(id: string) {
+    // Ação separada e sempre confirmada — nunca acionada por "Salvar" ou "Agendar".
+    const c = (campaigns as any[]).find((x) => x.id === id);
+    const ok = window.confirm(
+      `Enviar agora um lote do disparo "${c?.name ?? ""}"? As mensagens serão enviadas imediatamente.`,
+    );
+    if (!ok) return;
     setRunning(id);
     const res: any = await runFn({ data: { campaignId: id } });
     setRunning(null);
@@ -250,7 +324,14 @@ function Disparos() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Novo disparo</CardTitle></CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <CardTitle>{draftId ? "Editando rascunho" : "Novo disparo"}</CardTitle>
+            {draftId && (
+              <Button variant="ghost" size="sm" onClick={onNewDraft}>
+                Novo disparo
+              </Button>
+            )}
+          </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="space-y-1">
               <Label>Nome do disparo</Label>
@@ -260,14 +341,20 @@ function Disparos() {
               <Label>Mensagem</Label>
               <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Texto que será enviado…" />
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Button variant="outline" size="sm" onClick={onSaveMessage} disabled={saving}>
+                <Button variant="outline" size="sm" onClick={onSaveDraft} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Salvar disparo
                 </Button>
-                {saved.length > 0 && (
+                {(drafts.length > 0 || saved.length > 0) && (
                   <Select
                     value=""
                     onValueChange={(id) => {
+                      const d = (drafts as any[]).find((x) => x.id === id);
+                      if (d) {
+                        loadDraft(d);
+                        toast.success("Rascunho carregado para edição.");
+                        return;
+                      }
                       const t = saved.find((s) => s.id === id);
                       if (!t) return;
                       loadSaved(t.content, t.category.replace(SAVED_PREFIX, ""));
@@ -275,9 +362,14 @@ function Disparos() {
                     }}
                   >
                     <SelectTrigger className="h-9 w-full sm:w-64">
-                      <SelectValue placeholder="Usar disparo salvo" />
+                      <SelectValue placeholder="Usar disparos salvos" />
                     </SelectTrigger>
                     <SelectContent>
+                      {(drafts as any[]).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          📝 {d.name}
+                        </SelectItem>
+                      ))}
                       {saved.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.category.replace(SAVED_PREFIX, "")}</SelectItem>
                       ))}
@@ -289,13 +381,15 @@ function Disparos() {
             <div className="space-y-1">
               <Label>Como a EVA deve responder?</Label>
               <Textarea
-                rows={4}
+                rows={10}
+                className="min-h-[220px]"
                 value={aiInstructions}
                 onChange={(e) => setAiInstructions(e.target.value)}
                 placeholder="Descreva como a EVA deve se comportar quando alguém responder a este disparo..."
               />
               <p className="text-xs text-muted-foreground">
-                Defina o comportamento da EVA para as respostas recebidas nesta campanha.
+                Defina o comportamento da EVA para as respostas recebidas nesta campanha. Sem limite de caracteres —{" "}
+                {aiInstructions.length.toLocaleString("pt-BR")} caractere(s) escritos.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

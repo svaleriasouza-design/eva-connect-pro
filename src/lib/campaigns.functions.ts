@@ -18,16 +18,34 @@ const previewSchema = z.object({
   filter: filterSchema.default({}),
 });
 
+// Sem limite de tamanho na mensagem e nas instruções da EVA (colunas TEXT).
 const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  body: z.string().trim().min(1).max(4000),
+  body: z.string().trim().min(1),
   numberIds: z.array(z.string().uuid()).min(1).max(50),
   filter: filterSchema.default({}),
   strategy: z.enum(["balanced"]).default("balanced"),
   batchSize: z.number().int().min(1).max(500).default(50),
-  aiInstructions: z.string().trim().max(4000).optional().nullable(),
+  aiInstructions: z.string().optional().nullable(),
   scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
   status: z.enum(["scheduled", "draft"]).default("scheduled"),
+});
+
+const draftSchema = z.object({
+  campaignId: z.string().uuid().optional().nullable(),
+  name: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(1),
+  numberIds: z.array(z.string().uuid()).max(50).default([]),
+  filter: filterSchema.default({}),
+  batchSize: z.number().int().min(1).max(500).default(50),
+  aiInstructions: z.string().optional().nullable(),
+  draftConfig: z.record(z.string(), z.unknown()).default({}),
+});
+
+const scheduleSchema = draftSchema.extend({
+  campaignId: z.string().uuid(),
+  numberIds: z.array(z.string().uuid()).min(1).max(50),
+  scheduledAt: z.string().datetime({ offset: true }),
 });
 
 /** Prévia da distribuição: quantos contatos e quanto vai para cada número. */
@@ -74,6 +92,73 @@ export const createCampaignFn = createServerFn({ method: "POST" })
       createdBy: context.userId,
       createdByName: name,
     });
+  });
+
+/** Salva/atualiza um RASCUNHO. Nunca envia, nunca agenda, nunca cria fila. */
+export const saveDraftCampaignFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => draftSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole, displayNameFor } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const name = await displayNameFor(
+      context.userId,
+      ((context.claims as any)?.email as string | undefined) ?? "atendente",
+    );
+    const { saveDraftCampaign } = await import("./campaigns.server");
+    return saveDraftCampaign({
+      workspaceId,
+      campaignId: data.campaignId ?? null,
+      name: data.name,
+      body: data.body,
+      numberIds: data.numberIds,
+      filter: data.filter,
+      batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
+      draftConfig: data.draftConfig,
+      createdBy: context.userId,
+      createdByName: name,
+    });
+  });
+
+/** Agenda um rascunho já salvo: distribui os contatos e marca como "Agendado". */
+export const scheduleDraftCampaignFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => scheduleSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const { scheduleDraftCampaign } = await import("./campaigns.server");
+    return scheduleDraftCampaign({
+      workspaceId,
+      campaignId: data.campaignId,
+      scheduledAt: data.scheduledAt,
+      name: data.name,
+      body: data.body,
+      numberIds: data.numberIds,
+      filter: data.filter,
+      batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
+      draftConfig: data.draftConfig,
+    });
+  });
+
+/** Rascunhos salvos, com todos os campos do formulário para reabrir e editar. */
+export const listDraftCampaignsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = await wid(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as any)
+      .from("campaigns")
+      .select("id, name, body, ai_instructions, number_ids, batch_size, draft_config, updated_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "draft")
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    return (data ?? []) as any[];
   });
 
 export const runCampaignBatchFn = createServerFn({ method: "POST" })
