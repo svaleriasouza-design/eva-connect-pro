@@ -246,6 +246,7 @@ function Disparos() {
 
   function onNewDraft() {
     setDraftId(null);
+    setEditStatus("draft");
     setName("");
     setBody("");
     setAiInstructions("");
