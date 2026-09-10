@@ -87,5 +87,8 @@ export function applyEligibilityFilters(
     .or(`presale_stage.is.null,presale_stage.not.in.(${stages})`)
     .or(`sales_stage.is.null,sales_stage.not.in.(${stages})`);
   if (!opts.ignoreTakeover) out = out.or("human_takeover.is.null,human_takeover.eq.false");
+  if (!opts.includeCampaignOrigin) {
+    out = out.or(`conversation_origin.is.null,conversation_origin.neq.${CAMPAIGN_ORIGIN}`);
+  }
   return out;
 }
