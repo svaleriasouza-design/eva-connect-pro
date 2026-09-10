@@ -157,32 +157,54 @@ function Disparos() {
     setPreview(res);
   }
 
-  async function onCreate() {
+  async function onSchedule() {
     if (!name.trim() || !body.trim() || selected.length === 0) {
       toast.error("Informe nome, mensagem e ao menos um número de envio.");
       return;
     }
+    if (!schedDate || !schedTime) {
+      toast.error("Escolha a data e o horário do disparo.");
+      return;
+    }
+    const when = new Date(`${schedDate}T${schedTime}:00`);
+    if (Number.isNaN(when.getTime())) {
+      toast.error("Data ou horário inválidos.");
+      return;
+    }
+    if (when.getTime() < Date.now() - 60_000) {
+      toast.error("Escolha uma data e horário no futuro.");
+      return;
+    }
     setBusy(true);
-    const res: any = await createFn({
-      data: {
-        name,
-        body,
-        numberIds: selected,
-        filter,
-        strategy: "balanced",
-        batchSize,
-        aiInstructions: aiInstructions.trim() || null,
-      },
-    });
-    setBusy(false);
-    if (res?.ok) {
-      toast.success(`Disparo criado · ${res.total} contatos distribuídos entre ${res.per.length} número(s).`);
-      setName("");
-      setBody("");
-      setAiInstructions("");
-      setPreview(null);
-      qc.invalidateQueries({ queryKey: ["campaigns"] });
-    } else toast.error(res?.error || "Falha ao criar o disparo.");
+    try {
+      const res: any = await createFn({
+        data: {
+          name,
+          body,
+          numberIds: selected,
+          filter,
+          strategy: "balanced",
+          batchSize,
+          aiInstructions: aiInstructions.trim() || null,
+          scheduledAt: when.toISOString(),
+          status: "scheduled",
+        },
+      });
+      if (res?.ok) {
+        const msg = `Disparo agendado com sucesso! A campanha será iniciada em ${fmtWhen(when.toISOString())}.`;
+        toast.success(msg);
+        setConfirmation(`${msg} ${res.total} contato(s) distribuído(s) entre ${res.per.length} número(s).`);
+        setName("");
+        setBody("");
+        setAiInstructions("");
+        setPreview(null);
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+      } else toast.error(res?.error || "Falha ao agendar o disparo.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao agendar o disparo.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onRun(id: string) {
