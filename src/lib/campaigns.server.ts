@@ -337,8 +337,10 @@ export async function scheduleDraftCampaign(params: {
  * próprio subconjunto de contatos; falha em um número não interrompe os outros.
  */
 export const MAX_BATCH_SIZE = 500;
-/** Tempo máximo de uma execução antes de outra poder assumir o disparo. */
-const LEASE_MINUTES = 10;
+// Tempo máximo de uma execução antes de outra poder assumir o disparo.
+// Menor que o intervalo da rotina automática (5 min), pois o registro
+// tem gatilho que atualiza `updated_at` a cada gravação.
+const LEASE_MINUTES = 4;
 
 /** Lê o lote com segurança. Sem valor válido → NÃO envia nada. */
 export function resolveBatchLimit(raw: unknown): { ok: true; limit: number } | { ok: false; error: string } {
