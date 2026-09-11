@@ -336,6 +336,25 @@ export async function scheduleDraftCampaign(params: {
  * Processa um lote da campanha. Cada número trabalha em paralelo com o seu
  * próprio subconjunto de contatos; falha em um número não interrompe os outros.
  */
+export const MAX_BATCH_SIZE = 500;
+// Tempo máximo de uma execução antes de outra poder assumir o disparo.
+// Menor que o intervalo da rotina automática (5 min), pois o registro
+// tem gatilho que atualiza `updated_at` a cada gravação.
+const LEASE_MINUTES = 4;
+
+/** Lê o lote com segurança. Sem valor válido → NÃO envia nada. */
+export function resolveBatchLimit(raw: unknown): { ok: true; limit: number } | { ok: false; error: string } {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > MAX_BATCH_SIZE) {
+    return {
+      ok: false,
+      error:
+        "Não foi possível ler o campo “Mensagens por lote” deste disparo. Nenhuma mensagem foi enviada. Edite o disparo e informe um número entre 1 e 500.",
+    };
+  }
+  return { ok: true, limit: n };
+}
+
 export async function runCampaignBatch(workspaceId: string, campaignId: string, limit?: number) {
   const db = await admin();
   const { data: campaign } = await db
@@ -351,28 +370,51 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
   if (st === "cancelled") return { ok: false as const, error: "Disparo cancelado." };
   if (st === "done") return { ok: false as const, error: "Disparo já concluído." };
 
+  // TRAVA 1 — o lote é sempre o valor configurado; nunca a fila inteira.
+  const resolved = resolveBatchLimit(limit ?? (campaign as any).batch_size);
+  if (!resolved.ok) {
+    console.error(`[campaign] lote inválido campanha=${campaignId} valor=${(campaign as any).batch_size}`);
+    return { ok: false as const, error: resolved.error };
+  }
+  const batchLimit = resolved.limit;
+
   const { listActiveWaNumbers } = await import("./wa-numbers.server");
   const actives = await listActiveWaNumbers(workspaceId);
   const numberIds = ((campaign as any).number_ids as string[]).filter((id) => actives.some((n) => n.id === id));
   if (numberIds.length === 0) return { ok: false as const, error: "Nenhum dos números do disparo está ativo." };
 
-  const perNumber = Math.max(1, Math.ceil((limit ?? (campaign as any).batch_size ?? 50) / numberIds.length));
-  await db
+  // TRAVA 2 — duplicidade: só uma execução por vez assume o disparo.
+  const leaseCut = new Date(Date.now() - LEASE_MINUTES * 60_000).toISOString();
+  const nowIso = new Date().toISOString();
+  const { data: claimed } = await db
     .from("campaigns")
-    .update({ status: "running", started_at: (campaign as any).started_at ?? new Date().toISOString() })
-    .eq("id", campaignId);
+    .update({ status: "running", started_at: (campaign as any).started_at ?? nowIso, updated_at: nowIso })
+    .eq("id", campaignId)
+    .eq("workspace_id", workspaceId)
+    .or(`status.neq.running,updated_at.lt.${leaseCut}`)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) {
+    return { ok: false as const, error: "Este disparo já está sendo processado agora." };
+  }
+
+  // Cotas por número que somam exatamente o lote configurado.
+  const quotas = splitEvenly(batchLimit, numberIds.length);
 
   const { sendAndLog } = await import("./messaging.server");
 
   const results = await Promise.all(
-    numberIds.map(async (numberId) => {
+    numberIds.map(async (numberId, idx) => {
+      const quota = quotas[idx] ?? 0;
+      if (quota <= 0) return { numberId, sent: 0, failed: 0 };
       const { data: targets } = await db
         .from("campaign_targets")
         .select("id, contact_id, to_phone")
         .eq("campaign_id", campaignId)
         .eq("whatsapp_number_id", numberId)
         .eq("status", "pending")
-        .limit(perNumber);
+        .limit(quota);
+
       let sent = 0;
       let failed = 0;
       const { isHumanTakeover, TAKEOVER_BLOCK_REASON } = await import("./takeover.server");
