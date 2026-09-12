@@ -38,6 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { ensureCompanies, normalizeCompanyName } from "@/lib/companies";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { ImportBatchesCard } from "@/components/import-batches-card";
+import { HygieneReportCard } from "@/components/hygiene-report-card";
 
 export const Route = createFileRoute("/_authenticated/crm")({ component: () => <Outlet /> });
 
@@ -54,6 +55,7 @@ export function CrmList() {
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportCount, setExportCount] = useState(0);
+  const [hygieneBatch, setHygieneBatch] = useState<string | null>(null);
 
   const deleteContacts = useServerFn(deleteContactsFn);
   const deleteContactsByFilter = useServerFn(deleteContactsByFilterFn);
@@ -337,6 +339,10 @@ export function CrmList() {
       qc.invalidateQueries({ queryKey: ["import-batches"] });
       qc.invalidateQueries({ queryKey: ["import-batch-options"] });
       qc.invalidateQueries({ queryKey: ["companies"] });
+      if (inserted > 0) {
+        setHygieneBatch(batchId);
+        toast.warning("Confira o relatório de higienização antes de iniciar a cadência.");
+      }
       finish(`${inserted} contatos importados${skipped ? ` · ${skipped} ignorados` : ""}`);
     } catch (e: any) {
       console.error("Import error:", e);
@@ -428,6 +434,7 @@ export function CrmList() {
             {exporting ? `Exportando… ${exportCount.toLocaleString("pt-BR")}` : "Exportar Excel"}
           </Button>
 
+          <HygieneReportCard />
           <NewContactDialog />
         </div>
       </div>
@@ -460,6 +467,16 @@ export function CrmList() {
             Não feche esta aba — o envio continua em lotes de 500 até concluir.
           </p>
         </Card>
+      )}
+
+      {hygieneBatch && (
+        <HygieneReportCard
+          key={hygieneBatch}
+          batchId={hygieneBatch}
+          autoOpen
+          hideButton
+          onClose={() => setHygieneBatch(null)}
+        />
       )}
 
       <ImportBatchesCard />
