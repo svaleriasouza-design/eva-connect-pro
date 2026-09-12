@@ -29,12 +29,14 @@ type Props = {
   batchId?: string | null;
   /** Abre o relatório automaticamente (usado logo após uma importação). */
   autoOpen?: boolean;
+  /** Esconde o botão (usado quando o relatório abre sozinho após a importação). */
+  hideButton?: boolean;
   onClose?: () => void;
 };
 
 const STATUS_ORDER: HygieneStatus[] = ["ficticio", "fixo", "nome", "valido"];
 
-export function HygieneReportCard({ batchId = null, autoOpen = false, onClose }: Props) {
+export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton = false, onClose }: Props) {
   const qc = useQueryClient();
   const deleteContacts = useServerFn(deleteContactsFn);
   const [open, setOpen] = useState(false);
@@ -156,10 +158,12 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, onClose }:
 
   return (
     <>
+      {!hideButton && (
       <Button variant="outline" onClick={generate} disabled={loading}>
         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
         {loading ? `Analisando… ${scanned.toLocaleString("pt-BR")}` : "Gerar relatório de higienização"}
       </Button>
+      )}
 
       <Dialog
         open={open}
