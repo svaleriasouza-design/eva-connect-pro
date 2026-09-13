@@ -149,7 +149,7 @@ export async function decideSaturdayRequest(params: {
       { contact_id: r.contact_id, pending_start: null, awaiting_saturday: false, awaiting_email: false, updated_at: new Date().toISOString() },
       { onConflict: "contact_id" },
     );
-    const slots = await suggestSlots({ durationMinutes: r.duration_minutes ?? 30, limit: 3 });
+    const slots = await suggestSlots({ workspaceId: wid }, { durationMinutes: r.duration_minutes ?? 30, limit: 3 });
     const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slots.data.map((s) => formatBr(s).completo).join(", ")}.` : "";
     reply = `Verifiquei aqui e neste sábado não vamos conseguir atender.${phrase} Qual fica melhor para você?`;
   }

@@ -1,49 +1,80 @@
-// Integração Google Calendar via Lovable Connector Gateway (server-only).
-// Conector: google_calendar. Segredos injetados após conectar a conta:
-//   LOVABLE_API_KEY + GOOGLE_CALENDAR_API_KEY
+// Integração Google Agenda por usuária final (App User Connector), server-only.
+// Cada usuária conecta a própria conta Google; a credencial dela fica cifrada no
+// banco e é resolvida por `resolveConnection` em toda chamada. Nenhuma usuária
+// acessa a agenda de outra.
 
-const GATEWAY = "https://connector-gateway.lovable.dev/google_calendar/calendar/v3";
+import {
+  GATEWAY_BASE_URL,
+  GOOGLE_CALENDAR_CONNECTOR_ID,
+  GOOGLE_CALENDAR_SCOPES,
+  markReconnectRequired,
+  resolveConnection,
+  type CalendarConnection,
+} from "./google-connection.server";
+import { appUserReconnectRequired, callAsAppUser } from "@/integrations/lovable/appUserConnector";
 
 export const DEFAULT_TZ = "America/Sao_Paulo";
 export const WORK_START_HOUR = 9;
 export const WORK_END_HOUR = 18;
 
-/**
- * A conexão do Google Calendar pertence à conta que autorizou o conector.
- * Por isolamento, apenas o workspace dono da conexão pode usá-la.
- */
-export async function calendarConfigured(workspaceId: string) {
-  if (!(process.env.LOVABLE_API_KEY && process.env.GOOGLE_CALENDAR_API_KEY)) return false;
-  const { legacyWorkspaceId } = await import("./workspace-scope.server");
-  return workspaceId === (await legacyWorkspaceId());
+/** Identifica de quem é a agenda: a da usuária logada; senão a do workspace. */
+export type CalendarCtx = { workspaceId: string; userId?: string | null };
+
+const NOT_CONNECTED = "Google Agenda ainda não conectada. Conecte sua conta em Configurações.";
+const RECONNECT = "Sua Google Agenda precisa ser reconectada em Configurações.";
+
+/** Existe agenda conectada e válida para este contexto? */
+export async function calendarConfigured(ctx: CalendarCtx | string) {
+  const c = typeof ctx === "string" ? { workspaceId: ctx } : ctx;
+  const conn = await resolveConnection(c);
+  return Boolean(conn && !conn.reconnectRequired);
+}
+
+export async function calendarConnection(ctx: CalendarCtx): Promise<CalendarConnection | null> {
+  return resolveConnection(ctx);
 }
 
 type GcalResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 async function gcal<T = any>(
+  ctx: CalendarCtx,
   path: string,
   init: { method?: string; body?: unknown; query?: Record<string, string> } = {},
 ): Promise<GcalResult<T>> {
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const connKey = process.env.GOOGLE_CALENDAR_API_KEY;
-  if (!lovableKey || !connKey) {
-    return { ok: false, error: "Google Calendar não conectado. Conecte a conta em Configurações." };
+  let conn: CalendarConnection | null;
+  try {
+    conn = await resolveConnection(ctx);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+  if (!conn) return { ok: false, error: NOT_CONNECTED };
+  if (conn.reconnectRequired) return { ok: false, error: RECONNECT };
+
   const qs = init.query ? `?${new URLSearchParams(init.query).toString()}` : "";
   let res: Response;
   try {
-    res = await fetch(`${GATEWAY}${path}${qs}`, {
-      method: init.method ?? "GET",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": connKey,
-        "Content-Type": "application/json",
+    res = await callAsAppUser({
+      gatewayBaseUrl: GATEWAY_BASE_URL,
+      connectionAPIKey: conn.connectionKey,
+      connectorId: GOOGLE_CALENDAR_CONNECTOR_ID,
+      path: `/calendar/v3${path}${qs}`,
+      requiredScopes: GOOGLE_CALENDAR_SCOPES,
+      init: {
+        method: init.method ?? "GET",
+        headers: { "Content-Type": "application/json" },
+        body: init.body ? JSON.stringify(init.body) : undefined,
       },
-      body: init.body ? JSON.stringify(init.body) : undefined,
     });
   } catch (err) {
-    return { ok: false, error: `Falha de rede ao contatar Google Calendar: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, error: `Falha de rede ao contatar Google Agenda: ${err instanceof Error ? err.message : String(err)}` };
   }
+
+  if (await appUserReconnectRequired(res)) {
+    await markReconnectRequired(conn.userId).catch(() => {});
+    return { ok: false, error: RECONNECT };
+  }
+  if (res.status === 404) return { ok: false, error: NOT_CONNECTED };
+
   const raw = await res.text().catch(() => "");
   let json: any = null;
   try {
@@ -54,19 +85,24 @@ async function gcal<T = any>(
   if (!res.ok || json?.error) {
     const msg = json?.error?.message || json?.message || raw || `HTTP ${res.status}`;
     console.error(`[gcal] ${init.method ?? "GET"} ${path} -> ${res.status}: ${msg}`);
-    return { ok: false, error: `Google Calendar [${res.status}]: ${msg}` };
+    return { ok: false, error: `Google Agenda [${res.status}]: ${msg}` };
   }
   return { ok: true, data: (json ?? {}) as T };
 }
 
-export async function listCalendars() {
-  return gcal<{ items?: Array<{ id: string; summary: string; primary?: boolean }> }>("/users/me/calendarList");
+export async function listCalendars(ctx: CalendarCtx) {
+  return gcal<{ items?: Array<{ id: string; summary: string; primary?: boolean }> }>(ctx, "/users/me/calendarList");
 }
 
 export type BusySlot = { start: string; end: string };
 
-export async function getBusy(timeMinIso: string, timeMaxIso: string, calendarId = "primary"): Promise<GcalResult<BusySlot[]>> {
-  const res = await gcal<any>("/freeBusy", {
+export async function getBusy(
+  ctx: CalendarCtx,
+  timeMinIso: string,
+  timeMaxIso: string,
+  calendarId = "primary",
+): Promise<GcalResult<BusySlot[]>> {
+  const res = await gcal<any>(ctx, "/freeBusy", {
     method: "POST",
     body: { timeMin: timeMinIso, timeMax: timeMaxIso, timeZone: DEFAULT_TZ, items: [{ id: calendarId }] },
   });
@@ -75,29 +111,27 @@ export async function getBusy(timeMinIso: string, timeMaxIso: string, calendarId
   return { ok: true, data: ((cal as any)?.busy ?? []) as BusySlot[] };
 }
 
-export async function isSlotFree(startIso: string, durationMinutes: number): Promise<GcalResult<boolean>> {
+export async function isSlotFree(ctx: CalendarCtx, startIso: string, durationMinutes: number): Promise<GcalResult<boolean>> {
   const start = new Date(startIso);
   const end = new Date(start.getTime() + durationMinutes * 60000);
-  const busy = await getBusy(start.toISOString(), end.toISOString());
+  const busy = await getBusy(ctx, start.toISOString(), end.toISOString());
   if (!busy.ok) return busy;
   const overlap = busy.data.some((b) => new Date(b.start) < end && new Date(b.end) > start);
   return { ok: true, data: !overlap };
 }
 
 /** Sugere horários livres em horário comercial nos próximos `days` dias úteis. */
-export async function suggestSlots(opts: {
-  fromIso?: string;
-  days?: number;
-  durationMinutes?: number;
-  limit?: number;
-}): Promise<GcalResult<string[]>> {
+export async function suggestSlots(
+  ctx: CalendarCtx,
+  opts: { fromIso?: string; days?: number; durationMinutes?: number; limit?: number },
+): Promise<GcalResult<string[]>> {
   const duration = opts.durationMinutes ?? 30;
   const days = opts.days ?? 7;
   const limit = opts.limit ?? 3;
   const from = opts.fromIso ? new Date(opts.fromIso) : new Date();
   const start = new Date(Math.max(from.getTime(), Date.now() + 60 * 60000));
   const end = new Date(start.getTime() + days * 24 * 3600 * 1000);
-  const busyRes = await getBusy(start.toISOString(), end.toISOString());
+  const busyRes = await getBusy(ctx, start.toISOString(), end.toISOString());
   if (!busyRes.ok) return busyRes;
   const busy = busyRes.data.map((b) => [new Date(b.start).getTime(), new Date(b.end).getTime()] as const);
 
@@ -169,15 +203,18 @@ export function formatBr(iso: string, tz = DEFAULT_TZ) {
 
 export type CreatedEvent = { id: string; meetLink?: string; htmlLink?: string };
 
-export async function createEvent(opts: {
-  summary: string;
-  description?: string;
-  startIso: string;
-  durationMinutes: number;
-  attendeeEmail?: string | null;
-  withMeet?: boolean;
-  calendarId?: string;
-}): Promise<GcalResult<CreatedEvent>> {
+export async function createEvent(
+  ctx: CalendarCtx,
+  opts: {
+    summary: string;
+    description?: string;
+    startIso: string;
+    durationMinutes: number;
+    attendeeEmail?: string | null;
+    withMeet?: boolean;
+    calendarId?: string;
+  },
+): Promise<GcalResult<CreatedEvent>> {
   const calendarId = opts.calendarId ?? "primary";
   const end = new Date(new Date(opts.startIso).getTime() + opts.durationMinutes * 60000).toISOString();
   const body: any = {
@@ -193,7 +230,7 @@ export async function createEvent(opts: {
       createRequest: { requestId: `eva-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, conferenceSolutionKey: { type: "hangoutsMeet" } },
     };
   }
-  const res = await gcal<any>(`/calendars/${encodeURIComponent(calendarId)}/events`, {
+  const res = await gcal<any>(ctx, `/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: "POST",
     body,
     query: { conferenceDataVersion: "1", sendUpdates: "all" },
@@ -209,17 +246,23 @@ export async function createEvent(opts: {
   };
 }
 
-export async function updateEvent(eventId: string, startIso: string, durationMinutes: number, calendarId = "primary") {
+export async function updateEvent(
+  ctx: CalendarCtx,
+  eventId: string,
+  startIso: string,
+  durationMinutes: number,
+  calendarId = "primary",
+) {
   const end = new Date(new Date(startIso).getTime() + durationMinutes * 60000).toISOString();
-  return gcal<any>(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+  return gcal<any>(ctx, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
     method: "PATCH",
     body: { start: { dateTime: startIso, timeZone: DEFAULT_TZ }, end: { dateTime: end, timeZone: DEFAULT_TZ } },
     query: { sendUpdates: "all" },
   });
 }
 
-export async function deleteEvent(eventId: string, calendarId = "primary") {
-  return gcal<any>(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+export async function deleteEvent(ctx: CalendarCtx, eventId: string, calendarId = "primary") {
+  return gcal<any>(ctx, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
     method: "DELETE",
     query: { sendUpdates: "all" },
   });

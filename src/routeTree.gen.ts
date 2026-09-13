@@ -31,6 +31,7 @@ import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCrmIndexRouteImport } from './routes/_authenticated/crm.index'
+import { Route as OauthGoogleCalendarReturnRouteImport } from './routes/oauth/google-calendar/return'
 import { Route as AuthenticatedCrmIdRouteImport } from './routes/_authenticated/crm.$id'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
@@ -148,6 +149,12 @@ const AuthenticatedCrmIndexRoute = AuthenticatedCrmIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedCrmRoute,
 } as any)
+const OauthGoogleCalendarReturnRoute =
+  OauthGoogleCalendarReturnRouteImport.update({
+    id: '/oauth/google-calendar/return',
+    path: '/oauth/google-calendar/return',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedCrmIdRoute = AuthenticatedCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
@@ -226,6 +234,7 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/': typeof AuthenticatedIndexRoute
   '/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
@@ -256,6 +265,7 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/crm/$id': typeof AuthenticatedCrmIdRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
   '/api/public/hooks/cadence-run': typeof ApiPublicHooksCadenceRunRoute
   '/api/public/hooks/campaign-run': typeof ApiPublicHooksCampaignRunRoute
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/whatsapp'
     | '/crm/$id'
+    | '/oauth/google-calendar/return'
     | '/crm/'
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/'
     | '/crm/$id'
+    | '/oauth/google-calendar/return'
     | '/crm'
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
@@ -342,6 +354,7 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/_authenticated/'
     | '/_authenticated/crm/$id'
+    | '/oauth/google-calendar/return'
     | '/_authenticated/crm/'
     | '/api/public/hooks/cadence-run'
     | '/api/public/hooks/campaign-run'
@@ -355,6 +368,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PoliticaRoute: typeof PoliticaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  OauthGoogleCalendarReturnRoute: typeof OauthGoogleCalendarReturnRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicHooksCampaignRunRoute: typeof ApiPublicHooksCampaignRunRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -517,6 +531,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmIndexRouteImport
       parentRoute: typeof AuthenticatedCrmRoute
     }
+    '/oauth/google-calendar/return': {
+      id: '/oauth/google-calendar/return'
+      path: '/oauth/google-calendar/return'
+      fullPath: '/oauth/google-calendar/return'
+      preLoaderRoute: typeof OauthGoogleCalendarReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/crm/$id': {
       id: '/_authenticated/crm/$id'
       path: '/$id'
@@ -615,6 +636,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PoliticaRoute: PoliticaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  OauthGoogleCalendarReturnRoute: OauthGoogleCalendarReturnRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicHooksCampaignRunRoute: ApiPublicHooksCampaignRunRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,

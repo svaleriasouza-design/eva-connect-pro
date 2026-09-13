@@ -787,6 +787,53 @@ export type Database = {
           },
         ]
       }
+      google_calendar_connections: {
+        Row: {
+          calendar_id: string
+          connected_at: string
+          connection_key_ciphertext: string
+          created_at: string
+          google_email: string | null
+          id: string
+          reconnect_required: boolean
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          calendar_id?: string
+          connected_at?: string
+          connection_key_ciphertext: string
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          reconnect_required?: boolean
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          calendar_id?: string
+          connected_at?: string
+          connection_key_ciphertext?: string
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          reconnect_required?: boolean
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_batches: {
         Row: {
           created_at: string

@@ -166,16 +166,19 @@ export async function scheduleMeeting(params: {
   online?: boolean;
   email?: string | null;
   title?: string;
+  /** Usuária logada que disparou a ação (usa a agenda dela). */
+  userId?: string | null;
 }): Promise<{ ok: boolean; error?: string; meetLink?: string; eventId?: string }> {
   const wid = params.workspaceId;
+  const cal = { workspaceId: wid, userId: params.userId ?? null };
   const db = await admin(wid);
   const duration = params.durationMinutes ?? 30;
-  const free = await isSlotFree(params.startIso, duration);
+  const free = await isSlotFree(cal, params.startIso, duration);
   if (!free.ok) return { ok: false, error: free.error };
   if (!free.data) return { ok: false, error: "busy" };
 
   const summary = params.title ?? `Reunião / Sessão - ${params.contactName}`;
-  const created = await createEvent({
+  const created = await createEvent(cal, {
     summary,
     description: `Agendado automaticamente pela EVA.\nWhatsApp do lead: ${params.phone}\nContato: ${params.contactName}`,
     startIso: params.startIso,
@@ -223,11 +226,11 @@ export async function scheduleMeeting(params: {
   return { ok: true, meetLink: created.data.meetLink, eventId: (ev as any)?.id };
 }
 
-export async function cancelMeeting(wid: string, contactId: string, motivo = "Cancelado pelo cliente via WhatsApp") {
+export async function cancelMeeting(wid: string, contactId: string, motivo = "Cancelado pelo cliente via WhatsApp", userId?: string | null) {
   const db = await admin(wid);
   const ev = await upcomingEvent(wid, contactId);
   if (!ev) return { ok: false, error: "no_event" };
-  if (ev.google_event_id) await deleteEvent(ev.google_event_id);
+  if (ev.google_event_id) await deleteEvent({ workspaceId: wid, userId: userId ?? null }, ev.google_event_id);
   await db.from("events").update({ status: "cancelado" }).eq("id", ev.id);
   await logActivity(wid, contactId, "Reunião cancelada", `${formatBr(ev.starts_at).completo}\n${motivo}`);
   await db.from("contacts").update({ next_action: null, next_action_at: null }).eq("id", contactId);
@@ -235,16 +238,17 @@ export async function cancelMeeting(wid: string, contactId: string, motivo = "Ca
   return { ok: true, event: ev };
 }
 
-export async function rescheduleMeeting(wid: string, contactId: string, startIso: string) {
+export async function rescheduleMeeting(wid: string, contactId: string, startIso: string, userId?: string | null) {
+  const cal = { workspaceId: wid, userId: userId ?? null };
   const db = await admin(wid);
   const ev = await upcomingEvent(wid, contactId);
   if (!ev) return { ok: false, error: "no_event" };
   const duration = ev.duration_minutes ?? 30;
-  const free = await isSlotFree(startIso, duration);
+  const free = await isSlotFree(cal, startIso, duration);
   if (!free.ok) return { ok: false, error: free.error };
   if (!free.data) return { ok: false, error: "busy" };
   if (ev.google_event_id) {
-    const upd = await updateEvent(ev.google_event_id, startIso, duration);
+    const upd = await updateEvent(cal, ev.google_event_id, startIso, duration);
     if (!upd.ok) return { ok: false, error: upd.error };
   }
   await db
@@ -275,6 +279,7 @@ export async function handleSchedulingMessage(params: {
   text: string;
 }): Promise<SchedulingOutcome> {
   const wid = params.workspaceId;
+  const cal = { workspaceId: wid };
   const db = await admin(wid);
   const { data: contactRow } = await db.from("contacts").select("email, name").eq("id", params.contactId).maybeSingle();
   const contact = (contactRow ?? {}) as { email?: string | null; name?: string | null };
@@ -285,7 +290,7 @@ export async function handleSchedulingMessage(params: {
   if (state?.awaiting_saturday && state?.pending_start) {
     if (isNegative(params.text)) {
       await setState(wid, params.contactId, { awaiting_saturday: false, pending_start: null });
-      const slots = await suggestSlots({ durationMinutes: state.duration_minutes ?? 30, limit: 3 });
+      const slots = await suggestSlots(cal, { durationMinutes: state.duration_minutes ?? 30, limit: 3 });
       const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
       return { handled: true, reply: `Sem problema!${phrase} Qual fica melhor para você?`, status: "saturday_cancelled_by_lead" };
     }
@@ -315,7 +320,7 @@ export async function handleSchedulingMessage(params: {
       await setState(wid, params.contactId, { pending_start: null, awaiting_email: false });
       return {
         handled: true,
-        reply: await outOfHoursReply(startIso, state.duration_minutes ?? 30, bizPending.reason),
+        reply: await outOfHoursReply(wid, startIso, state.duration_minutes ?? 30, bizPending.reason),
         status: `out_of_hours:${bizPending.reason}`,
       };
     }
@@ -329,7 +334,7 @@ export async function handleSchedulingMessage(params: {
       online: state.online ?? true,
       email: intent.email,
     });
-    if (!res.ok) return { handled: true, reply: await busyReply(startIso, state.duration_minutes ?? 30, res.error), status: `schedule_failed:${res.error}` };
+    if (!res.ok) return { handled: true, reply: await busyReply(wid, startIso, state.duration_minutes ?? 30, res.error), status: `schedule_failed:${res.error}` };
     return { handled: true, reply: confirmText(startIso, state.duration_minutes ?? 30, res.meetLink, intent.email), status: "scheduled" };
   }
 
@@ -354,7 +359,7 @@ export async function handleSchedulingMessage(params: {
   const duration = intent.duration_minutes ?? 30;
 
   if (intent.intent === "agendar" && !intent.datetime) {
-    const slots = await suggestSlots({ durationMinutes: duration, limit: 3 });
+    const slots = await suggestSlots(cal, { durationMinutes: duration, limit: 3 });
     if (!slots.ok || slots.data.length === 0) {
       return { handled: true, reply: "Que ótimo! Me diga o melhor dia e horário para você que eu confirmo na agenda.", status: "ask_time" };
     }
@@ -367,7 +372,7 @@ export async function handleSchedulingMessage(params: {
 
   if (intent.intent === "remarcar") {
     if (!startIso) {
-      const slots = await suggestSlots({ durationMinutes: duration, limit: 3 });
+      const slots = await suggestSlots(cal, { durationMinutes: duration, limit: 3 });
       const phrase = slots.ok && slots.data.length ? ` Tenho livre: ${slotsPhrase(slots.data)}.` : "";
       return { handled: true, reply: `Claro, podemos remarcar.${phrase} Qual horário prefere?`, status: "reschedule_ask" };
     }
@@ -384,13 +389,13 @@ export async function handleSchedulingMessage(params: {
           online: intent.online !== false,
         });
       }
-      return { handled: true, reply: await outOfHoursReply(startIso, duration, biz.reason), status: `reschedule_${biz.reason}` };
+      return { handled: true, reply: await outOfHoursReply(wid, startIso, duration, biz.reason), status: `reschedule_${biz.reason}` };
     }
     const res = await rescheduleMeeting(wid, params.contactId, startIso);
     if (!res.ok && res.error === "no_event") {
       return await scheduleFlow({ ...params, workspaceId: wid, contact, startIso, duration, online: intent.online !== false });
     }
-    if (!res.ok) return { handled: true, reply: await busyReply(startIso, duration, res.error), status: `reschedule_failed:${res.error}` };
+    if (!res.ok) return { handled: true, reply: await busyReply(wid, startIso, duration, res.error), status: `reschedule_failed:${res.error}` };
     const f = formatBr(startIso);
     return {
       handled: true,
@@ -414,6 +419,7 @@ async function scheduleFlow(args: {
   online: boolean;
   allowSaturday?: boolean;
 }): Promise<SchedulingOutcome> {
+  const cal = { workspaceId: args.workspaceId };
   const biz = isBusinessSlot(args.startIso, args.duration, DEFAULT_TZ, args.allowSaturday === true);
   if (!biz.ok) {
     // Sábado: nunca agenda sozinha — pergunta se pode abrir exceção.
@@ -428,7 +434,7 @@ async function scheduleFlow(args: {
         online: args.online,
       });
     }
-    const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
+    const slots = await suggestSlots(cal, { fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
     await setState(args.workspaceId, args.contactId, {
       suggested: slots.ok ? slots.data : null,
       duration_minutes: args.duration,
@@ -437,12 +443,12 @@ async function scheduleFlow(args: {
       pending_start: null,
       awaiting_saturday: false,
     });
-    return { handled: true, reply: await outOfHoursReply(args.startIso, args.duration, biz.reason), status: `out_of_hours:${biz.reason}` };
+    return { handled: true, reply: await outOfHoursReply(args.workspaceId, args.startIso, args.duration, biz.reason), status: `out_of_hours:${biz.reason}` };
   }
-  const free = await isSlotFree(args.startIso, args.duration);
+  const free = await isSlotFree(cal, args.startIso, args.duration);
   if (!free.ok) return { handled: true, reply: "Tive um problema para consultar a agenda agora. Pode confirmar o horário novamente em instantes?", status: `calendar_error:${free.error}` };
   if (!free.data) {
-    const slots = await suggestSlots({ fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
+    const slots = await suggestSlots(cal, { fromIso: args.startIso, durationMinutes: args.duration, limit: 3 });
     const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
     await setState(args.workspaceId, args.contactId, { suggested: slots.ok ? slots.data : null, duration_minutes: args.duration, online: args.online, awaiting_email: false, pending_start: null });
     return { handled: true, reply: `Neste horário já existe um compromisso. ${phrase}`, status: "busy" };
@@ -465,16 +471,16 @@ async function scheduleFlow(args: {
     online: args.online,
     email: args.contact.email,
   });
-  if (!res.ok) return { handled: true, reply: await busyReply(args.startIso, args.duration, res.error), status: `schedule_failed:${res.error}` };
+  if (!res.ok) return { handled: true, reply: await busyReply(args.workspaceId, args.startIso, args.duration, res.error), status: `schedule_failed:${res.error}` };
   return { handled: true, reply: confirmText(args.startIso, args.duration, res.meetLink, args.contact.email), status: "scheduled" };
 }
 
-async function busyReply(startIso: string, duration: number, error?: string) {
+async function busyReply(wid: string, startIso: string, duration: number, error?: string) {
   if (error === "out_of_hours" || error === "weekend" || error === "sunday") {
-    return await outOfHoursReply(startIso, duration, error === "out_of_hours" ? "after_hours" : "sunday");
+    return await outOfHoursReply(wid, startIso, duration, error === "out_of_hours" ? "after_hours" : "sunday");
   }
   if (error === "busy") {
-    const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
+    const slots = await suggestSlots({ workspaceId: wid }, { fromIso: startIso, durationMinutes: duration, limit: 3 });
     const phrase = slots.ok && slots.data.length ? `Tenho disponibilidade em ${slotsPhrase(slots.data)}. Qual prefere?` : "Pode me sugerir outro horário?";
     return `Neste horário já existe um compromisso. ${phrase}`;
   }
@@ -543,8 +549,8 @@ async function saturdayPendingReply(workspaceId: string, startIso: string) {
 }
 
 /** Recusa educadamente domingo / fora do expediente e oferece dias úteis. */
-async function outOfHoursReply(startIso: string, duration: number, reason: "sunday" | "saturday" | "weekend" | "after_hours" | "invalid") {
-  const slots = await suggestSlots({ fromIso: startIso, durationMinutes: duration, limit: 3 });
+async function outOfHoursReply(wid: string, startIso: string, duration: number, reason: "sunday" | "saturday" | "weekend" | "after_hours" | "invalid") {
+  const slots = await suggestSlots({ workspaceId: wid }, { fromIso: startIso, durationMinutes: duration, limit: 3 });
   const phrase = slots.ok && slots.data.length ? ` Tenho estes horários livres: ${slotsPhrase(slots.data)}.` : "";
   if (reason === "sunday" || reason === "weekend") {
     return `No domingo não temos atendimento — nossa agenda é de segunda a sexta, das 9h às 18h.${phrase} Qual fica melhor para você?`;
