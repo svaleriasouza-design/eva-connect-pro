@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollText, Shield, Trash2, Mail, ArrowLeft } from "lucide-react";
 import evaLogo from "@/assets/eva-logo.png";
+import { PublicFooter } from "@/components/public-footer";
 
 export const Route = createFileRoute("/politica")({
   head: () => ({
@@ -183,11 +184,7 @@ function PoliticaPage() {
         </div>
       </main>
 
-      <footer className="border-t border-border bg-card py-6">
-        <div className="mx-auto max-w-3xl px-4 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} EVA ASSISTENTE · Bio Impact. Todos os direitos reservados.
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

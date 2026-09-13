@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermosDeServicoRouteImport } from './routes/termos-de-servico'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PoliticaDePrivacidadeRouteImport } from './routes/politica-de-privacidade'
 import { Route as PoliticaRouteImport } from './routes/politica'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AssinaturaRouteImport } from './routes/assinatura'
@@ -38,9 +40,19 @@ import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/me
 import { Route as ApiPublicHooksCampaignRunRouteImport } from './routes/api/public/hooks/campaign-run'
 import { Route as ApiPublicHooksCadenceRunRouteImport } from './routes/api/public/hooks/cadence-run'
 
+const TermosDeServicoRoute = TermosDeServicoRouteImport.update({
+  id: '/termos-de-servico',
+  path: '/termos-de-servico',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PoliticaDePrivacidadeRoute = PoliticaDePrivacidadeRouteImport.update({
+  id: '/politica-de-privacidade',
+  path: '/politica-de-privacidade',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PoliticaRoute = PoliticaRouteImport.update({
@@ -189,7 +201,9 @@ export interface FileRoutesByFullPath {
   '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
+  '/politica-de-privacidade': typeof PoliticaDePrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos-de-servico': typeof TermosDeServicoRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -217,7 +231,9 @@ export interface FileRoutesByTo {
   '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
+  '/politica-de-privacidade': typeof PoliticaDePrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos-de-servico': typeof TermosDeServicoRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -247,7 +263,9 @@ export interface FileRoutesById {
   '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/politica': typeof PoliticaRoute
+  '/politica-de-privacidade': typeof PoliticaDePrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos-de-servico': typeof TermosDeServicoRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -279,7 +297,9 @@ export interface FileRouteTypes {
     | '/assinatura'
     | '/auth'
     | '/politica'
+    | '/politica-de-privacidade'
     | '/reset-password'
+    | '/termos-de-servico'
     | '/admin'
     | '/agenda'
     | '/atendimento'
@@ -307,7 +327,9 @@ export interface FileRouteTypes {
     | '/assinatura'
     | '/auth'
     | '/politica'
+    | '/politica-de-privacidade'
     | '/reset-password'
+    | '/termos-de-servico'
     | '/admin'
     | '/agenda'
     | '/atendimento'
@@ -336,7 +358,9 @@ export interface FileRouteTypes {
     | '/assinatura'
     | '/auth'
     | '/politica'
+    | '/politica-de-privacidade'
     | '/reset-password'
+    | '/termos-de-servico'
     | '/_authenticated/admin'
     | '/_authenticated/agenda'
     | '/_authenticated/atendimento'
@@ -367,7 +391,9 @@ export interface RootRouteChildren {
   AssinaturaRoute: typeof AssinaturaRoute
   AuthRoute: typeof AuthRoute
   PoliticaRoute: typeof PoliticaRoute
+  PoliticaDePrivacidadeRoute: typeof PoliticaDePrivacidadeRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  TermosDeServicoRoute: typeof TermosDeServicoRoute
   OauthGoogleCalendarReturnRoute: typeof OauthGoogleCalendarReturnRoute
   ApiPublicHooksCadenceRunRoute: typeof ApiPublicHooksCadenceRunRoute
   ApiPublicHooksCampaignRunRoute: typeof ApiPublicHooksCampaignRunRoute
@@ -377,11 +403,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/termos-de-servico': {
+      id: '/termos-de-servico'
+      path: '/termos-de-servico'
+      fullPath: '/termos-de-servico'
+      preLoaderRoute: typeof TermosDeServicoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/politica-de-privacidade': {
+      id: '/politica-de-privacidade'
+      path: '/politica-de-privacidade'
+      fullPath: '/politica-de-privacidade'
+      preLoaderRoute: typeof PoliticaDePrivacidadeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/politica': {
@@ -635,7 +675,9 @@ const rootRouteChildren: RootRouteChildren = {
   AssinaturaRoute: AssinaturaRoute,
   AuthRoute: AuthRoute,
   PoliticaRoute: PoliticaRoute,
+  PoliticaDePrivacidadeRoute: PoliticaDePrivacidadeRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  TermosDeServicoRoute: TermosDeServicoRoute,
   OauthGoogleCalendarReturnRoute: OauthGoogleCalendarReturnRoute,
   ApiPublicHooksCadenceRunRoute: ApiPublicHooksCadenceRunRoute,
   ApiPublicHooksCampaignRunRoute: ApiPublicHooksCampaignRunRoute,

@@ -245,6 +245,15 @@ function AuthPage() {
             </form>
           </CardContent>
         </Card>
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs text-white/70">
+          <Link to="/politica-de-privacidade" className="hover:text-white hover:underline">
+            Política de Privacidade
+          </Link>
+          <Link to="/termos-de-servico" className="hover:text-white hover:underline">
+            Termos de Serviço
+          </Link>
+        </div>
       </div>
     </div>
   );
