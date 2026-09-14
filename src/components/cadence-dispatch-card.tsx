@@ -11,6 +11,8 @@ import { Send, Clock, CircleAlert as AlertCircle, MessageSquare, Users } from "l
 
 const FAILED_STATUSES = ["FAILED"];
 const PENDING_TARGET_STATUSES = ["pending", "queued", "pendente"];
+// Só conta na fila o que realmente vai sair: disparo agendado ou em andamento.
+const ACTIVE_CAMPAIGN_STATUSES = ["scheduled", "ready", "running"];
 
 function dayStart(offsetDays = 0) {
   const d = new Date();
@@ -79,8 +81,9 @@ export function CadenceDispatchCard() {
         count(
           supabase
             .from("campaign_targets")
-            .select("id", { count: "exact", head: true })
-            .in("status", PENDING_TARGET_STATUSES),
+            .select("id, campaigns!inner(status)", { count: "exact", head: true })
+            .in("status", PENDING_TARGET_STATUSES)
+            .in("campaigns.status", ACTIVE_CAMPAIGN_STATUSES),
         ),
       ]);
 
