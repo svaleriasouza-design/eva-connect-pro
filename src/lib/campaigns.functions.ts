@@ -147,6 +147,28 @@ export const scheduleDraftCampaignFn = createServerFn({ method: "POST" })
     });
   });
 
+/** Envia UM lote imediatamente (somente em horário comercial). */
+export const sendNowCampaignFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => draftSchema.extend({ campaignId: z.string().uuid(), numberIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const workspaceId = await wid(context);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const { sendNowCampaign } = await import("./campaigns.server");
+    return sendNowCampaign({
+      workspaceId,
+      campaignId: data.campaignId,
+      name: data.name,
+      body: data.body,
+      numberIds: data.numberIds,
+      filter: data.filter,
+      batchSize: data.batchSize,
+      aiInstructions: data.aiInstructions ?? null,
+      draftConfig: data.draftConfig,
+    });
+  });
+
 /** Rascunhos salvos, com todos os campos do formulário para reabrir e editar. */
 export const listDraftCampaignsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
