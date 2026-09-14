@@ -530,3 +530,30 @@ export function inBusinessHours(tz = "America/Sao_Paulo"): boolean {
   const hour = Number(get("hour"));
   return hour >= 8 && hour < 20;
 }
+/**
+ * "Enviar agora": prepara o disparo (mesmo registro) e processa UM lote na hora.
+ * Só funciona em horário comercial e nunca continua sozinho depois do lote.
+ */
+export async function sendNowCampaign(params: {
+  workspaceId: string;
+  campaignId: string;
+  name: string;
+  body: string;
+  numberIds: string[];
+  filter: ContactFilter;
+  batchSize?: number;
+  aiInstructions?: string | null;
+  draftConfig?: Record<string, unknown>;
+}) {
+  if (!inBusinessHours()) {
+    return {
+      ok: false as const,
+      error: "Envio imediato disponível somente em horário comercial (seg. a sex., 8h às 20h). Use o agendamento.",
+    };
+  }
+  const prepared = await scheduleDraftCampaign({ ...params, scheduledAt: new Date().toISOString() });
+  if (!prepared.ok) return prepared;
+  const run = await runCampaignBatch(params.workspaceId, params.campaignId);
+  if (!run.ok) return run;
+  return { ...run, campaignId: params.campaignId, total: prepared.total };
+}
