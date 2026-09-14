@@ -11,6 +11,7 @@ import {
   campaignBreakdownFn,
   saveDraftCampaignFn,
   scheduleDraftCampaignFn,
+  sendNowCampaignFn,
   listDraftCampaignsFn,
 } from "@/lib/campaigns.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +34,9 @@ const STATUS_LABEL: Record<string, string> = {
   scheduled: "🕐 Agendado",
   ready: "🕐 Agendado",
   running: "🟢 Em andamento",
-  done: "✅ Concluído",
-  paused: "⏸️ Pausado",
+  done: "✅ Finalizado",
+  failed: "⚠️ Erro no envio",
+  paused: "⏸️ Lote concluído · restante aguardando",
   cancelled: "❌ Cancelado",
 };
 
