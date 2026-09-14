@@ -68,6 +68,7 @@ function Disparos() {
   const previewFn = useServerFn(previewCampaignFn);
   const saveDraftFn = useServerFn(saveDraftCampaignFn);
   const scheduleFn = useServerFn(scheduleDraftCampaignFn);
+  const sendNowFn = useServerFn(sendNowCampaignFn);
   const listDraftsFn = useServerFn(listDraftCampaignsFn);
   const listFn = useServerFn(listCampaignsFn);
   const runFn = useServerFn(runCampaignBatchFn);
