@@ -555,7 +555,7 @@ function Disparos() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                O disparo será iniciado automaticamente nesta data e horário.
+                O disparo roda uma única vez, na data e horário escolhidos aqui.
               </p>
             </div>
 
@@ -568,10 +568,14 @@ function Disparos() {
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
                 Agendar disparo
               </Button>
+              <Button variant="secondary" onClick={onSendNow} disabled={busy || selected.length === 0}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Enviar agora
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. O envio só começa no horário
-              agendado.
+              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. “Agendar disparo” envia um lote
+              só no horário marcado. “Enviar agora” envia um lote na hora, disponível de segunda a sexta, das 8h às 20h.
             </p>
 
             {confirmation && (
