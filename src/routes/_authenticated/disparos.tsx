@@ -344,6 +344,48 @@ function Disparos() {
     }
   }
 
+  /** Envia UM lote agora mesmo (só em horário comercial), sem esperar agendamento. */
+  async function onSendNow() {
+    if (!name.trim() || !body.trim() || selected.length === 0) {
+      toast.error("Informe nome, mensagem e ao menos um número de envio.");
+      return;
+    }
+    const ok = window.confirm(
+      `Enviar agora um lote de até ${batchSize} mensagem(ns) do disparo "${name.trim()}"? O envio começa imediatamente.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const payload = { name: name.trim(), body, numberIds: selected, filter, batchSize, aiInstructions, draftConfig };
+      let id = draftId;
+      if (!id) {
+        const saved: any = await saveDraftFn({ data: { ...payload, campaignId: null } });
+        if (!saved?.ok) {
+          toast.error(saved?.error || "Falha ao salvar o disparo.");
+          return;
+        }
+        id = saved.campaignId as string;
+        setDraftId(id);
+      }
+      const res: any = await sendNowFn({ data: { ...payload, campaignId: id } });
+      if (res?.ok) {
+        const msg = `Lote enviado agora · ${res.sent} enviada(s), ${res.failed} falha(s), ${res.pending} na fila.`;
+        toast.success(msg);
+        setConfirmation(msg);
+        setEditStatus(res.status ?? "paused");
+        setPreview(null);
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
+      } else toast.error(res?.error || "Falha ao enviar o lote.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar o lote.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+
   async function onRun(id: string) {
     // Ação separada e sempre confirmada — nunca acionada por "Salvar" ou "Agendar".
     const c = (campaigns as any[]).find((x) => x.id === id);
