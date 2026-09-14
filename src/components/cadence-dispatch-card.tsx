@@ -11,6 +11,8 @@ import { Send, Clock, CircleAlert as AlertCircle, MessageSquare, Users } from "l
 
 const FAILED_STATUSES = ["FAILED"];
 const PENDING_TARGET_STATUSES = ["pending", "queued", "pendente"];
+// Só conta na fila o que realmente vai sair: disparo agendado ou em andamento.
+const ACTIVE_CAMPAIGN_STATUSES = ["scheduled", "ready", "running"];
 
 function dayStart(offsetDays = 0) {
   const d = new Date();
