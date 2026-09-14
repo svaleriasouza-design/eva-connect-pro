@@ -614,6 +614,11 @@ function Disparos() {
                     Início programado: <strong>{fmtWhen(c.scheduled_at)}</strong>
                   </div>
                 )}
+                {c.finished_at && (
+                  <div className="text-xs text-muted-foreground">
+                    Finalizado em: <strong>{fmtWhen(c.finished_at)}</strong>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -621,9 +626,9 @@ function Disparos() {
                     disabled={
                       running === c.id ||
                       c.status === "done" ||
-                      c.status === "paused" ||
                       c.status === "draft" ||
-                      c.status === "cancelled"
+                      c.status === "cancelled" ||
+                      (c.sent_count ?? 0) + (c.failed_count ?? 0) >= (c.total_targets ?? 0)
                     }
                   >
                     {running === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
