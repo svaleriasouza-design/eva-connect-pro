@@ -11,6 +11,7 @@ import {
   campaignBreakdownFn,
   saveDraftCampaignFn,
   scheduleDraftCampaignFn,
+  sendNowCampaignFn,
   listDraftCampaignsFn,
 } from "@/lib/campaigns.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +34,9 @@ const STATUS_LABEL: Record<string, string> = {
   scheduled: "🕐 Agendado",
   ready: "🕐 Agendado",
   running: "🟢 Em andamento",
-  done: "✅ Concluído",
-  paused: "⏸️ Pausado",
+  done: "✅ Finalizado",
+  failed: "⚠️ Erro no envio",
+  paused: "⏸️ Lote concluído · restante aguardando",
   cancelled: "❌ Cancelado",
 };
 
@@ -66,6 +68,7 @@ function Disparos() {
   const previewFn = useServerFn(previewCampaignFn);
   const saveDraftFn = useServerFn(saveDraftCampaignFn);
   const scheduleFn = useServerFn(scheduleDraftCampaignFn);
+  const sendNowFn = useServerFn(sendNowCampaignFn);
   const listDraftsFn = useServerFn(listDraftCampaignsFn);
   const listFn = useServerFn(listCampaignsFn);
   const runFn = useServerFn(runCampaignBatchFn);
@@ -341,6 +344,48 @@ function Disparos() {
     }
   }
 
+  /** Envia UM lote agora mesmo (só em horário comercial), sem esperar agendamento. */
+  async function onSendNow() {
+    if (!name.trim() || !body.trim() || selected.length === 0) {
+      toast.error("Informe nome, mensagem e ao menos um número de envio.");
+      return;
+    }
+    const ok = window.confirm(
+      `Enviar agora um lote de até ${batchSize} mensagem(ns) do disparo "${name.trim()}"? O envio começa imediatamente.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const payload = { name: name.trim(), body, numberIds: selected, filter, batchSize, aiInstructions, draftConfig };
+      let id = draftId;
+      if (!id) {
+        const saved: any = await saveDraftFn({ data: { ...payload, campaignId: null } });
+        if (!saved?.ok) {
+          toast.error(saved?.error || "Falha ao salvar o disparo.");
+          return;
+        }
+        id = saved.campaignId as string;
+        setDraftId(id);
+      }
+      const res: any = await sendNowFn({ data: { ...payload, campaignId: id } });
+      if (res?.ok) {
+        const msg = `Lote enviado agora · ${res.sent} enviada(s), ${res.failed} falha(s), ${res.pending} na fila.`;
+        toast.success(msg);
+        setConfirmation(msg);
+        setEditStatus(res.status ?? "paused");
+        setPreview(null);
+        qc.invalidateQueries({ queryKey: ["campaigns"] });
+        qc.invalidateQueries({ queryKey: ["campaign-drafts"] });
+      } else toast.error(res?.error || "Falha ao enviar o lote.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar o lote.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+
   async function onRun(id: string) {
     // Ação separada e sempre confirmada — nunca acionada por "Salvar" ou "Agendar".
     const c = (campaigns as any[]).find((x) => x.id === id);
@@ -510,7 +555,7 @@ function Disparos() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                O disparo será iniciado automaticamente nesta data e horário.
+                O disparo roda uma única vez, na data e horário escolhidos aqui.
               </p>
             </div>
 
@@ -523,10 +568,14 @@ function Disparos() {
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
                 Agendar disparo
               </Button>
+              <Button variant="secondary" onClick={onSendNow} disabled={busy || selected.length === 0}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Enviar agora
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. O envio só começa no horário
-              agendado.
+              “Salvar disparo” apenas guarda o rascunho — nenhuma mensagem é enviada. “Agendar disparo” envia um lote
+              só no horário marcado. “Enviar agora” envia um lote na hora, disponível de segunda a sexta, das 8h às 20h.
             </p>
 
             {confirmation && (
@@ -565,6 +614,11 @@ function Disparos() {
                     Início programado: <strong>{fmtWhen(c.scheduled_at)}</strong>
                   </div>
                 )}
+                {c.finished_at && (
+                  <div className="text-xs text-muted-foreground">
+                    Finalizado em: <strong>{fmtWhen(c.finished_at)}</strong>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -572,9 +626,9 @@ function Disparos() {
                     disabled={
                       running === c.id ||
                       c.status === "done" ||
-                      c.status === "paused" ||
                       c.status === "draft" ||
-                      c.status === "cancelled"
+                      c.status === "cancelled" ||
+                      (c.sent_count ?? 0) + (c.failed_count ?? 0) >= (c.total_targets ?? 0)
                     }
                   >
                     {running === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}

@@ -365,10 +365,9 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
     .maybeSingle();
   if (!campaign) return { ok: false as const, error: "Disparo não encontrado." };
   const st = (campaign as any).status as string;
-  if (st === "paused") return { ok: false as const, error: "Disparo pausado." };
   if (st === "draft") return { ok: false as const, error: "Este disparo é um rascunho — agende antes de enviar." };
   if (st === "cancelled") return { ok: false as const, error: "Disparo cancelado." };
-  if (st === "done") return { ok: false as const, error: "Disparo já concluído." };
+  if (st === "done") return { ok: false as const, error: "Disparo já finalizado." };
 
   // TRAVA 1 — o lote é sempre o valor configurado; nunca a fila inteira.
   const resolved = resolveBatchLimit(limit ?? (campaign as any).batch_size);
@@ -479,27 +478,81 @@ export async function runCampaignBatch(workspaceId: string, campaignId: string, 
     .eq("campaign_id", campaignId)
     .eq("status", "pending");
 
+  // Um lote = uma execução. Terminado o lote o disparo NUNCA continua sozinho:
+  // - fila vazia → Concluído (ou Erro, se nada saiu e houve falha)
+  // - ainda há fila → Pausado, aguardando "Enviar próximo lote" ou novo agendamento.
+  const left = pending ?? 0;
+  const finalStatus = left === 0 ? (sent === 0 && failed > 0 ? "failed" : "done") : "paused";
   await db
     .from("campaigns")
     .update({
       sent_count: ((campaign as any).sent_count ?? 0) + sent,
       failed_count: ((campaign as any).failed_count ?? 0) + failed,
-      status: (pending ?? 0) === 0 ? "done" : "running",
-      finished_at: (pending ?? 0) === 0 ? new Date().toISOString() : null,
+      status: finalStatus,
+      scheduled_at: null,
+      finished_at: left === 0 ? new Date().toISOString() : null,
     })
     .eq("id", campaignId);
 
-  return { ok: true as const, sent, failed, pending: pending ?? 0, perNumber: results };
+  return { ok: true as const, sent, failed, pending: left, status: finalStatus, perNumber: results };
 }
 
-/** Campanhas com envios pendentes (usado pelo cron). */
+/**
+ * Somente disparos AGENDADOS que já chegaram na hora marcada.
+ * Nada de "running"/"ready" aqui: a rotina automática apenas dá a partida
+ * no horário escolhido pela usuária; ela não fica repetindo lotes a cada
+ * passagem do agendador.
+ */
 export async function listRunnableCampaigns(): Promise<{ id: string; workspace_id: string }[]> {
   const db = await admin();
-  // Só entra na fila o que está em andamento ou já chegou na hora agendada.
   const { data } = await db
     .from("campaigns")
     .select("id, workspace_id")
-    .in("status", ["ready", "running", "scheduled"])
-    .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`);
+    .eq("status", "scheduled")
+    .not("scheduled_at", "is", null)
+    .lte("scheduled_at", new Date().toISOString());
   return (data ?? []) as any[];
+}
+
+/** Horário comercial (seg–sex, 08:00–19:59) no fuso do Brasil. */
+export function inBusinessHours(tz = "America/Sao_Paulo"): boolean {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const weekday = get("weekday");
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const hour = Number(get("hour"));
+  return hour >= 8 && hour < 20;
+}
+/**
+ * "Enviar agora": prepara o disparo (mesmo registro) e processa UM lote na hora.
+ * Só funciona em horário comercial e nunca continua sozinho depois do lote.
+ */
+export async function sendNowCampaign(params: {
+  workspaceId: string;
+  campaignId: string;
+  name: string;
+  body: string;
+  numberIds: string[];
+  filter: ContactFilter;
+  batchSize?: number;
+  aiInstructions?: string | null;
+  draftConfig?: Record<string, unknown>;
+}) {
+  if (!inBusinessHours()) {
+    return {
+      ok: false as const,
+      error: "Envio imediato disponível somente em horário comercial (seg. a sex., 8h às 20h). Use o agendamento.",
+    };
+  }
+  const prepared = await scheduleDraftCampaign({ ...params, scheduledAt: new Date().toISOString() });
+  if (!prepared.ok) return prepared;
+  const run = await runCampaignBatch(params.workspaceId, params.campaignId);
+  if (!run.ok) return run;
+  return { ...run, campaignId: params.campaignId, total: prepared.total };
 }
