@@ -1390,7 +1390,12 @@ export type Database = {
         Returns: undefined
       }
       current_workspace_id: { Args: never; Returns: string }
+      delete_companies: { Args: { p_ids: string[] }; Returns: number }
       delete_contacts: { Args: { p_ids: string[] }; Returns: number }
+      delete_contacts_by_filter: {
+        Args: { p_batch?: string; p_q?: string; p_stage?: string }
+        Returns: number
+      }
       funnel_stage_rank: { Args: { stage: string }; Returns: number }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
