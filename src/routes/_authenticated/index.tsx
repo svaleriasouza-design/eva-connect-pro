@@ -161,6 +161,8 @@ function Dashboard() {
         </Button>
       </div>
 
+      <DatabaseOverviewCard />
+
       <AttendancePanel />
 
       <CampaignConversationsPanel />
