@@ -15,6 +15,7 @@ import { ArrowLeft, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
+import { deleteContactsFn } from "@/lib/imports.functions";
 
 export const Route = createFileRoute("/_authenticated/crm/$id")({ component: Ficha });
 
@@ -26,6 +27,7 @@ function Ficha() {
   const [nextLoading, setNextLoading] = useState(false);
   const askServer = useServerFn(askEva);
   const sendWa = useServerFn(sendWhatsappMessageFn);
+  const deleteContacts = useServerFn(deleteContactsFn);
   const [quickMsg, setQuickMsg] = useState("");
   const [quickSending, setQuickSending] = useState(false);
 
@@ -68,9 +70,16 @@ function Ficha() {
   }
 
   async function remove() {
-    if (!confirm("Excluir este contato?")) return;
-    await supabase.from("contacts").delete().eq("id", id);
-    toast.success("Contato excluído");
+    if (!confirm("Excluir este contato definitivamente? Esta ação não pode ser desfeita.")) return;
+    try {
+      await deleteContacts({ data: { ids: [id] } });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Não foi possível excluir este contato.");
+      return;
+    }
+    toast.success("Contato excluído definitivamente");
+    qc.invalidateQueries({ queryKey: ["contacts"] });
+    qc.invalidateQueries({ queryKey: ["companies"] });
     nav({ to: "/crm" });
   }
 
