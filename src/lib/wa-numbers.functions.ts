@@ -84,6 +84,23 @@ export const saveWhatsappNumberFn = createServerFn({ method: "POST" })
     if (typeof data.active === "boolean") patch['active'] = data.active;
 
     let id = data.id ?? null;
+
+    // Se o mesmo ID de número já existe neste workspace, atualiza esse registro
+    // em vez de tentar criar outro (evita erro de duplicidade após exclusão/reativação).
+    if (!id) {
+      const { data: existing } = await db
+        .from("whatsapp_numbers")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("phone_number_id", data.phone_number_id)
+        .limit(1);
+      const found = (existing ?? [])[0]?.id ?? null;
+      if (found) {
+        id = found;
+        patch['active'] = data.active ?? true;
+      }
+    }
+
     if (id) {
       const { error } = await db.from("whatsapp_numbers").update(patch).eq("id", id).eq("workspace_id", workspaceId);
       if (error) return { ok: false as const, error: error.message };

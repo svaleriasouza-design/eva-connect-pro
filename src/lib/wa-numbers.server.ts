@@ -80,12 +80,15 @@ export async function resolveSendNumber(
 export async function waNumberByPhoneNumberId(phoneNumberId: string): Promise<WaNumberRow | null> {
   if (!phoneNumberId) return null;
   const db = await admin();
+  // Pode existir o mesmo número em workspaces diferentes: prioriza o ativo mais antigo.
   const { data } = await db
     .from("whatsapp_numbers")
     .select("*")
     .eq("phone_number_id", String(phoneNumberId))
-    .maybeSingle();
-  return (data as WaNumberRow) ?? null;
+    .order("active", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1);
+  return ((data ?? [])[0] as WaNumberRow) ?? null;
 }
 
 /** Identifica o workspace pelo verify token de qualquer um dos números. */
