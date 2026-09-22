@@ -46,6 +46,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
   const [filter, setFilter] = useState<"all" | "problemas" | HygieneStatus>("problemas");
   const [marked, setMarked] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(0);
 
   async function generate() {
     setLoading(true);
