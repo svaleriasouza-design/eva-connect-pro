@@ -340,6 +340,14 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                     <td className="p-2 text-xs text-muted-foreground">{r.reason}</td>
                   </tr>
                 ))}
+                {visible.length > 500 && (
+                  <tr>
+                    <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground">
+                      Mostrando os 500 primeiros de {visible.length.toLocaleString("pt-BR")}. Use “Marcar todos os
+                      inconsistentes” para selecionar a lista completa, mesmo o que não aparece aqui.
+                    </td>
+                  </tr>
+                )}
                 {visible.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-4 text-center text-sm text-muted-foreground">
