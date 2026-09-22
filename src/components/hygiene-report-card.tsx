@@ -320,7 +320,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                 </tr>
               </thead>
               <tbody>
-                {visible.map((r) => (
+                {visible.slice(0, 500).map((r) => (
                   <tr key={r.id} className="border-t align-top">
                     <td className="p-2">
                       {r.status !== "valido" && (
