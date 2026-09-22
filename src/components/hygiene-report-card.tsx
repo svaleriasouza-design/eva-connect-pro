@@ -114,6 +114,11 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
     setMarked((m) => (allIn ? m.filter((x) => !ids.includes(x)) : Array.from(new Set([...m, ...ids]))));
   }
 
+  function markAllProblems() {
+    const ids = (rows ?? []).filter((r) => r.status !== "valido").map((r) => r.id);
+    setMarked(ids);
+  }
+
   function exportCsv() {
     const list = visible;
     if (list.length === 0) return toast.error("Nada para exportar com o filtro atual.");
