@@ -173,7 +173,13 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
         qc.invalidateQueries({ queryKey: ["funnel"] }),
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      toast.success(`${removed.toLocaleString("pt-BR")} contato(s) excluído(s).`);
+      if (failed > 0) {
+        toast.warning(
+          `${removed.toLocaleString("pt-BR")} excluído(s). ${failed.toLocaleString("pt-BR")} não puderam ser excluídos${lastError ? `: ${lastError}` : "."}`,
+        );
+      } else {
+        toast.success(`${removed.toLocaleString("pt-BR")} contato(s) excluído(s).`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
