@@ -241,70 +241,71 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={markAllVisible}>
-              Marcar todos inconsistentes desta visão
+              Marcar todos desta visão
+            </Button>
+            <Button variant="outline" size="sm" onClick={markAllProblems}>
+              Marcar todos os inconsistentes ({problemas.toLocaleString("pt-BR")})
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setMarked([])} disabled={marked.length === 0}>
+              Limpar seleção
             </Button>
             <Button variant="outline" size="sm" onClick={exportCsv}>
               <Download className="mr-2 h-4 w-4" /> Exportar CSV
             </Button>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {marked.length} marcado(s)
-                {deleting && deleted > 0 ? ` · ${deleted.toLocaleString("pt-BR")} excluído(s)…` : ""}
-              </span>
-              <AlertDialog>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-md border p-2">
+            <span className="text-xs text-muted-foreground">
+              {marked.length.toLocaleString("pt-BR")} marcado(s)
+              {deleting ? ` · ${deleted.toLocaleString("pt-BR")} excluído(s)…` : ""}
+            </span>
+            <span className="text-xs text-muted-foreground">Excluir em blocos de:</span>
+            {[50, 100, 500, 1000].map((n) => (
+              <AlertDialog key={n}>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" disabled={marked.length === 0 || deleting}>
-                    {deleting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Excluir 100 primeiros
+                    {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                    {Math.min(n, marked.length).toLocaleString("pt-BR")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Excluir {Math.min(100, marked.length)} contato(s) marcado(s)?
-                    </AlertDialogTitle>
+                    <AlertDialogTitle>Excluir {Math.min(n, marked.length)} contato(s) marcado(s)?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Serão apagados definitivamente apenas os {Math.min(100, marked.length)} primeiros contatos
-                      marcados, junto com o histórico de mensagens deles. Os demais continuam marcados e você pode
-                      repetir quantas vezes quiser. Esta ação não pode ser desfeita.
+                      Serão apagados definitivamente do banco de dados apenas os {Math.min(n, marked.length)} primeiros
+                      contatos marcados, junto com o histórico de mensagens deles. Os demais continuam marcados e você
+                      pode repetir quantas vezes quiser. Esta ação não pode ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => removeMarked(100)}>Excluir 100</AlertDialogAction>
+                    <AlertDialogAction onClick={() => removeMarked(n)}>Excluir {Math.min(n, marked.length)}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={marked.length === 0 || deleting}>
-                    {deleting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Excluir todos os selecionados
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Excluir {marked.length} contato(s)?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Os contatos marcados serão apagados definitivamente, junto com o histórico de mensagens deles.
-                      A exclusão é feita em lotes de 100 até terminar. Esta ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => removeMarked()}>Excluir definitivamente</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            ))}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={marked.length === 0 || deleting} className="ml-auto">
+                  {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  Excluir todos os selecionados ({marked.length.toLocaleString("pt-BR")})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir {marked.length.toLocaleString("pt-BR")} contato(s)?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Os contatos marcados serão apagados definitivamente do banco de dados, junto com o histórico de
+                    mensagens deles. A exclusão é feita automaticamente em lotes de 50 até terminar — mantenha esta tela
+                    aberta. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => removeMarked()}>Excluir definitivamente</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
 
           <div className="max-h-[50vh] overflow-auto rounded-md border">
