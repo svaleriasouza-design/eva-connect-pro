@@ -159,7 +159,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
         qc.invalidateQueries({ queryKey: ["funnel"] }),
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} contato(s) excluído(s).`);
+      toast.success(`${removed.toLocaleString("pt-BR")} contato(s) excluído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
