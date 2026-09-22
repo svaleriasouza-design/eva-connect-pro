@@ -276,12 +276,12 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                     <AlertDialogTitle>Excluir {marked.length} contato(s)?</AlertDialogTitle>
                     <AlertDialogDescription>
                       Os contatos marcados serão apagados definitivamente, junto com o histórico de mensagens deles.
-                      Esta ação não pode ser desfeita.
+                      A exclusão é feita em lotes de 100 até terminar. Esta ação não pode ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={removeMarked}>Excluir definitivamente</AlertDialogAction>
+                    <AlertDialogAction onClick={() => removeMarked()}>Excluir definitivamente</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
