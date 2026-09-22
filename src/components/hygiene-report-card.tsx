@@ -46,6 +46,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
   const [filter, setFilter] = useState<"all" | "problemas" | HygieneStatus>("problemas");
   const [marked, setMarked] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(0);
 
   async function generate() {
     setLoading(true);
@@ -135,12 +136,23 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
     URL.revokeObjectURL(url);
   }
 
-  async function removeMarked() {
+  /** Exclui em lotes de 100. `limit` restringe quantos contatos marcados serão removidos agora. */
+  async function removeMarked(limit?: number) {
+    const targets = typeof limit === "number" ? marked.slice(0, limit) : marked;
+    if (targets.length === 0) return;
     setDeleting(true);
+    setDeleted(0);
+    let removed = 0;
     try {
-      const res: any = await deleteContacts({ data: { ids: marked } });
-      setRows((r) => (r ?? []).filter((x) => !marked.includes(x.id)));
-      setMarked([]);
+      const CHUNK = 100;
+      for (let i = 0; i < targets.length; i += CHUNK) {
+        const chunk = targets.slice(i, i + CHUNK);
+        const res: any = await deleteContacts({ data: { ids: chunk } });
+        removed += res?.removed ?? chunk.length;
+        setDeleted(removed);
+        setRows((r) => (r ?? []).filter((x) => !chunk.includes(x.id)));
+        setMarked((m) => m.filter((x) => !chunk.includes(x)));
+      }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["contacts-page"] }),
         qc.invalidateQueries({ queryKey: ["contacts-count"] }),
@@ -148,7 +160,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
         qc.invalidateQueries({ queryKey: ["funnel"] }),
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      toast.success(`${(res?.removed ?? 0).toLocaleString("pt-BR")} contato(s) excluído(s).`);
+      toast.success(`${removed.toLocaleString("pt-BR")} contato(s) excluído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir os contatos.");
     } finally {
@@ -216,7 +228,38 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
               <Download className="mr-2 h-4 w-4" /> Exportar CSV
             </Button>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{marked.length} marcado(s)</span>
+              <span className="text-xs text-muted-foreground">
+                {marked.length} marcado(s)
+                {deleting && deleted > 0 ? ` · ${deleted.toLocaleString("pt-BR")} excluído(s)…` : ""}
+              </span>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={marked.length === 0 || deleting}>
+                    {deleting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Excluir 100 primeiros
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Excluir {Math.min(100, marked.length)} contato(s) marcado(s)?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Serão apagados definitivamente apenas os {Math.min(100, marked.length)} primeiros contatos
+                      marcados, junto com o histórico de mensagens deles. Os demais continuam marcados e você pode
+                      repetir quantas vezes quiser. Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => removeMarked(100)}>Excluir 100</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={marked.length === 0 || deleting}>
@@ -225,7 +268,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                     ) : (
                       <Trash2 className="mr-2 h-4 w-4" />
                     )}
-                    Excluir selecionados
+                    Excluir todos os selecionados
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -233,12 +276,12 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                     <AlertDialogTitle>Excluir {marked.length} contato(s)?</AlertDialogTitle>
                     <AlertDialogDescription>
                       Os contatos marcados serão apagados definitivamente, junto com o histórico de mensagens deles.
-                      Esta ação não pode ser desfeita.
+                      A exclusão é feita em lotes de 100 até terminar. Esta ação não pode ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={removeMarked}>Excluir definitivamente</AlertDialogAction>
+                    <AlertDialogAction onClick={() => removeMarked()}>Excluir definitivamente</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
