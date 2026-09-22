@@ -228,7 +228,38 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
               <Download className="mr-2 h-4 w-4" /> Exportar CSV
             </Button>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{marked.length} marcado(s)</span>
+              <span className="text-xs text-muted-foreground">
+                {marked.length} marcado(s)
+                {deleting && deleted > 0 ? ` · ${deleted.toLocaleString("pt-BR")} excluído(s)…` : ""}
+              </span>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={marked.length === 0 || deleting}>
+                    {deleting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Excluir 100 primeiros
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Excluir {Math.min(100, marked.length)} contato(s) marcado(s)?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Serão apagados definitivamente apenas os {Math.min(100, marked.length)} primeiros contatos
+                      marcados, junto com o histórico de mensagens deles. Os demais continuam marcados e você pode
+                      repetir quantas vezes quiser. Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => removeMarked(100)}>Excluir 100</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={marked.length === 0 || deleting}>
