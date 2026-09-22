@@ -268,7 +268,7 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
                     ) : (
                       <Trash2 className="mr-2 h-4 w-4" />
                     )}
-                    Excluir selecionados
+                    Excluir todos os selecionados
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
