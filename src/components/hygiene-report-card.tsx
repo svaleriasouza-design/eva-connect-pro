@@ -135,12 +135,23 @@ export function HygieneReportCard({ batchId = null, autoOpen = false, hideButton
     URL.revokeObjectURL(url);
   }
 
-  async function removeMarked() {
+  /** Exclui em lotes de 100. `limit` restringe quantos contatos marcados serão removidos agora. */
+  async function removeMarked(limit?: number) {
+    const targets = typeof limit === "number" ? marked.slice(0, limit) : marked;
+    if (targets.length === 0) return;
     setDeleting(true);
+    setDeleted(0);
+    let removed = 0;
     try {
-      const res: any = await deleteContacts({ data: { ids: marked } });
-      setRows((r) => (r ?? []).filter((x) => !marked.includes(x.id)));
-      setMarked([]);
+      const CHUNK = 100;
+      for (let i = 0; i < targets.length; i += CHUNK) {
+        const chunk = targets.slice(i, i + CHUNK);
+        const res: any = await deleteContacts({ data: { ids: chunk } });
+        removed += res?.removed ?? chunk.length;
+        setDeleted(removed);
+        setRows((r) => (r ?? []).filter((x) => !chunk.includes(x.id)));
+        setMarked((m) => m.filter((x) => !chunk.includes(x)));
+      }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["contacts-page"] }),
         qc.invalidateQueries({ queryKey: ["contacts-count"] }),
