@@ -15,6 +15,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
+const INTEREST_RE = /\b(sim|quero|tenho interesse|interessad[ao]|pode ser|vamos|bora|gostaria|me (?:liga|chama|explica)|quanto (?:custa|é)|valor|pre[çc]o|como funciona|agendar|marcar|reuni[aã]o|hor[aá]rio|mais informa[çc]|me conta)\b/i;
+const NEGATIVE_RE = /\b(n[aã]o (?:tenho|quero)|sem interesse|remov|pare|sair)\b/i;
+function isInterested(text?: string | null) {
+  if (!text) return false;
+  return INTEREST_RE.test(text) && !NEGATIVE_RE.test(text);
+}
+
 type ActivityRow = {
   id: string;
   contact_id: string | null;
