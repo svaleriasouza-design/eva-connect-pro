@@ -169,6 +169,29 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     return m;
   }, [recentActs]);
 
+  // Aviso ao usuário humano quando um lead responde (apenas visual, não altera dados).
+  const seenRepliesRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const current = new Set<string>();
+    for (const [cid, v] of meta) if (v.unread && v.last) current.add(`${cid}:${v.last.id}`);
+    if (seenRepliesRef.current) {
+      for (const key of current) {
+        if (seenRepliesRef.current.has(key)) continue;
+        const cid = key.split(":")[0];
+        const c = contacts.find((x) => x.id === cid);
+        if (!c || c.is_bot) continue;
+        const inOrigin = origin === "disparo" ? c.conversation_origin === CAMPAIGN_ORIGIN : c.conversation_origin !== CAMPAIGN_ORIGIN;
+        if (!inOrigin) continue;
+        const txt = meta.get(cid)?.last?.content ?? "";
+        toast(isInterested(txt) ? `🔥 ${c.name} respondeu e parece interessado` : `💬 ${c.name} respondeu`, {
+          description: txt.slice(0, 120),
+          action: { label: "Abrir", onClick: () => setSelectedId(cid) },
+        });
+      }
+    }
+    seenRepliesRef.current = current;
+  }, [meta, contacts, origin]);
+
   // Nome do disparo que originou cada conversa (identificação da origem).
   const { data: campaignRows = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["wa-campaign-names"],
@@ -496,6 +519,18 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
                       {last?.kind === "whatsapp_out" && <StatusIcon status={last?.status ?? null} />}
                       <span className="truncate">{preview}</span>
                     </div>
+                    {m?.unread && !c.is_bot && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                          Lead respondeu
+                        </span>
+                        {isInterested(last?.content) && (
+                          <span className="rounded-full bg-[color:var(--gold)] px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                            Interessado
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {c.is_bot ? (
                     <Bot className="h-3.5 w-3.5 shrink-0 text-destructive" />
