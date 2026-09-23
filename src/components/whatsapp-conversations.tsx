@@ -15,6 +15,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
+const INTEREST_RE = /\b(sim|quero|tenho interesse|interessad[ao]|pode ser|vamos|bora|gostaria|me (?:liga|chama|explica)|quanto (?:custa|é)|valor|pre[çc]o|como funciona|agendar|marcar|reuni[aã]o|hor[aá]rio|mais informa[çc]|me conta)\b/i;
+const NEGATIVE_RE = /\b(n[aã]o (?:tenho|quero)|sem interesse|remov|pare|sair)\b/i;
+function isInterested(text?: string | null) {
+  if (!text) return false;
+  return INTEREST_RE.test(text) && !NEGATIVE_RE.test(text);
+}
+
 type ActivityRow = {
   id: string;
   contact_id: string | null;
@@ -168,6 +175,29 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
     }
     return m;
   }, [recentActs]);
+
+  // Aviso ao usuário humano quando um lead responde (apenas visual, não altera dados).
+  const seenRepliesRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const current = new Set<string>();
+    for (const [cid, v] of meta) if (v.unread && v.last) current.add(`${cid}:${v.last.id}`);
+    if (seenRepliesRef.current) {
+      for (const key of current) {
+        if (seenRepliesRef.current.has(key)) continue;
+        const cid = key.split(":")[0];
+        const c = contacts.find((x) => x.id === cid);
+        if (!c || c.is_bot) continue;
+        const inOrigin = origin === "disparo" ? c.conversation_origin === CAMPAIGN_ORIGIN : c.conversation_origin !== CAMPAIGN_ORIGIN;
+        if (!inOrigin) continue;
+        const txt = meta.get(cid)?.last?.content ?? "";
+        toast(isInterested(txt) ? `🔥 ${c.name} respondeu e parece interessado` : `💬 ${c.name} respondeu`, {
+          description: txt.slice(0, 120),
+          action: { label: "Abrir", onClick: () => setSelectedId(cid) },
+        });
+      }
+    }
+    seenRepliesRef.current = current;
+  }, [meta, contacts, origin]);
 
   // Nome do disparo que originou cada conversa (identificação da origem).
   const { data: campaignRows = [] } = useQuery<{ id: string; name: string }[]>({
@@ -496,6 +526,18 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
                       {last?.kind === "whatsapp_out" && <StatusIcon status={last?.status ?? null} />}
                       <span className="truncate">{preview}</span>
                     </div>
+                    {m?.unread && !c.is_bot && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                          Lead respondeu
+                        </span>
+                        {isInterested(last?.content) && (
+                          <span className="rounded-full bg-[color:var(--gold)] px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                            Interessado
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {c.is_bot ? (
                     <Bot className="h-3.5 w-3.5 shrink-0 text-destructive" />
