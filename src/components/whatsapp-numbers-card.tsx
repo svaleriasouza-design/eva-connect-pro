@@ -87,13 +87,9 @@ export function WhatsappNumbersCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<NumberRow | null>(null);
 
-  const webhookUrl = useMemo(() => {
-    const origin = typeof window === "undefined" ? "" : window.location.origin;
-    const preview = !origin || origin.includes("id-preview") || origin.includes("localhost");
-    return preview
-      ? "https://eva-connect-pro.lovable.app/api/public/meta/webhook"
-      : `${origin}/api/public/meta/webhook`;
-  }, []);
+  // Sempre o domínio principal: o endereço antigo (*.lovable.app) redireciona,
+  // e a Meta NÃO segue redirecionamentos — os status de entrega se perdem.
+  const webhookUrl = useMemo(() => "https://app.minhaeva.com.br/api/public/meta/webhook", []);
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm((f) => ({ ...f, [k]: v }));
