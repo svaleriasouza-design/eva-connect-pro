@@ -260,11 +260,35 @@ export const testWhatsappNumberFn = createServerFn({ method: "POST" })
         return fail(json?.error?.message || `A Meta recusou a consulta do número (HTTP ${res.status}).`);
       }
       const now = new Date().toISOString();
+      // Garante que a Meta envie as RESPOSTAS dos clientes para a EVA:
+      // inscreve a WABA no app e aponta o webhook para este sistema.
+      let subscribed: string | undefined;
+      if (n.waba_id) {
+        try {
+          const { getRequest } = await import("@tanstack/react-start/server");
+          const origin = new URL(getRequest().url).origin.replace(/^http:/, "https:");
+          const host = origin.includes("localhost") ? "https://app.minhaeva.com.br" : origin;
+          const params = new URLSearchParams();
+          if (n.verify_token) {
+            params.set("override_callback_uri", `${host}/api/public/meta/webhook`);
+            params.set("verify_token", n.verify_token);
+          }
+          const sres = await fetch(
+            `https://graph.facebook.com/${n.graph_version || "v21.0"}/${n.waba_id}/subscribed_apps`,
+            { method: "POST", headers: { Authorization: `Bearer ${n.access_token}` }, body: params },
+          );
+          const sj = (await sres.json()) as any;
+          subscribed = sres.ok && sj?.success ? "ok" : sj?.error?.message || `HTTP ${sres.status}`;
+          console.log(`[wa:subscribe] numero=${n.label} waba=${n.waba_id} -> ${subscribed}`);
+        } catch (e) {
+          subscribed = e instanceof Error ? e.message : String(e);
+        }
+      }
       await db
         .from("whatsapp_numbers")
         .update({
           connection_status: "connected",
-          connection_error: null,
+          connection_error: subscribed && subscribed !== "ok" ? `Recebimento de respostas: ${subscribed}` : null,
           last_checked_at: now,
           connected_at: n.connected_at ?? now,
           display_phone: json.display_phone_number ?? n.display_phone,
@@ -275,6 +299,7 @@ export const testWhatsappNumberFn = createServerFn({ method: "POST" })
         phone: json.display_phone_number as string | undefined,
         name: json.verified_name as string | undefined,
         quality: json.quality_rating as string | undefined,
+        subscribed,
       };
     } catch (err) {
       return fail(`Não foi possível falar com a Meta: ${err instanceof Error ? err.message : String(err)}`);
