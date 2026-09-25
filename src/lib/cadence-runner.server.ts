@@ -454,7 +454,7 @@ export async function runCadenceBatch(
       else result.followUps++;
       await admin
         .from("contacts")
-        .update({ cadence_day: nextDay, last_contact_at: nowIso, cadence_active: true })
+        .update({ cadence_day: nextDay, last_contact_at: nowIso, cadence_active: nextDay < maxDay })
         .eq("id", c.id);
       if (nextDay >= maxDay) {
         result.finished++;
