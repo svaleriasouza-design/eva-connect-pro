@@ -63,11 +63,23 @@ const COLUMNS: Col[] = [
       q.eq("cadence_active", true).eq("cadence_day", d).is("last_inbound_at", null),
   })),
   {
-    key: "perdido_cadencia",
-    label: "Perdido cadência",
-    hint: "terminou sem resposta",
+    key: "recontato_90_dias",
+    label: "Nova tentativa em 90 dias",
+    hint: "completou a cadência sem responder — volta ao fim da fila",
     derive: (q) =>
-      q.eq("cadence_active", false).gte("cadence_day", 5).is("last_inbound_at", null),
+      q
+        .eq("cadence_active", false)
+        .gte("cadence_day", 5)
+        .is("last_inbound_at", null)
+        .eq("do_not_contact", false)
+        .eq("is_bot", false)
+        .neq("status", "perdido"),
+  },
+  {
+    key: "perdido_cadencia",
+    label: "Perdido",
+    hint: "número inválido/inconsistente ou pediu para sair",
+    derive: (q) => q.eq("is_bot", false).or("do_not_contact.eq.true,status.eq.perdido"),
   },
   { key: "perdido_desqualificado", label: "Perdido desqualificado" },
   { key: "perdido_desinteresse", label: "Perdido desinteresse" },
