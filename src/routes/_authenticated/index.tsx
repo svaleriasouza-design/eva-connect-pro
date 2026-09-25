@@ -14,6 +14,7 @@ import { SaturdayRequestsCard } from "@/components/saturday-requests-card";
 import { CadenceDispatchCard } from "@/components/cadence-dispatch-card";
 import { applyEligibilityFilters, isEligibleForAttendance } from "@/lib/conversation-eligibility";
 import { AttendancePanel } from "@/components/attendance-panel";
+import { CadenceFailuresCard } from "@/components/cadence-failures-card";
 import { CampaignConversationsPanel } from "@/components/campaign-conversations-panel";
 import { DatabaseOverviewCard } from "@/components/database-overview-card";
 
@@ -164,6 +165,7 @@ function Dashboard() {
       <DatabaseOverviewCard />
 
       <AttendancePanel />
+      <CadenceFailuresCard />
 
       <CampaignConversationsPanel />
 
