@@ -267,3 +267,32 @@ export async function deleteEvent(ctx: CalendarCtx, eventId: string, calendarId 
     query: { sendUpdates: "all" },
   });
 }
+
+/** Lista eventos da agenda conectada no intervalo (expande recorrências). */
+export async function listEvents(ctx: CalendarCtx, timeMin: string, timeMax: string, calendarId = "primary") {
+  return gcal<{ items?: any[] }>(ctx, `/calendars/${encodeURIComponent(calendarId)}/events`, {
+    query: { timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "500" },
+  });
+}
+
+/** Atualiza título/descrição/horário de um evento existente. */
+export async function patchEvent(
+  ctx: CalendarCtx,
+  eventId: string,
+  patch: { summary?: string; description?: string; startIso?: string; durationMinutes?: number },
+  calendarId = "primary",
+) {
+  const body: any = {};
+  if (patch.summary !== undefined) body.summary = patch.summary;
+  if (patch.description !== undefined) body.description = patch.description;
+  if (patch.startIso) {
+    const end = new Date(new Date(patch.startIso).getTime() + (patch.durationMinutes ?? 30) * 60000).toISOString();
+    body.start = { dateTime: patch.startIso, timeZone: DEFAULT_TZ };
+    body.end = { dateTime: end, timeZone: DEFAULT_TZ };
+  }
+  return gcal<any>(ctx, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    body,
+    query: { sendUpdates: "all" },
+  });
+}
