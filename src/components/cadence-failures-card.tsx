@@ -109,6 +109,8 @@ export function CadenceFailuresCard() {
               />
               <span className="flex-1">Contato</span>
               <span className="w-16">Etapa</span>
+              <span className="w-20">Erro</span>
+              <span className="w-44">Destino aplicado</span>
               <span className="hidden flex-1 md:block">Motivo</span>
               <span className="w-32 text-right">Tentativa</span>
               <span className="w-24" />
@@ -128,8 +130,14 @@ export function CadenceFailuresCard() {
                   <div className="w-16">
                     <Badge variant="outline">Dia {it.day ?? "?"}</Badge>
                   </div>
+                  <div className="w-20">
+                    <Badge variant="secondary">{/code\s+(\d+)/i.exec(it.error_message ?? "")?.[1] ?? "—"}</Badge>
+                  </div>
+                  <div className="w-44 text-xs">
+                    {/\[Destino:\s*([^\]]+)\]/.exec(it.error_message ?? "")?.[1] ?? "Fila de reenvio"}
+                  </div>
                   <div className="hidden flex-1 truncate text-xs text-muted-foreground md:block" title={it.error_message ?? ""}>
-                    {it.error_message ?? "Falha reportada pela Meta (sem detalhe)"}
+                    {(it.error_message ?? "Falha reportada pela Meta (sem detalhe)").replace(/\s*\[Destino:[^\]]*\]$/, "")}
                   </div>
                   <div className="w-32 text-right text-xs text-muted-foreground">{fmt(it.created_at)}</div>
                   <div className="w-24 text-right">
