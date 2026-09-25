@@ -274,6 +274,7 @@ function Disparos() {
     }
     setDraftId(null);
     setEditStatus("draft");
+    setPositiveAudio(null);
     if (!parsed) {
       // Modelos antigos guardavam apenas o texto da mensagem.
       setName(fallbackName);
@@ -293,6 +294,7 @@ function Disparos() {
 
   function onNewDraft() {
     setDraftId(null);
+    setPositiveAudio(null);
     setEditStatus("draft");
     setName("");
     setBody("");
