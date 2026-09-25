@@ -147,6 +147,52 @@ export async function revertCadenceDayForFailedStatus(db: any, externalId: strin
   console.log(`[cadence] falha assíncrona: contact=${a.contact_id} volta para Dia ${day} pendente`);
 }
 
+/**
+ * Destino automático por código de erro da Meta (somente envios de cadência).
+ * 131026 → Perdido (Número inválido) · 131050 → Perdido (Opt-out) + Não contatar
+ * 131049 / 130472 → mantém ativo e reagenda para daqui a 48h.
+ */
+export async function applyCadenceFailureDestination(db: any, externalId: string, codes: number[]) {
+  const { data: act } = await db
+    .from("activities")
+    .select("id, contact_id, title, error_message")
+    .eq("external_id", externalId)
+    .eq("kind", "whatsapp_out")
+    .maybeSingle();
+  const a = (act ?? null) as any;
+  if (!a?.contact_id || !/Cad.ncia\s+Dia/i.test(String(a.title ?? ""))) return;
+
+  let destination: string | null = null;
+  let patch: Record<string, unknown> | null = null;
+  if (codes.includes(131026)) {
+    destination = "Perdido · Número inválido";
+    patch = { presale_stage: "perdido_cadencia", cadence_active: false, next_action: "Perdido: Número inválido" };
+  } else if (codes.includes(131050)) {
+    destination = "Perdido · Opt-out · Não contatar";
+    patch = {
+      presale_stage: "perdido_cadencia",
+      cadence_active: false,
+      do_not_contact: true,
+      next_action: "Perdido: Opt-out",
+    };
+  } else if (codes.includes(131049) || codes.includes(130472)) {
+    const in48 = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+    destination = "Reenvio em 48h";
+    // last_contact_at no futuro mantém o contato fora da seleção até lá;
+    // depois volta pela fila normal (batch_size / horários / dias úteis).
+    patch = { cadence_active: true, last_contact_at: in48, next_action_at: in48 };
+  }
+  if (!patch || !destination) return;
+
+  await db.from("contacts").update(patch).eq("id", a.contact_id);
+  const base = String(a.error_message ?? "").replace(/\s*\[Destino:[^\]]*\]$/, "");
+  await db
+    .from("activities")
+    .update({ error_message: `${base} [Destino: ${destination}]`.trim() })
+    .eq("id", a.id);
+  console.log(`[cadence] falha ${codes.join(",")} contact=${a.contact_id} -> ${destination}`);
+}
+
 
 export type BatchResult = {
   slot: "morning" | "afternoon";

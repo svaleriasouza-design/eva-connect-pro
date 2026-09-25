@@ -125,8 +125,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 // Falha confirmada depois do aceite: o dia da cadência NÃO foi
                 // concluído — desfaz o avanço e devolve o contato à fila.
                 if (status === "FAILED") {
-                  const { revertCadenceDayForFailedStatus } = await import("@/lib/cadence-runner.server");
+                  const { revertCadenceDayForFailedStatus, applyCadenceFailureDestination } = await import("@/lib/cadence-runner.server");
                   await revertCadenceDayForFailedStatus(supabaseAdmin, externalId);
+                  const codes = errs.map((e: any) => Number(e?.code)).filter((n: number) => Number.isFinite(n));
+                  if (codes.length) await applyCadenceFailureDestination(supabaseAdmin, externalId, codes);
                 }
 
               }
