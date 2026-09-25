@@ -22,7 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X, Pencil } from "lucide-react";
+import { Loader2, Megaphone, Play, Pause, Users, Save, CalendarClock, X, Pencil, Mic, Upload } from "lucide-react";
+import { uploadCadenceAudioFn, getCadenceAudioUrlFn } from "@/lib/cadence.functions";
 import { toast } from "sonner";
 import { FUNNEL_STAGES } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
@@ -99,6 +100,10 @@ function Disparos() {
   const [draftId, setDraftId] = useState<string | null>(null);
   // Status do disparo em edição ("draft" | "scheduled" | ...).
   const [editStatus, setEditStatus] = useState<string>("draft");
+  const [positiveAudio, setPositiveAudio] = useState<null | { path: string; name: string }>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const uploadAudioFn = useServerFn(uploadCadenceAudioFn);
+  const audioUrlFn = useServerFn(getCadenceAudioUrlFn);
 
   // Rascunhos salvos (mesma tabela de disparos, status "Rascunho").
   const { data: drafts = [] } = useQuery({
@@ -120,8 +125,8 @@ function Disparos() {
   });
 
   const draftConfig = useMemo(
-    () => ({ stage, q, schedDate, schedTime, batchSize, numberIds: selected }),
-    [stage, q, schedDate, schedTime, batchSize, selected],
+    () => ({ stage, q, schedDate, schedTime, batchSize, numberIds: selected, positiveAudio }),
+    [stage, q, schedDate, schedTime, batchSize, selected, positiveAudio],
   );
 
   const isScheduledEdit = Boolean(draftId) && editStatus !== "draft";
@@ -205,19 +210,58 @@ function Disparos() {
     setSelected(Array.isArray(d.number_ids) ? d.number_ids : []);
     setSchedDate(cfg.schedDate ?? sched?.date ?? "");
     setSchedTime(cfg.schedTime || sched?.time || "09:30");
+    setPositiveAudio(cfg.positiveAudio?.path ? cfg.positiveAudio : null);
     setPreview(null);
     setConfirmation(null);
   }
 
-  /** Editar pela lista "Disparos criados" — bloqueado se o envio já começou. */
+  /** Editar pela lista "Disparos criados". Se já houve envio, abre como cópia (novo disparo). */
   function onEditCampaign(c: any) {
-    if (c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0) {
-      toast.error("Este disparo já está em andamento — não é possível editar.");
+    if (c.status === "running") {
+      toast.error("Este disparo está em andamento — aguarde o lote terminar para editar.");
       return;
     }
     loadDraft(c);
-    toast.success("Disparo aberto para edição.");
+    const started = c.status === "done" || c.status === "failed" || c.status === "cancelled" || (c.sent_count ?? 0) > 0;
+    if (started) {
+      setDraftId(null);
+      setEditStatus("draft");
+      toast.success("Este disparo já enviou mensagens — aberto como cópia. Salve para criar um novo disparo.");
+    } else {
+      toast.success("Disparo aberto para edição.");
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function onUploadAudio(file: File) {
+    if (file.size > 14 * 1024 * 1024) {
+      toast.error("Áudio muito grande (máx. 14 MB).");
+      return;
+    }
+    setUploadingAudio(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const res: any = await uploadAudioFn({
+        data: { day: 1, fileName: file.name, mime: file.type || "audio/ogg", base64: btoa(bin) },
+      });
+      if (res?.ok) {
+        setPositiveAudio({ path: res.path, name: res.name });
+        toast.success("Áudio carregado. Clique em “Salvar disparo” para guardar.");
+      } else toast.error(res?.error || "Falha ao enviar o áudio.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar o áudio.");
+    } finally {
+      setUploadingAudio(false);
+    }
+  }
+
+  async function onListenAudio() {
+    if (!positiveAudio) return;
+    const res: any = await audioUrlFn({ data: { path: positiveAudio.path } });
+    if (res?.ok) window.open(res.url, "_blank");
+    else toast.error(res?.error || "Não foi possível abrir o áudio.");
   }
 
   function loadSaved(raw: string, fallbackName: string) {
@@ -476,6 +520,44 @@ function Disparos() {
                 )}
               </div>
             </div>
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="font-medium flex items-center gap-2">
+                <Mic className="h-4 w-4 text-primary" /> Áudio para resposta positiva
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Quando o lead responder com interesse, a EVA envia este áudio logo após a resposta dela (uma vez por
+                contato). Formatos: OGG, MP3, M4A ou AMR.
+              </p>
+              {positiveAudio ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">🎧 {positiveAudio.name}</Badge>
+                  <Button size="sm" variant="outline" onClick={onListenAudio}>
+                    Ouvir
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPositiveAudio(null)}>
+                    <X className="mr-1 h-3 w-3" /> Remover
+                  </Button>
+                </div>
+              ) : (
+                <label className="inline-flex">
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (f) void onUploadAudio(f);
+                    }}
+                  />
+                  <span className="inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
+                    {uploadingAudio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    Enviar áudio
+                  </span>
+                </label>
+              )}
+              <p className="text-xs text-muted-foreground">Clique em “Salvar disparo” para guardar o áudio.</p>
+            </div>
             <div className="space-y-1">
               <Label>Como a EVA deve responder?</Label>
               <Textarea
@@ -663,7 +745,7 @@ function Disparos() {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={c.status === "running" || c.status === "done" || (c.sent_count ?? 0) > 0}
+                    disabled={c.status === "running"}
                     onClick={() => onEditCampaign(c)}
                   >
                     <Pencil className="mr-1 h-3 w-3" /> Editar disparo
