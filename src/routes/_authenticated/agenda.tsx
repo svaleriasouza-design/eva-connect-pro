@@ -126,7 +126,7 @@ function Agenda() {
       {isLoading ? (
         <Card className="p-8 text-center text-muted-foreground">Carregando…</Card>
       ) : mode === "month" ? (
-        <MonthGrid start={start} cursor={cursor} events={events} onPick={setDetail} onDay={(d) => { setCursor(d); setMode("day"); }} />
+        <MonthGrid start={start} cursor={cursor} events={events} onPick={setDetail} onDay={(d: Date) => { setCursor(d); setMode("day"); }} />
       ) : (
         <TimeGrid days={mode === "day" ? [start] : Array.from({ length: 7 }, (_, i) => addDays(start, i))} events={events} onPick={setDetail} onSlot={openNew} />
       )}
