@@ -3,7 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase, formatDateTime } from "@/lib/db";
-import { scheduleMeetingFn, rescheduleMeetingFn, cancelMeetingFn, suggestSlotsFn } from "@/lib/calendar.functions";
+import {
+  scheduleMeetingFn,
+  rescheduleMeetingFn,
+  cancelMeetingFn,
+  suggestSlotsFn,
+  listAgendaEventsFn,
+  saveAgendaEventFn,
+  deleteAgendaEventFn,
+} from "@/lib/calendar.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,313 +19,410 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Calendar as CalIcon, Video, Loader2, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Video, Loader2, Clock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/agenda")({ component: Agenda });
+export const Route = createFileRoute("/_authenticated/agenda")({
+  head: () => ({
+    meta: [
+      { title: "Agenda · EVA" },
+      { name: "description", content: "Agenda da EVA sincronizada com o Google Agenda: visões de mês, semana e dia." },
+      { property: "og:title", content: "Agenda · EVA" },
+      { property: "og:description", content: "Agenda sincronizada com o Google Agenda." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Agenda,
+});
 
-type View = "hoje" | "futuras" | "concluidas" | "canceladas";
+type Mode = "month" | "week" | "day";
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const HOUR_PX = 48;
 
-const STATUS_LABEL: Record<string, string> = {
-  agendado: "Agendada",
-  concluido: "Concluída",
-  cancelado: "Cancelada",
-  remarcado: "Remarcada",
-};
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+function rangeFor(mode: Mode, cursor: Date) {
+  if (mode === "day") return { start: startOfDay(cursor), end: addDays(startOfDay(cursor), 1) };
+  if (mode === "week") {
+    const s = addDays(startOfDay(cursor), -cursor.getDay());
+    return { start: s, end: addDays(s, 7) };
+  }
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const s = addDays(first, -first.getDay());
+  return { start: s, end: addDays(s, 42) };
+}
 
 function Agenda() {
   const qc = useQueryClient();
-  const [view, setView] = useState<View>("hoje");
+  const [mode, setMode] = useState<Mode>("week");
+  const [cursor, setCursor] = useState(() => new Date());
   const [detail, setDetail] = useState<any | null>(null);
+  const [editing, setEditing] = useState<any | null>(null); // {} = novo
 
-  const scheduleFn = useServerFn(scheduleMeetingFn);
-  const rescheduleFn = useServerFn(rescheduleMeetingFn);
-  const cancelFn = useServerFn(cancelMeetingFn);
-  const slotsFn = useServerFn(suggestSlotsFn);
+  const listFn = useServerFn(listAgendaEventsFn);
+  const { start, end } = rangeFor(mode, cursor);
 
-  const { data: events = [], isLoading } = useQuery({
-    queryKey: ["events"],
-    queryFn: async () =>
-      (
-        await supabase
-          .from("events")
-          .select("*, contact:contacts(id, name, email, whatsapp, phone, funnel_stage, company_id), company:companies(name)")
-          .order("starts_at")
-      ).data ?? [],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["agenda-events", start.toISOString(), end.toISOString()],
+    queryFn: () => listFn({ data: { timeMin: start.toISOString(), timeMax: end.toISOString() } }),
   });
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts-min"],
-    queryFn: async () => (await supabase.from("contacts").select("id, name, email").order("name").limit(500)).data ?? [],
-  });
+  const events = ((data?.events ?? []) as any[]).map((e) => ({ ...e, _start: new Date(e.starts_at) }));
+  const refresh = () => qc.invalidateQueries({ queryKey: ["agenda-events"] });
 
-  const now = new Date();
-  const filtered = useMemo(
-    () =>
-      (events as any[]).filter((e) => {
-        const d = new Date(e.starts_at);
-        if (view === "canceladas") return e.status === "cancelado";
-        if (view === "concluidas") return e.status === "concluido" || (e.status === "agendado" && d < now);
-        if (view === "hoje") return e.status !== "cancelado" && d.toDateString() === now.toDateString();
-        return e.status === "agendado" && d >= now;
-      }),
-    [events, view],
-  );
-
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<any>({ kind: "reuniao", starts_at: "", duration: 30, online: true });
-  const [saving, setSaving] = useState(false);
-  const [slots, setSlots] = useState<string[]>([]);
-  const upd = (k: string) => (e: any) => setForm({ ...form, [k]: e?.target?.value ?? e });
-
-  async function loadSlots() {
-    const res = await slotsFn({ data: { duration: Number(form.duration) || 30 } });
-    if (res.ok) setSlots(res.slots);
-    else toast.error(res.error);
+  function shift(dir: number) {
+    if (mode === "day") setCursor(addDays(cursor, dir));
+    else if (mode === "week") setCursor(addDays(cursor, 7 * dir));
+    else setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1));
   }
 
-  async function save() {
-    if (!form.starts_at) return toast.error("Escolha data e hora");
-    setSaving(true);
-    try {
-      if (form.contact_id) {
-        const res = await scheduleFn({
-          data: {
-            contactId: form.contact_id,
-            startIso: new Date(form.starts_at).toISOString(),
-            duration: Number(form.duration) || 30,
-            online: form.online !== false,
-            title: form.title || undefined,
-          },
-        });
-        if (!res.ok) return toast.error(res.error);
-        toast.success("Reunião criada no Google Calendar e sincronizada");
-      } else {
-        if (!form.title) return toast.error("Informe um título");
-        const { error } = await supabase.from("events").insert({
-          title: form.title,
-          kind: form.kind,
-          starts_at: new Date(form.starts_at).toISOString(),
-          location: form.location ?? null,
-          notes: form.notes ?? null,
-          duration_minutes: Number(form.duration) || 30,
-        });
-        if (error) return toast.error(error.message);
-        toast.success("Evento criado na Agenda");
-      }
-      setOpen(false);
-      setForm({ kind: "reuniao", duration: 30, online: true });
-      qc.invalidateQueries({ queryKey: ["events"] });
-    } finally {
-      setSaving(false);
+  const title = useMemo(() => {
+    if (mode === "day")
+      return cursor.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    if (mode === "week") {
+      const e = addDays(start, 6);
+      return `${start.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })} – ${e.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" })}`;
     }
-  }
+    return cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }, [mode, cursor, start]);
 
-  async function doCancel(ev: any) {
-    if (!ev.contact_id) {
-      await supabase.from("events").update({ status: "cancelado" }).eq("id", ev.id);
-    } else {
-      const res = await cancelFn({ data: { contactId: ev.contact_id } });
-      if (!res.ok) return toast.error(res.error ?? "Falha ao cancelar");
-    }
-    toast.success("Reunião cancelada");
-    setDetail(null);
-    qc.invalidateQueries({ queryKey: ["events"] });
-  }
-
-  async function doReschedule(ev: any, startLocal: string) {
-    if (!ev.contact_id) return toast.error("Evento sem contato vinculado");
-    const res = await rescheduleFn({ data: { contactId: ev.contact_id, startIso: new Date(startLocal).toISOString() } });
-    if (!res.ok) return toast.error(res.error ?? "Falha ao remarcar");
-    toast.success("Reunião remarcada e sincronizada");
-    setDetail(null);
-    qc.invalidateQueries({ queryKey: ["events"] });
-  }
+  const openNew = (d?: Date) => setEditing({ _new: true, starts_at: d ? d.toISOString() : undefined });
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Agenda</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} reunião(ões) · sincronizada com o Google Calendar</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold mr-2">Agenda</h1>
+          <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
+          <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => shift(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => shift(1)}><ChevronRight className="h-4 w-4" /></Button>
+          <span className="text-lg font-medium capitalize">{title}</span>
+          {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+        <div className="flex gap-2">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
             <TabsList>
-              <TabsTrigger value="hoje">Hoje</TabsTrigger>
-              <TabsTrigger value="futuras">Futuras</TabsTrigger>
-              <TabsTrigger value="concluidas">Concluídas</TabsTrigger>
-              <TabsTrigger value="canceladas">Canceladas</TabsTrigger>
+              <TabsTrigger value="month">Mês</TabsTrigger>
+              <TabsTrigger value="week">Semana</TabsTrigger>
+              <TabsTrigger value="day">Dia</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" /> Nova reunião</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Nova reunião</DialogTitle></DialogHeader>
-              <div className="grid gap-3">
-                <F label="Cliente (cria no Google Calendar e no CRM)">
-                  <Select value={form.contact_id ?? ""} onValueChange={(v) => setForm({ ...form, contact_id: v || null })}>
-                    <SelectTrigger><SelectValue placeholder="— evento interno —" /></SelectTrigger>
-                    <SelectContent>
-                      {(contacts as any[]).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </F>
-                <F label="Título"><Input value={form.title ?? ""} onChange={upd("title")} placeholder="Reunião / Sessão - Cliente" /></F>
-                <div className="grid grid-cols-2 gap-3">
-                  <F label="Data e hora *"><Input type="datetime-local" value={form.starts_at ?? ""} onChange={upd("starts_at")} /></F>
-                  <F label="Duração (min)"><Input type="number" value={form.duration} onChange={upd("duration")} /></F>
-                </div>
-                <div className="flex items-center justify-between rounded-md border p-2 text-sm">
-                  <span>Online (gera Google Meet)</span>
-                  <Button type="button" size="sm" variant={form.online !== false ? "default" : "outline"} onClick={() => setForm({ ...form, online: form.online === false })}>
-                    {form.online !== false ? "Sim" : "Não"}
-                  </Button>
-                </div>
-                <div className="space-y-1.5">
-                  <Button type="button" size="sm" variant="outline" onClick={loadSlots}><Clock className="mr-2 h-3 w-3" /> Ver horários livres</Button>
-                  {slots.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {slots.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setForm({ ...form, starts_at: toLocalInput(s) })}
-                          className="rounded-full border px-2 py-0.5 text-xs hover:border-primary hover:text-primary"
-                        >
-                          {formatDateTime(s)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <F label="Observações"><Textarea rows={2} value={form.notes ?? ""} onChange={upd("notes")} /></F>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => openNew()}><Plus className="mr-2 h-4 w-4" /> Criar</Button>
         </div>
       </div>
 
-      <div className="space-y-2">
-        {isLoading && <Card className="p-8 text-center text-muted-foreground">Carregando…</Card>}
-        {!isLoading && filtered.length === 0 && (
-          <Card className="p-8 text-center text-muted-foreground"><CalIcon className="mx-auto mb-2 h-8 w-8" /> Sem reuniões neste filtro.</Card>
-        )}
-        {filtered.map((e: any) => (
-          <Card key={e.id} className="flex items-center justify-between gap-3 p-4 cursor-pointer hover:border-primary" onClick={() => setDetail(e)}>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 font-medium">
-                {e.title}
-                <Badge variant="secondary" className="text-[10px]">{STATUS_LABEL[e.status] ?? e.status}</Badge>
-                {e.source === "eva" && <Badge className="text-[10px]">EVA</Badge>}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {formatDateTime(e.starts_at)} · {e.duration_minutes ?? 30} min
-                {e.contact?.name && ` · ${e.contact.name}`}
-                {e.company?.name && ` · ${e.company.name}`}
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              {e.meet_link && (
-                <a href={e.meet_link} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-primary">
-                  <Video className="h-4 w-4" />
-                </a>
-              )}
-              <Button variant="ghost" size="icon" onClick={(ev) => { ev.stopPropagation(); doCancel(e); }}><Trash2 className="h-4 w-4" /></Button>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {data?.googleError && (
+        <Card className="border-destructive/40 p-3 text-sm text-destructive">
+          Não foi possível ler sua Google Agenda: {data.googleError} Mostrando apenas os eventos salvos na EVA.
+        </Card>
+      )}
 
-      <MeetingDetail event={detail} onClose={() => setDetail(null)} onCancel={doCancel} onReschedule={doReschedule} />
+      {isLoading ? (
+        <Card className="p-8 text-center text-muted-foreground">Carregando…</Card>
+      ) : mode === "month" ? (
+        <MonthGrid start={start} cursor={cursor} events={events} onPick={setDetail} onDay={(d) => { setCursor(d); setMode("day"); }} />
+      ) : (
+        <TimeGrid days={mode === "day" ? [start] : Array.from({ length: 7 }, (_, i) => addDays(start, i))} events={events} onPick={setDetail} onSlot={openNew} />
+      )}
+
+      <EventDetail
+        event={detail}
+        onClose={() => setDetail(null)}
+        onEdit={(e: any) => { setDetail(null); setEditing(e); }}
+        onChanged={() => { setDetail(null); refresh(); }}
+      />
+      <EventForm event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />
     </div>
   );
 }
 
-function MeetingDetail({ event, onClose, onCancel, onReschedule }: any) {
-  const [newDate, setNewDate] = useState("");
-  const { data: history = [] } = useQuery({
-    queryKey: ["event-history", event?.contact_id],
-    enabled: Boolean(event?.contact_id),
-    queryFn: async () =>
-      (
-        await supabase
-          .from("activities")
-          .select("id, kind, title, content, created_at")
-          .eq("contact_id", event.contact_id)
-          .order("created_at", { ascending: false })
-          .limit(30)
-      ).data ?? [],
-  });
-
-  if (!event) return null;
-  const c = event.contact ?? {};
+function EventChip({ e, onPick }: any) {
   return (
-    <Dialog open={Boolean(event)} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{event.title}</DialogTitle></DialogHeader>
-        <div className="space-y-3 text-sm">
-          <div className="grid gap-1 sm:grid-cols-2">
-            <Info label="Quando" value={`${formatDateTime(event.starts_at)} · ${event.duration_minutes ?? 30} min`} />
-            <Info label="Status" value={STATUS_LABEL[event.status] ?? event.status} />
-            <Info label="Nome" value={c.name ?? "—"} />
-            <Info label="Empresa" value={event.company?.name ?? "—"} />
-            <Info label="Telefone" value={c.whatsapp ?? c.phone ?? "—"} />
-            <Info label="E-mail" value={c.email ?? event.attendee_email ?? "—"} />
-            <Info label="Etapa do funil" value={c.funnel_stage ?? "—"} />
-            <Info label="Local" value={event.location ?? "—"} />
+    <button
+      onClick={(ev) => { ev.stopPropagation(); onPick(e); }}
+      className={cn(
+        "w-full truncate rounded px-1.5 py-0.5 text-left text-[11px]",
+        e.source === "google" ? "bg-secondary text-secondary-foreground" : "bg-primary/15 text-primary",
+      )}
+    >
+      {!e.all_day && <span className="font-medium">{e._start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} </span>}
+      {e.title}
+    </button>
+  );
+}
+
+function MonthGrid({ start, cursor, events, onPick, onDay }: any) {
+  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
+  const today = new Date();
+  return (
+    <Card className="overflow-hidden">
+      <div className="grid grid-cols-7 border-b text-center text-xs text-muted-foreground">
+        {WEEKDAYS.map((w) => <div key={w} className="py-2">{w}</div>)}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((d) => {
+          const list = events.filter((e: any) => sameDay(e._start, d));
+          return (
+            <div key={d.toISOString()} className={cn("min-h-24 border-b border-r p-1 space-y-0.5", d.getMonth() !== cursor.getMonth() && "bg-muted/40")}>
+              <button
+                onClick={() => onDay(d)}
+                className={cn("mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs hover:bg-accent", sameDay(d, today) && "bg-primary text-primary-foreground")}
+              >
+                {d.getDate()}
+              </button>
+              {list.slice(0, 3).map((e: any) => <EventChip key={e.id} e={e} onPick={onPick} />)}
+              {list.length > 3 && (
+                <button onClick={() => onDay(d)} className="px-1 text-[11px] text-muted-foreground hover:underline">+{list.length - 3} mais</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function TimeGrid({ days, events, onPick, onSlot }: any) {
+  const today = new Date();
+  return (
+    <Card className="overflow-hidden">
+      <div className="grid border-b" style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}>
+        <div />
+        {days.map((d: Date) => (
+          <div key={d.toISOString()} className="py-2 text-center">
+            <div className="text-xs text-muted-foreground">{WEEKDAYS[d.getDay()]}</div>
+            <div className={cn("mx-auto flex h-8 w-8 items-center justify-center rounded-full text-lg", sameDay(d, today) && "bg-primary text-primary-foreground")}>{d.getDate()}</div>
+            {events.filter((e: any) => e.all_day && sameDay(e._start, d)).map((e: any) => <div key={e.id} className="px-1"><EventChip e={e} onPick={onPick} /></div>)}
           </div>
+        ))}
+      </div>
+      <div className="max-h-[70vh] overflow-y-auto">
+        <div className="grid relative" style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}>
+          <div>
+            {HOURS.map((h) => (
+              <div key={h} style={{ height: HOUR_PX }} className="pr-1 text-right text-[10px] text-muted-foreground -translate-y-1.5">{h ? `${String(h).padStart(2, "0")}:00` : ""}</div>
+            ))}
+          </div>
+          {days.map((d: Date) => (
+            <div key={d.toISOString()} className="relative border-l">
+              {HOURS.map((h) => (
+                <div
+                  key={h}
+                  style={{ height: HOUR_PX }}
+                  className="border-b border-border/50 hover:bg-accent/40 cursor-pointer"
+                  onClick={() => onSlot(new Date(d.getFullYear(), d.getMonth(), d.getDate(), h))}
+                />
+              ))}
+              {events
+                .filter((e: any) => !e.all_day && sameDay(e._start, d))
+                .map((e: any) => {
+                  const top = (e._start.getHours() + e._start.getMinutes() / 60) * HOUR_PX;
+                  const h = Math.max(20, ((e.duration_minutes ?? 30) / 60) * HOUR_PX - 2);
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={() => onPick(e)}
+                      style={{ top, height: h }}
+                      className={cn(
+                        "absolute left-0.5 right-0.5 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm",
+                        e.source === "google" ? "bg-secondary text-secondary-foreground border" : "bg-primary text-primary-foreground",
+                      )}
+                    >
+                      <div className="font-medium truncate">{e.title}</div>
+                      <div className="opacity-80">{e._start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
+                    </button>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function EventDetail({ event, onClose, onEdit, onChanged }: any) {
+  const delFn = useServerFn(deleteAgendaEventFn);
+  const cancelFn = useServerFn(cancelMeetingFn);
+  const [busy, setBusy] = useState(false);
+  if (!event) return null;
+  const c = event.contact ?? null;
+
+  async function remove() {
+    if (!confirm("Excluir este evento? Ele também será removido do Google Agenda.")) return;
+    setBusy(true);
+    try {
+      const res = event.contact_id
+        ? await cancelFn({ data: { contactId: event.contact_id } })
+        : await delFn({ data: { id: event.id } });
+      if (!res.ok) return toast.error((res as any).error ?? "Falha ao excluir");
+      toast.success("Evento excluído");
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{event.title}</DialogTitle></DialogHeader>
+        <div className="space-y-2 text-sm">
+          <div className="flex flex-wrap gap-1">
+            {event.source === "google" ? <Badge variant="secondary">Google Agenda</Badge> : <Badge>EVA</Badge>}
+          </div>
+          <Info label="Quando" value={event.all_day ? event._start.toLocaleDateString("pt-BR") + " · dia inteiro" : `${formatDateTime(event.starts_at)} · ${event.duration_minutes ?? 30} min`} />
+          {event.location && <Info label="Local" value={event.location} />}
+          {c && <Info label="Contato" value={c.name} />}
+          {c && (c.whatsapp || c.phone) && <Info label="Telefone" value={c.whatsapp ?? c.phone} />}
+          {event.company?.name && <Info label="Empresa" value={event.company.name} />}
           {event.meet_link && (
             <a href={event.meet_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary hover:underline">
               <Video className="h-4 w-4" /> Abrir Google Meet
             </a>
           )}
           {event.notes && <div className="rounded-md border p-2 text-muted-foreground whitespace-pre-wrap">{event.notes}</div>}
-          {c.id && (
-            <Link to="/crm/$id" params={{ id: c.id }} className="text-xs text-primary hover:underline">Abrir ficha no CRM →</Link>
-          )}
-
-          <div className="rounded-md border p-3">
-            <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">Remarcar</div>
-            <div className="flex gap-2">
-              <Input type="datetime-local" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
-              <Button size="sm" disabled={!newDate} onClick={() => onReschedule(event, newDate)}>Remarcar</Button>
-              <Button size="sm" variant="outline" onClick={() => onCancel(event)}>Cancelar reunião</Button>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">Histórico completo</div>
-            <div className="space-y-1.5">
-              {(history as any[]).length === 0 && <div className="text-xs text-muted-foreground">Sem registros.</div>}
-              {(history as any[]).map((a) => (
-                <div key={a.id} className="rounded border p-2">
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>{a.kind}</span><span>{formatDateTime(a.created_at)}</span>
-                  </div>
-                  <div className="text-xs font-medium">{a.title}</div>
-                  {a.content && <div className="text-xs text-muted-foreground whitespace-pre-wrap">{a.content}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
+          {c?.id && <Link to="/crm/$id" params={{ id: c.id }} className="text-xs text-primary hover:underline">Abrir ficha no CRM →</Link>}
         </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={remove} disabled={busy}><Trash2 className="mr-2 h-4 w-4" /> Excluir</Button>
+          <Button onClick={() => onEdit(event)}><Pencil className="mr-2 h-4 w-4" /> Editar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EventForm({ event, onClose, onSaved }: any) {
+  const saveFn = useServerFn(saveAgendaEventFn);
+  const scheduleFn = useServerFn(scheduleMeetingFn);
+  const rescheduleFn = useServerFn(rescheduleMeetingFn);
+  const slotsFn = useServerFn(suggestSlotsFn);
+  const isNew = Boolean(event?._new);
+  const [form, setForm] = useState<any>({});
+  const [key, setKey] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [slots, setSlots] = useState<string[]>([]);
+
+  if (event !== key) {
+    setKey(event);
+    setSlots([]);
+    setForm(
+      event
+        ? {
+            title: event.title ?? "",
+            notes: event.notes ?? "",
+            starts_at: event.starts_at ? toLocalInput(event.starts_at) : "",
+            duration: event.duration_minutes ?? 30,
+            online: true,
+            contact_id: "",
+          }
+        : {},
+    );
+  }
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-min"],
+    enabled: isNew,
+    queryFn: async () => (await supabase.from("contacts").select("id, name").order("name").limit(500)).data ?? [],
+  });
+
+  if (!event) return null;
+  const upd = (k: string) => (e: any) => setForm({ ...form, [k]: e?.target?.value ?? e });
+
+  async function save() {
+    if (!form.starts_at) return toast.error("Escolha data e hora");
+    const startIso = new Date(form.starts_at).toISOString();
+    const duration = Number(form.duration) || 30;
+    setSaving(true);
+    try {
+      let res: any;
+      if (isNew && form.contact_id) {
+        res = await scheduleFn({ data: { contactId: form.contact_id, startIso, duration, online: form.online !== false, title: form.title || undefined } });
+      } else {
+        if (!form.title) return toast.error("Informe um título");
+        if (!isNew && event.contact_id && startIso !== new Date(event.starts_at).toISOString()) {
+          // Reunião com contato: usa a remarcação existente (avisa o cliente).
+          const r = await rescheduleFn({ data: { contactId: event.contact_id, startIso } });
+          if (!r.ok) return toast.error(r.error ?? "Falha ao remarcar");
+        }
+        res = await saveFn({
+          data: { id: isNew ? undefined : event.id, title: form.title, notes: form.notes || null, startIso, duration, online: isNew ? form.online !== false : undefined },
+        });
+      }
+      if (!res.ok) return toast.error(res.error ?? "Falha ao salvar");
+      toast.success(isNew ? "Evento criado no Google Agenda" : "Evento atualizado no Google Agenda");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{isNew ? "Novo evento" : "Editar evento"}</DialogTitle></DialogHeader>
+        <div className="grid gap-3">
+          {isNew && (
+            <F label="Contato do CRM (opcional)">
+              <Select value={form.contact_id || "none"} onValueChange={(v) => setForm({ ...form, contact_id: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— sem contato —</SelectItem>
+                  {(contacts as any[]).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </F>
+          )}
+          <F label="Título"><Input value={form.title ?? ""} onChange={upd("title")} /></F>
+          <div className="grid grid-cols-2 gap-3">
+            <F label="Data e hora *"><Input type="datetime-local" value={form.starts_at ?? ""} onChange={upd("starts_at")} /></F>
+            <F label="Duração (min)"><Input type="number" value={form.duration ?? 30} onChange={upd("duration")} /></F>
+          </div>
+          {isNew && (
+            <>
+              <div className="flex items-center justify-between rounded-md border p-2 text-sm">
+                <span>Online (gera Google Meet)</span>
+                <Button type="button" size="sm" variant={form.online !== false ? "default" : "outline"} onClick={() => setForm({ ...form, online: form.online === false })}>
+                  {form.online !== false ? "Sim" : "Não"}
+                </Button>
+              </div>
+              <div className="space-y-1.5">
+                <Button type="button" size="sm" variant="outline" onClick={async () => {
+                  const r = await slotsFn({ data: { duration: Number(form.duration) || 30 } });
+                  if (r.ok) setSlots(r.slots); else toast.error(r.error);
+                }}><Clock className="mr-2 h-3 w-3" /> Ver horários livres</Button>
+                {slots.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {slots.map((s) => (
+                      <button key={s} type="button" onClick={() => setForm({ ...form, starts_at: toLocalInput(s) })} className="rounded-full border px-2 py-0.5 text-xs hover:border-primary hover:text-primary">
+                        {formatDateTime(s)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {!(isNew && form.contact_id) && <F label="Descrição"><Textarea rows={3} value={form.notes ?? ""} onChange={upd("notes")} /></F>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div><span className="text-xs text-muted-foreground">{label}: </span><span>{value}</span></div>
-  );
+  return <div><span className="text-xs text-muted-foreground">{label}: </span><span>{value}</span></div>;
 }
 
 function toLocalInput(iso: string) {
