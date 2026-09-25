@@ -250,6 +250,34 @@ export async function runCadenceBatch(
   const maxDay = stepList[stepList.length - 1].day;
   const scriptByDay = new Map<number, string>(stepList.map((s) => [s.day, s.script]));
 
+  // RECICLAGEM — quem completou todos os dias sem responder NÃO é Perdido:
+  // após 90 dias do último envio volta ao fim da fila (Dia 0 / novo_lead).
+  // A fila de novos ordena por last_contact_at com nulos primeiro, então os
+  // reciclados entram depois dos leads nunca contatados.
+  {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recyc } = await admin
+      .from("contacts")
+      .select("id")
+      .is("deleted_at", null)
+      .gte("cadence_day", maxDay)
+      .is("last_inbound_at", null)
+      .eq("do_not_contact", false)
+      .eq("is_bot", false)
+      .neq("status", "perdido")
+      .or("presale_stage.is.null,presale_stage.not.like.perdido%")
+      .lt("last_contact_at", cutoff)
+      .limit(500);
+    const ids = ((recyc ?? []) as any[]).map((r) => r.id);
+    if (ids.length) {
+      await admin
+        .from("contacts")
+        .update({ cadence_day: 0, cadence_active: true, funnel_stage: "novo_lead", presale_stage: null })
+        .in("id", ids);
+    }
+  }
+
+
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -426,7 +454,7 @@ export async function runCadenceBatch(
       else result.followUps++;
       await admin
         .from("contacts")
-        .update({ cadence_day: nextDay, last_contact_at: nowIso, cadence_active: true })
+        .update({ cadence_day: nextDay, last_contact_at: nowIso, cadence_active: nextDay < maxDay })
         .eq("id", c.id);
       if (nextDay >= maxDay) {
         result.finished++;
