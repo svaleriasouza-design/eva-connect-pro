@@ -9,7 +9,7 @@ export const FUNNEL_STAGES = [
   { key: "fechado", label: "Fechado" },
   { key: "cliente_ativo", label: "Cliente Ativo" },
   { key: "pos_venda", label: "Pós-venda" },
-  { key: "reativar_60", label: "Reativar em 60 dias" },
+  { key: "reativar_60", label: "Nova tentativa em 90 dias" },
 ] as const;
 
 /** Etapas do quadro "Pré-venda" (campo contacts.presale_stage). */

@@ -17,6 +17,14 @@ const OPT_OUT_PATTERNS = [
   /\bunsubscribe/i,
   /\bstop\b/i,
   /\bsair\s+da\s+lista/i,
+  // Recusas curtas: a mensagem inteira é apenas "não" (com ou sem "obrigado").
+  /^\s*(n[ãa]o|nao|n)[\s!.,]*((muito\s+)?obrigad[oa])?[\s!.,]*$/i,
+  /^\s*(n[ãa]o|nao)[\s,]+(obrigad[oa]|valeu|grat[oa])[\s!.]*$/i,
+  /\b(n[ãa]o|nao)\s+quero\b/i,
+  /\b(n[ãa]o|nao)\s+me\s+(incomode|perturbe|ligue|chame)/i,
+  /\bpar[ae]\s+de\s+(mandar|enviar|me\s+mandar)/i,
+  /\bme\s+(remove|remova|exclui|exclua)\s+(da|dessa|desta)\s+lista\b/i,
+  /\b(n[ãa]o|nao)\s+tenho\s+interesse/i,
 ];
 
 const FAREWELL_PATTERNS = [
