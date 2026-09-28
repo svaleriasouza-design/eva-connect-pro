@@ -152,6 +152,7 @@ export async function routeInbound(params: {
         cadence_active: false,
         status: "perdido",
         funnel_stage: "perdido",
+        presale_stage: "perdido_cadencia",
         next_action: null,
         next_action_at: null,
       })
