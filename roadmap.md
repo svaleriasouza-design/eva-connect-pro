@@ -4,3 +4,4 @@
 - [x] Atualizar o Dashboard com contagens reais de contatos, empresas e números ativos.
 - [x] Mostrar no Dashboard a relação entre empresas e contatos.
 - [ ] Validar permissões, isolamento entre workspaces e atualização das telas.
+- [x] Corrigir recusas curtas, direcionamento manual na ficha e coluna duplicada de 90 dias.

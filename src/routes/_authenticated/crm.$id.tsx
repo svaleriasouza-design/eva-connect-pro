@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, CheckSquare, Sparkles, Trash2, Save, Send, Loader2, MoveRight } from "lucide-react";
 import { WhatsAppQuickSend } from "@/components/whatsapp-quick-send";
 import { toast } from "sonner";
 import { sendWhatsappMessageFn } from "@/lib/whatsapp.functions";
@@ -46,6 +46,9 @@ function Ficha() {
   const deleteContacts = useServerFn(deleteContactsFn);
   const [quickMsg, setQuickMsg] = useState("");
   const [quickSending, setQuickSending] = useState(false);
+  const [presaleDestination, setPresaleDestination] = useState<string>("__auto");
+  const [salesDestination, setSalesDestination] = useState<string>("__auto");
+  const [movingDestination, setMovingDestination] = useState<"presale_stage" | "sales_stage" | null>(null);
 
   const { data: contact } = useQuery({
     queryKey: ["contact", id],
@@ -75,7 +78,14 @@ function Ficha() {
   const state = form ?? contact ?? {};
   const upd = (k: string) => (e: any) => setForm({ ...state, [k]: e?.target?.value ?? e });
 
+  useEffect(() => {
+    if (!contact) return;
+    setPresaleDestination((contact as any).presale_stage ?? "__auto");
+    setSalesDestination((contact as any).sales_stage ?? "__auto");
+  }, [contact]);
+
   async function moveBoard(field: "presale_stage" | "sales_stage", value: string) {
+    setMovingDestination(field);
     const v = value === "__auto" ? null : value;
     const patch: Record<string, unknown> = { [field]: v };
     // Perdido por recusa: bloqueia novos envios e tira da cadência.
@@ -85,7 +95,11 @@ function Ficha() {
       patch.cadence_active = false;
     }
     const { error } = await supabase.from("contacts").update(patch as any).eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      setMovingDestination(null);
+      return;
+    }
     await supabase.from("activities").insert({
       contact_id: id,
       kind: "nota",
@@ -96,6 +110,7 @@ function Ficha() {
     qc.invalidateQueries({ queryKey: ["contact", id] });
     qc.invalidateQueries({ queryKey: ["funil-prevenda-derivado"] });
     qc.invalidateQueries({ queryKey: ["funil-venda"] });
+    setMovingDestination(null);
   }
 
   async function save() {
@@ -231,25 +246,45 @@ function Ficha() {
             <CardHeader><CardTitle>Resumo</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div><span className="text-muted-foreground">Etapa:</span> <Badge variant="secondary">{FUNNEL_STAGES.find(s=>s.key===contact.funnel_stage)?.label}</Badge></div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Mover no Funil — Pré-venda</Label>
-                <Select value={(contact as any).presale_stage ?? "__auto"} onValueChange={(v) => moveBoard("presale_stage", v)}>
+              <div className="space-y-1.5 rounded-md border p-2.5">
+                <Label className="text-xs font-medium">Direcionar para Pré-venda</Label>
+                <Select value={presaleDestination} onValueChange={setPresaleDestination}>
                   <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__auto">Automático (EVA decide)</SelectItem>
                     {PRESALE_OPTIONS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  disabled={movingDestination !== null || presaleDestination === ((contact as any).presale_stage ?? "__auto")}
+                  onClick={() => moveBoard("presale_stage", presaleDestination)}
+                >
+                  {movingDestination === "presale_stage" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MoveRight className="mr-2 h-4 w-4" />}
+                  Mover para esta etapa
+                </Button>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Mover no Funil — Venda</Label>
-                <Select value={(contact as any).sales_stage ?? "__auto"} onValueChange={(v) => moveBoard("sales_stage", v)}>
+              <div className="space-y-1.5 rounded-md border p-2.5">
+                <Label className="text-xs font-medium">Direcionar para Venda</Label>
+                <Select value={salesDestination} onValueChange={setSalesDestination}>
                   <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__auto">Sem etapa</SelectItem>
                     {SALES_STAGES.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  disabled={movingDestination !== null || salesDestination === ((contact as any).sales_stage ?? "__auto")}
+                  onClick={() => moveBoard("sales_stage", salesDestination)}
+                >
+                  {movingDestination === "sales_stage" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MoveRight className="mr-2 h-4 w-4" />}
+                  Mover para esta etapa
+                </Button>
               </div>
               <div>
                 <span className="text-muted-foreground">Cadência:</span>{" "}
