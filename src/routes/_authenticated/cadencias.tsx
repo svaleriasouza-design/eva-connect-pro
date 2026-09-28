@@ -39,6 +39,8 @@ const DEFAULT_SETTINGS: CadenceSettings = {
   weekdays_only: true,
   auto_reply_enabled: true,
   automation_enabled: false,
+  eva_behavior: "",
+  handoff_rules: "",
   last_morning_run_at: null,
   last_afternoon_run_at: null,
 };
@@ -277,6 +279,44 @@ function Cadencias() {
         </Card>
       </div>
 
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Comportamento da EVA</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Vale para todas as respostas da cadência. As instruções de cada dia continuam valendo junto com estas.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Como a EVA deve se comportar</Label>
+            <Textarea
+              rows={7}
+              placeholder="Ex.: Seja cordial e objetiva, trate por você, fale do diagnóstico gratuito, não fale de preço..."
+              value={settings.eva_behavior ?? ""}
+              onChange={(e) => setSettings({ ...settings, eva_behavior: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Quando a EVA deve chamar um humano</Label>
+            <Textarea
+              rows={7}
+              placeholder="Ex.: quando o cliente pedir preço, pedir para falar com uma pessoa, fizer uma reclamação ou quiser fechar contrato."
+              value={settings.handoff_rules ?? ""}
+              onChange={(e) => setSettings({ ...settings, handoff_rules: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Nesses casos a EVA avisa o cliente que uma pessoa vai continuar, para de responder sozinha e cria uma tarefa de alta prioridade para a equipe.
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <Button onClick={submitSettings} disabled={savingSettings}>
+              {savingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Salvar comportamento
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">

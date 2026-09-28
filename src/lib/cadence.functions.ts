@@ -21,6 +21,8 @@ export type CadenceSettings = {
   weekdays_only: boolean;
   auto_reply_enabled: boolean;
   automation_enabled: boolean;
+  eva_behavior?: string;
+  handoff_rules?: string;
   last_morning_run_at: string | null;
   last_afternoon_run_at: string | null;
 };
@@ -164,6 +166,8 @@ const settingsSchema = z.object({
   weekdays_only: z.boolean(),
   auto_reply_enabled: z.boolean(),
   automation_enabled: z.boolean(),
+  eva_behavior: z.string().max(20000).optional(),
+  handoff_rules: z.string().max(20000).optional(),
 });
 
 export const saveCadenceSettingsFn = createServerFn({ method: "POST" })

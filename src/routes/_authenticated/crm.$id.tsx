@@ -2,7 +2,23 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase, FUNNEL_STAGES, formatDateTime } from "@/lib/db";
+import { supabase, FUNNEL_STAGES, SALES_STAGES, formatDateTime } from "@/lib/db";
+
+const PRESALE_OPTIONS = [
+  { key: "responsivos", label: "Responsivos" },
+  { key: "pre_agendado_qualificado", label: "Pré-agendado" },
+  { key: "qualificado", label: "Qualificado" },
+  { key: "iniciar_cadencia", label: "Iniciar cadência" },
+  { key: "lead_dia_1", label: "Cadência Dia 1" },
+  { key: "lead_dia_2", label: "Cadência Dia 2" },
+  { key: "lead_dia_3", label: "Cadência Dia 3" },
+  { key: "lead_dia_4", label: "Cadência Dia 4" },
+  { key: "lead_dia_5", label: "Cadência Dia 5" },
+  { key: "recontato_90_dias", label: "Nova tentativa em 90 dias" },
+  { key: "perdido_cadencia", label: "Perdido (recusou / número inválido)" },
+  { key: "perdido_desqualificado", label: "Perdido desqualificado" },
+  { key: "perdido_desinteresse", label: "Perdido desinteresse" },
+];
 import { askEva } from "@/lib/eva.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +74,29 @@ function Ficha() {
   const [form, setForm] = useState<any>(null);
   const state = form ?? contact ?? {};
   const upd = (k: string) => (e: any) => setForm({ ...state, [k]: e?.target?.value ?? e });
+
+  async function moveBoard(field: "presale_stage" | "sales_stage", value: string) {
+    const v = value === "__auto" ? null : value;
+    const patch: Record<string, unknown> = { [field]: v };
+    // Perdido por recusa: bloqueia novos envios e tira da cadência.
+    if (field === "presale_stage" && v === "perdido_cadencia") {
+      Object.assign(patch, { do_not_contact: true, cadence_active: false, status: "perdido" });
+    } else if (field === "presale_stage" && v?.startsWith("perdido")) {
+      patch.cadence_active = false;
+    }
+    const { error } = await supabase.from("contacts").update(patch as any).eq("id", id);
+    if (error) return toast.error(error.message);
+    await supabase.from("activities").insert({
+      contact_id: id,
+      kind: "nota",
+      title: "Movido no Funil manualmente",
+      content: `${field === "presale_stage" ? "Pré-venda" : "Venda"}: ${v ?? "automático (EVA decide)"}`,
+    } as any);
+    toast.success("Contato movido no Funil");
+    qc.invalidateQueries({ queryKey: ["contact", id] });
+    qc.invalidateQueries({ queryKey: ["funil-prevenda-derivado"] });
+    qc.invalidateQueries({ queryKey: ["funil-venda"] });
+  }
 
   async function save() {
     if (!form) return;
@@ -192,6 +231,26 @@ function Ficha() {
             <CardHeader><CardTitle>Resumo</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div><span className="text-muted-foreground">Etapa:</span> <Badge variant="secondary">{FUNNEL_STAGES.find(s=>s.key===contact.funnel_stage)?.label}</Badge></div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Mover no Funil — Pré-venda</Label>
+                <Select value={(contact as any).presale_stage ?? "__auto"} onValueChange={(v) => moveBoard("presale_stage", v)}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto">Automático (EVA decide)</SelectItem>
+                    {PRESALE_OPTIONS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Mover no Funil — Venda</Label>
+                <Select value={(contact as any).sales_stage ?? "__auto"} onValueChange={(v) => moveBoard("sales_stage", v)}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto">Sem etapa</SelectItem>
+                    {SALES_STAGES.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <span className="text-muted-foreground">Cadência:</span>{" "}
                 {contact.cadence_active ? (

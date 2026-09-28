@@ -484,6 +484,8 @@ export async function runCadenceBatch(
  * Gera e envia uma resposta automática usando a instrução do dia atual + Lovable AI.
  * Chamado pelo webhook quando um contato ativo responde.
  */
+const HUMAN_TAG = "[CHAMAR_HUMANO]";
+
 export async function autoReplyToInbound(params: {
   workspaceId: string;
   contactId: string;
@@ -498,9 +500,11 @@ export async function autoReplyToInbound(params: {
 
   const { data: settingsRow } = await (admin as any)
     .from("cadence_settings")
-    .select("auto_reply_enabled")
+    .select("auto_reply_enabled, eva_behavior, handoff_rules")
     .maybeSingle();
-  const settings = (settingsRow ?? {}) as { auto_reply_enabled?: boolean };
+  const settings = (settingsRow ?? {}) as { auto_reply_enabled?: boolean; eva_behavior?: string | null; handoff_rules?: string | null };
+  const evaBehavior = (settings.eva_behavior ?? "").trim();
+  const handoffRules = (settings.handoff_rules ?? "").trim();
   if (!settings.auto_reply_enabled) {
     console.log("[eva auto-reply] desativado nas configurações");
     return "skipped:auto_reply_disabled";
@@ -597,7 +601,7 @@ Dia atual da cadência: ${day}
 ${params.signal === "handoff_interno" ? "SINAL DETECTADO NESTA MENSAGEM: o cliente está encaminhando internamente. Responda mantendo a conversa ativa (prazo de retorno, material para repassar, responsável ou follow-up combinado). É PROIBIDO se despedir.\n" : ""}
 Roteiro enviado neste dia: """${step.script ?? ""}"""
 Instruções de resposta cadastradas (têm prioridade sobre o estilo acima): """${instructions}"""
-
+${evaBehavior ? `\nCOMPORTAMENTO DEFINIDO PELA USUÁRIA (prioridade máxima sobre o estilo acima): """${evaBehavior}"""\n` : ""}${handoffRules ? `\nQUANDO CHAMAR UM HUMANO: """${handoffRules}"""\nSe a mensagem do cliente se encaixar nessas situações, escreva uma resposta curta avisando que uma pessoa da equipe vai continuar o atendimento em breve e termine a mensagem com a marca ${HUMAN_TAG}. Fora dessas situações, NUNCA use essa marca.\n` : ""}
 Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params.contactName}. Nada de "aqui está a resposta:" ou aspas.`;
 
   let reply = "";
@@ -641,6 +645,41 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
         ? "Perfeito, obrigado por levar internamente! Quer que eu te envie um resumo curto para facilitar o repasse ao time? Consigo te chamar na próxima semana para saber como ficou?"
         : "Perfeito! Me confirma o melhor dia e horário para você que eu já reservo na agenda.";
     }
+  }
+
+  // Chamar humano conforme regra configurada na aba Cadência.
+  if (reply.includes(HUMAN_TAG)) {
+    reply = reply.split(HUMAN_TAG).join("").trim() ||
+      "Obrigada! Vou chamar uma pessoa da equipe para continuar seu atendimento em instantes.";
+    const sent = await sendAndLog({
+      workspaceId: params.workspaceId,
+      to: params.to,
+      body: reply,
+      contactId: params.contactId,
+      title: "EVA chamou atendimento humano",
+      tag: "eva-handoff-human",
+    });
+    const nowIso = new Date().toISOString();
+    await (admin as any)
+      .from("contacts")
+      .update({ human_takeover: true, human_takeover_at: nowIso, human_takeover_by_name: "EVA (regra de atendimento humano)", cadence_active: false })
+      .eq("id", params.contactId);
+    await (admin as any).from("tasks").insert({
+      workspace_id: params.workspaceId,
+      contact_id: params.contactId,
+      title: `Atender ${params.contactName} — EVA chamou humano`,
+      description: `Mensagem do cliente: ${(params.incomingText ?? "").slice(0, 500)}`,
+      priority: "alta",
+      due_at: nowIso,
+    });
+    await (admin as any).from("activities").insert({
+      workspace_id: params.workspaceId,
+      contact_id: params.contactId,
+      kind: "nota",
+      title: "EVA chamou atendimento humano",
+      content: `Regra configurada na Cadência. A EVA parou de responder sozinha para este contato.\n\nMensagem: ${(params.incomingText ?? "").slice(0, 500)}`,
+    });
+    return sent.ok ? "handoff_human" : `send_failed:${sent.error ?? ""}`;
   }
 
   // Tipo de resposta configurado na etapa (árvore de respostas da EVA):
