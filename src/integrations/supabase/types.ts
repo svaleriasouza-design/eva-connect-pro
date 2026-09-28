@@ -106,6 +106,8 @@ export type Database = {
           auto_reply_enabled: boolean
           automation_enabled: boolean
           batch_size: number
+          eva_behavior: string
+          handoff_rules: string
           id: boolean
           last_afternoon_run_at: string | null
           last_morning_run_at: string | null
@@ -120,6 +122,8 @@ export type Database = {
           auto_reply_enabled?: boolean
           automation_enabled?: boolean
           batch_size?: number
+          eva_behavior?: string
+          handoff_rules?: string
           id?: boolean
           last_afternoon_run_at?: string | null
           last_morning_run_at?: string | null
@@ -134,6 +138,8 @@ export type Database = {
           auto_reply_enabled?: boolean
           automation_enabled?: boolean
           batch_size?: number
+          eva_behavior?: string
+          handoff_rules?: string
           id?: boolean
           last_afternoon_run_at?: string | null
           last_morning_run_at?: string | null
