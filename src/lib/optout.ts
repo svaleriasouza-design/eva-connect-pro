@@ -25,7 +25,10 @@ const OPT_OUT_PATTERNS = [
   /\bpar[ae]\s+de\s+(mandar|enviar|me\s+mandar)/i,
   /\bme\s+(remove|remova|exclui|exclua)\s+(da|dessa|desta)\s+lista\b/i,
   /\b(n[ãa]o|nao)\s+tenho\s+interesse/i,
+  /^\s*(n[ãa]o|nao)\s*[,;:]?\s*(obrigad[oa]|valeu)\b/i,
 ];
+
+const SHORT_REFUSAL_PATTERN = /^\s*(n[ãa]o|nao|n)\s*[!.,;:]*\s*$/i;
 
 const FAREWELL_PATTERNS = [
   /\bobrigad[oa]\s+(pelo\s+)?(retorno|contato|aten[çc][ãa]o)/i,
@@ -51,7 +54,10 @@ const HANDOFF_PATTERNS = [
 export function isExplicitOptOut(text: string): boolean {
   const t = (text ?? "").trim();
   if (!t) return false;
-  return OPT_OUT_PATTERNS.some((re) => re.test(t));
+  // O webhook agrupa mensagens próximas. Assim, “oi” seguido de “não” chega
+  // como duas linhas; a recusa curta precisa ser reconhecida mesmo nesse caso.
+  const lines = t.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return OPT_OUT_PATTERNS.some((re) => re.test(t)) || lines.some((line) => SHORT_REFUSAL_PATTERN.test(line));
 }
 
 export function looksLikeFarewell(text: string): boolean {
