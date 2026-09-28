@@ -23,7 +23,7 @@ const OPT_OUT_PATTERNS = [
   /\b(n[ãa]o|nao)\s+quero\b/i,
   /\b(n[ãa]o|nao)\s+me\s+(incomode|perturbe|ligue|chame)/i,
   /\bpar[ae]\s+de\s+(mandar|enviar|me\s+mandar)/i,
-  /\bme\s+(tira|tire|remove|remova|exclui|exclua)\b/i,
+  /\bme\s+(remove|remova|exclui|exclua)\s+(da|dessa|desta)\s+lista\b/i,
   /\b(n[ãa]o|nao)\s+tenho\s+interesse/i,
 ];
 
