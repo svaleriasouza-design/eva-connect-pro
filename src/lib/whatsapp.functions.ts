@@ -206,3 +206,82 @@ export const sendWhatsappAudioFn = createServerFn({ method: "POST" })
       ? { ok: true as const, messageId: result.messageId, path }
       : { ok: false as const, error: result.error ?? "Falha no envio do áudio." };
   });
+
+const mediaSchema = z.object({
+  contactId: z.string().uuid(),
+  to: z.string().min(6),
+  base64: z.string().min(32).max(30_000_000),
+  mime: z.string().min(3).max(64),
+  name: z.string().max(200).optional(),
+});
+
+/** Envia uma imagem ou vídeo pelo atendimento humano. */
+export const sendWhatsappMediaFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => mediaSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    const { requireRole, displayNameFor } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const sender = await displayNameFor(
+      context.userId,
+      ((context.claims as any)?.email as string | undefined) ?? "atendente",
+    );
+    const mime = data.mime.split(";")[0].toLowerCase();
+    const types: Record<string, { kind: "image" | "video"; ext: string }> = {
+      "image/jpeg": { kind: "image", ext: "jpg" },
+      "image/jpg": { kind: "image", ext: "jpg" },
+      "image/png": { kind: "image", ext: "png" },
+      "video/mp4": { kind: "video", ext: "mp4" },
+      "video/3gpp": { kind: "video", ext: "3gp" },
+    };
+    const t = types[mime];
+    if (!t) return { ok: false as const, error: "Formato não aceito. Use JPG, PNG, MP4 ou 3GP." };
+    const bin = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+    const max = t.kind === "image" ? 10 : 20;
+    if (bin.length > max * 1024 * 1024) return { ok: false as const, error: `Arquivo acima de ${max} MB.` };
+
+    const path = `atendimento/${workspaceId}/${data.contactId}/${Date.now()}.${t.ext}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage.from("whatsapp-audio").upload(path, bin, { contentType: mime });
+    if (up.error) return { ok: false as const, error: `Falha ao guardar o arquivo: ${up.error.message}` };
+    const { data: signed } = await supabaseAdmin.storage.from("whatsapp-audio").createSignedUrl(path, 86400);
+    if (!signed?.signedUrl) return { ok: false as const, error: "Falha ao preparar o arquivo." };
+
+    const db = supabaseAdmin as any;
+    const { data: c } = await db
+      .from("contacts").select("whatsapp_number_id").eq("id", data.contactId).eq("workspace_id", workspaceId).maybeSingle();
+    if (!c) return { ok: false as const, error: "Contato não encontrado." };
+    const { resolveSendNumber } = await import("./wa-numbers.server");
+    const numberId = (await resolveSendNumber(workspaceId, c.whatsapp_number_id ?? null))?.id ?? null;
+    const { normalizePhoneNumber } = await import("./phone");
+    const { sendWhatsappMediaLink } = await import("./whatsapp.server");
+    const send = await sendWhatsappMediaLink(workspaceId, normalizePhoneNumber(data.to), t.kind, signed.signedUrl, numberId);
+
+    const now = new Date().toISOString();
+    const label = t.kind === "image" ? "imagem" : "vídeo";
+    await db.from("activities").insert({
+      workspace_id: workspaceId,
+      contact_id: data.contactId,
+      kind: "whatsapp_out",
+      title: `Mensagem enviada por ${sender} (${label})`,
+      content: `[${t.kind === "image" ? "imagem" : "video"}] ${data.name ?? path.split("/").pop()}`,
+      external_id: send.messageId ?? null,
+      status: send.ok ? "SENT" : "FAILED",
+      status_updated_at: now,
+      error_message: send.ok ? null : send.error ?? "Falha no envio",
+      sent_by: context.userId,
+      sent_by_name: sender,
+      send_mode: "manual",
+      whatsapp_number_id: numberId,
+    });
+    if (send.ok) {
+      await db.from("contacts").update({ last_contact_at: now }).eq("id", data.contactId).eq("workspace_id", workspaceId);
+      const { markHumanTakeover } = await import("./takeover.server");
+      await markHumanTakeover({ workspaceId, contactId: data.contactId, userId: context.userId, userName: sender, reason: `${label} enviada por ${sender}.` });
+    }
+    return send.ok
+      ? { ok: true as const }
+      : { ok: false as const, error: send.error ?? "Falha no envio." };
+  });
