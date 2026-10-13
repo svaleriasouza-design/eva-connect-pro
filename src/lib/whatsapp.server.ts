@@ -378,3 +378,35 @@ export async function sendWhatsappAudio(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/** Envia imagem ou vídeo por link (URL temporária assinada do arquivo guardado). */
+export async function sendWhatsappMediaLink(
+  workspaceId: string,
+  to: string,
+  kind: "image" | "video",
+  link: string,
+  numberId?: string | null,
+): Promise<MetaSendResult> {
+  const cfg = await loadMetaConfig(workspaceId, numberId);
+  if (!cfg.phoneNumberId || !cfg.accessToken) {
+    return { ok: false, error: "Credenciais Meta Cloud API não configuradas." };
+  }
+  try {
+    const res = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: normalizePhone(to ?? ""),
+        type: kind,
+        [kind]: { link },
+      }),
+    });
+    const json: any = await res.json().catch(() => null);
+    if (!res.ok || json?.error) return { ok: false, error: json?.error?.message ?? `HTTP ${res.status}`, raw: json };
+    return { ok: true, messageId: json?.messages?.[0]?.id, raw: json };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
