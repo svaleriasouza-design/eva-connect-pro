@@ -404,7 +404,23 @@ export async function sendWhatsappMediaLink(
       }),
     });
     const json: any = await res.json().catch(() => null);
-    if (!res.ok || json?.error) return { ok: false, error: json?.error?.message ?? `HTTP ${res.status}`, raw: json };
+    if (!res.ok || json?.error) {
+      // Arquivo acima do limite de imagem/vídeo da Meta: reenvia como documento (até 100 MB).
+      const doc = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${cfg.phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: normalizePhone(to ?? ""),
+          type: "document",
+          document: { link, filename: kind === "image" ? "imagem.jpg" : "video.mp4" },
+        }),
+      });
+      const dj: any = await doc.json().catch(() => null);
+      if (doc.ok && !dj?.error) return { ok: true, messageId: dj?.messages?.[0]?.id, raw: dj };
+      return { ok: false, error: json?.error?.message ?? `HTTP ${res.status}`, raw: json };
+    }
     return { ok: true, messageId: json?.messages?.[0]?.id, raw: json };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
