@@ -97,6 +97,12 @@ const AUDIO_MIME_MAP: Record<string, string> = {
   "audio/opus": "audio/ogg",
   "audio/mp3": "audio/mpeg",
   "audio/x-m4a": "audio/mp4",
+  "audio/m4a": "audio/mp4",
+  "audio/x-opus+ogg": "audio/ogg",
+  "application/ogg": "audio/ogg",
+  "audio/amr-wb": "audio/amr",
+  "audio/3gpp": "audio/amr",
+  "audio/x-aac": "audio/aac",
 };
 const AUDIO_ALLOWED = ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/amr"];
 

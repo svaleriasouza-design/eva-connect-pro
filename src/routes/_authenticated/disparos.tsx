@@ -1,3 +1,4 @@
+import { AUDIO_ACCEPT, audioMimeFromFile } from "@/lib/audio-ogg";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -244,7 +245,7 @@ function Disparos() {
       let bin = "";
       for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
       const res: any = await uploadAudioFn({
-        data: { day: 1, fileName: file.name, mime: file.type || "audio/ogg", base64: btoa(bin) },
+        data: { day: 1, fileName: file.name, mime: audioMimeFromFile(file) || "audio/ogg", base64: btoa(bin) },
       });
       if (res?.ok) {
         setPositiveAudio({ path: res.path, name: res.name });
@@ -544,7 +545,7 @@ function Disparos() {
                 <label className="inline-flex">
                   <input
                     type="file"
-                    accept="audio/*"
+                    accept={AUDIO_ACCEPT}
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
