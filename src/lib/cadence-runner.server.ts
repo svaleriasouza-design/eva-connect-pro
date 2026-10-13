@@ -41,7 +41,9 @@ async function sendStepAudio(params: {
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Anti-repetição: o mesmo áudio só é enviado UMA vez por contato.
+    // Anti-repetição: não reenvia o mesmo áudio ao contato nos últimos 10 minutos
+    // (evita 3 áudios quando o cliente manda várias mensagens seguidas).
+    const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: already } = await (supabaseAdmin as any)
       .from("activities")
       .select("id")
@@ -49,6 +51,7 @@ async function sendStepAudio(params: {
       .eq("kind", "whatsapp_out")
       .like("content", `[audio] ${params.audioPath}%`)
       .neq("status", "FAILED")
+      .gte("created_at", since)
       .limit(1);
     if (already && already.length > 0) return { ok: false, error: "Áudio já enviado a este contato." };
     const dl = await supabaseAdmin.storage.from("whatsapp-audio").download(params.audioPath);
