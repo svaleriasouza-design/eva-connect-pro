@@ -1,3 +1,4 @@
+import { AUDIO_ACCEPT, audioMimeFromFile } from "@/lib/audio-ogg";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -473,7 +474,7 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
         data: {
           day: step.day,
           fileName: file.name,
-          mime: file.type || "audio/mpeg",
+          mime: audioMimeFromFile(file) || "audio/mpeg",
           base64: btoa(bin),
         },
       });
@@ -589,7 +590,7 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="audio/mpeg,audio/mp3,audio/ogg,audio/mp4,audio/aac,audio/amr,audio/x-m4a,.mp3,.ogg,.m4a,.aac,.amr"
+                  accept={AUDIO_ACCEPT}
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];

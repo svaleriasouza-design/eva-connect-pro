@@ -1,3 +1,4 @@
+import { AUDIO_ACCEPT } from "@/lib/audio-ogg";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -708,7 +709,7 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
                 <input
                   ref={audioInputRef}
                   type="file"
-                  accept="audio/*"
+                  accept={AUDIO_ACCEPT}
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];

@@ -223,7 +223,8 @@ export async function mp4HasAac(blob: Blob): Promise<boolean> {
  * OGG/Opus (remux) ou MP4/AAC (quando o navegador já entregou AAC real).
  */
 export async function normalizeRecordingForWhatsapp(blob: Blob): Promise<{ blob: Blob; mime: string }> {
-  const type = (blob.type || "").split(";")[0].toLowerCase();
+  const type = blob instanceof File ? audioMimeFromFile(blob) : (blob.type || "").split(";")[0].toLowerCase();
+  if (type === "audio/amr" || type === "audio/aac") return { blob, mime: type };
 
   if (type === "audio/mp4" || type === "audio/aac" || type === "audio/x-m4a") {
     if (await mp4HasAac(blob)) return { blob, mime: "audio/mp4" };
@@ -243,4 +244,25 @@ export async function normalizeRecordingForWhatsapp(blob: Blob): Promise<{ blob:
   // Formato desconhecido: tenta o remux (a maioria dos navegadores grava WebM).
   const ogg = await webmOpusToOgg(blob);
   return { blob: ogg, mime: "audio/ogg" };
+}
+
+/** Extensões de áudio aceitas para envio (WhatsApp). */
+export const AUDIO_ACCEPT =
+  "audio/*,.opus,.ogg,.oga,.m4a,.mp4,.aac,.amr,.mp3";
+
+/** Descobre o MIME correto pelo tipo informado ou pela extensão do arquivo. */
+export function audioMimeFromFile(file: File): string {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const byExt: Record<string, string> = {
+    opus: "audio/ogg", ogg: "audio/ogg", oga: "audio/ogg",
+    m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac",
+    amr: "audio/amr", mp3: "audio/mpeg",
+  };
+  if (byExt[ext]) return byExt[ext];
+  const t = (file.type || "").split(";")[0].toLowerCase();
+  if (t.includes("opus") || t.includes("ogg")) return "audio/ogg";
+  if (t.includes("amr")) return "audio/amr";
+  if (t.includes("m4a") || t === "audio/mp4") return "audio/mp4";
+  if (t === "audio/mp3") return "audio/mpeg";
+  return t;
 }
