@@ -167,6 +167,7 @@ export type Database = {
           audio_path: string | null
           created_at: string
           day: number
+          media: Json
           reply_type: string
           script: string
           updated_at: string
@@ -179,6 +180,7 @@ export type Database = {
           audio_path?: string | null
           created_at?: string
           day: number
+          media?: Json
           reply_type?: string
           script?: string
           updated_at?: string
@@ -191,6 +193,7 @@ export type Database = {
           audio_path?: string | null
           created_at?: string
           day?: number
+          media?: Json
           reply_type?: string
           script?: string
           updated_at?: string

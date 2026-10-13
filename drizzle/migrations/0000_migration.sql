@@ -1,0 +1,1 @@
+ALTER TABLE public.cadence_steps ADD COLUMN IF NOT EXISTS media jsonb NOT NULL DEFAULT '[]'::jsonb;
