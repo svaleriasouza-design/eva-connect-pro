@@ -93,7 +93,9 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
-  const sendFn = useServerFn(sendWhatsappMessageFn);
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaFn = useServerFn(sendWhatsappMediaFn);
+...
   const audioFn = useServerFn(sendWhatsappAudioFn);
   const takeoverFn = useServerFn(setHumanTakeoverFn);
 
@@ -352,6 +354,44 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendMediaFile(file: File) {
+    if (!selected) return;
+    if (!canSend) {
+      toast.error("Seu acesso é somente leitura. Peça a um administrador o papel de Operador.");
+      return;
+    }
+    const to = selected.whatsapp ?? selected.phone;
+    if (!to) {
+      toast.error("Contato sem WhatsApp/telefone.");
+      return;
+    }
+    const isImage = file.type.startsWith("image/");
+    const max = isImage ? 10 : 20;
+    if (file.size > max * 1024 * 1024) {
+      toast.error(`Arquivo muito grande (máx. ${max} MB).`);
+      return;
+    }
+    setSending(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+      const res = await mediaFn({ data: { contactId: selected.id, to, base64: btoa(bin), mime: file.type, name: file.name } });
+      if (res.ok) {
+        toast.success(isImage ? "Imagem enviada" : "Vídeo enviado");
+        qc.invalidateQueries({ queryKey: ["wa-thread", selected.id] });
+        qc.invalidateQueries({ queryKey: ["wa-recent-acts"] });
+        qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      } else {
+        toast.error(res.error ?? "Falha no envio");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar arquivo");
     } finally {
       setSending(false);
     }
@@ -684,6 +724,26 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
                   onClick={() => audioInputRef.current?.click()}
                 >
                   <Paperclip className="h-4 w-4" />
+                </Button>
+                <input
+                  ref={mediaInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,video/mp4,video/3gpp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) sendMediaFile(f);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="icon" className="shrink-0 rounded-xl"
+                  title="Enviar imagem ou vídeo"
+                  disabled={!canSend || sending || recording}
+                  onClick={() => mediaInputRef.current?.click()}
+                >
+                  <ImagePlus className="h-4 w-4" />
                 </Button>
                 <Button
                   variant={recording ? "destructive" : "outline"}
