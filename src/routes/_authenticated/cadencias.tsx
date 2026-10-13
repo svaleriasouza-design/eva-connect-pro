@@ -10,6 +10,7 @@ import {
   runCadenceNowFn,
   startCadenceForAllEligibleFn,
   getCadenceStatsFn,
+  resumeOrRestartCadenceFn,
   uploadCadenceAudioFn,
   getCadenceAudioUrlFn,
   uploadCadenceMediaFn,
