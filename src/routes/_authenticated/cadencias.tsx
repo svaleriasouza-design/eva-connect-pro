@@ -670,7 +670,7 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
               Anexar imagens ou vídeos
             </Button>
             <div className="text-[11px] text-muted-foreground">
-              Enviados logo após a resposta da EVA neste dia. JPG/PNG até 5 MB, MP4/3GP até 16 MB, máximo 10 arquivos.
+              Enviados logo após a resposta da EVA neste dia. JPG/PNG até 10 MB, MP4/3GP até 20 MB, máximo 10 arquivos.
               Clique em Salvar para manter os anexos nas próximas execuções.
             </div>
           </div>

@@ -146,10 +146,10 @@ export const uploadCadenceAudioFn = createServerFn({ method: "POST" })
   });
 
 const MEDIA_ALLOWED: Record<string, { kind: "image" | "video"; ext: string; max: number }> = {
-  "image/jpeg": { kind: "image", ext: "jpg", max: 5 * 1024 * 1024 },
-  "image/png": { kind: "image", ext: "png", max: 5 * 1024 * 1024 },
-  "video/mp4": { kind: "video", ext: "mp4", max: 16 * 1024 * 1024 },
-  "video/3gpp": { kind: "video", ext: "3gp", max: 16 * 1024 * 1024 },
+  "image/jpeg": { kind: "image", ext: "jpg", max: 10 * 1024 * 1024 },
+  "image/png": { kind: "image", ext: "png", max: 10 * 1024 * 1024 },
+  "video/mp4": { kind: "video", ext: "mp4", max: 20 * 1024 * 1024 },
+  "video/3gpp": { kind: "video", ext: "3gp", max: 20 * 1024 * 1024 },
 };
 
 /** Sobe UMA vez uma imagem/vídeo da resposta da etapa (reutilizado em todas as execuções). */
@@ -161,7 +161,7 @@ export const uploadCadenceMediaFn = createServerFn({ method: "POST" })
         day: z.number().int().min(1).max(30),
         fileName: z.string().min(1).max(200),
         mime: z.string().min(3).max(64),
-        base64: z.string().min(32).max(23_000_000),
+        base64: z.string().min(32).max(28_500_000),
       })
       .parse(raw),
   )
@@ -178,7 +178,7 @@ export const uploadCadenceMediaFn = createServerFn({ method: "POST" })
     const bin = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
     if (!bin.length) return { ok: false as const, error: "Arquivo vazio." };
     if (bin.length > rule.max) {
-      return { ok: false as const, error: rule.kind === "image" ? "Imagem acima de 5 MB (limite do WhatsApp)." : "Vídeo acima de 16 MB (limite do WhatsApp)." };
+      return { ok: false as const, error: rule.kind === "image" ? "Imagem acima de 10 MB." : "Vídeo acima de 20 MB." };
     }
     const path = `cadencia/${workspaceId}/midia-dia-${data.day}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${rule.ext}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
