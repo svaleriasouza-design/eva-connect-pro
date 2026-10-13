@@ -56,6 +56,7 @@ function Cadencias() {
   const runNow = useServerFn(runCadenceNowFn);
   const startAll = useServerFn(startCadenceForAllEligibleFn);
   const getStats = useServerFn(getCadenceStatsFn);
+  const resumeRestart = useServerFn(resumeOrRestartCadenceFn);
 
   const { data, isLoading } = useQuery({
     queryKey: ["cadence-config"],
@@ -108,6 +109,21 @@ function Cadencias() {
 
   async function submitSettings() {
     await persistSettings(settings);
+  }
+
+  async function resumeOrRestart(mode: "resume" | "restart") {
+    if (mode === "restart" && !confirm("Recomeçar a cadência pelo Dia 1 para todos os leads em andamento?")) return;
+    setSavingSettings(true);
+    try {
+      const r = await resumeRestart({ data: { mode } });
+      toast.success(mode === "resume" ? "Cadência retomada de onde parou" : `Cadência recomeçada pelo Dia 1 (${r.restarted} leads)`);
+      await qc.invalidateQueries({ queryKey: ["cadence-config"] });
+      await qc.invalidateQueries();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha");
+    } finally {
+      setSavingSettings(false);
+    }
   }
 
   async function toggleAutomation(v: boolean) {
@@ -251,6 +267,21 @@ function Cadencias() {
                 disabled={savingSettings}
                 onCheckedChange={(v) => toggleAutomation(v)}
               />
+            </div>
+            <div className="rounded-md border p-3 text-sm md:col-span-2 space-y-2">
+              <div className="font-medium">Voltar com a cadência</div>
+              <div className="text-xs text-muted-foreground">
+                Retomar continua cada lead no dia em que parou. Recomeçar volta todos os leads em andamento para o Dia 1
+                (não inclui Perdidos, opt-out, quem já respondeu ou está com atendimento humano).
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={savingSettings} onClick={() => resumeOrRestart("resume")}>
+                  Retomar de onde parou
+                </Button>
+                <Button size="sm" variant="outline" disabled={savingSettings} onClick={() => resumeOrRestart("restart")}>
+                  Recomeçar tudo pelo Dia 1
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2 md:col-span-2">
               <Button onClick={submitSettings} disabled={savingSettings}>

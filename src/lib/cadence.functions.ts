@@ -262,6 +262,42 @@ export const activateCadenceFn = createServerFn({ method: "POST" })
     return { ok: true as const, activated: count ?? data.contactIds.length };
   });
 
+/**
+ * Retoma a cadência de onde parou (só reativa a rotina) ou recomeça todos os
+ * leads em andamento pelo Dia 1. Nunca toca em Perdido, opt-out, robôs,
+ * atendimento humano ou leads que já responderam.
+ */
+export const resumeOrRestartCadenceFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ mode: z.enum(["resume", "restart"]) }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    let restarted = 0;
+    if (data.mode === "restart") {
+      const { data: rows, error } = await sb
+        .from("contacts")
+        .update({ cadence_day: 0, cadence_active: true, last_contact_at: null })
+        .eq("workspace_id", workspaceId)
+        .gt("cadence_day", 0)
+        .eq("do_not_contact", false)
+        .eq("is_bot", false)
+        .eq("human_takeover", false)
+        .is("last_inbound_at", null)
+        .neq("status", "perdido")
+        .select("id");
+      if (error) throw new Error(error.message);
+      restarted = rows?.length ?? 0;
+    }
+    const { error: sErr } = await sb
+      .from("cadence_settings")
+      .update({ automation_enabled: true })
+      .eq("workspace_id", workspaceId);
+    if (sErr) throw new Error(sErr.message);
+    return { ok: true as const, restarted };
+  });
+
 export const startCadenceForAllEligibleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
