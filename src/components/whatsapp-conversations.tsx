@@ -95,7 +95,7 @@ export function WhatsappConversations({ origin = "atendimento" }: { origin?: "at
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const mediaFn = useServerFn(sendWhatsappMediaFn);
-...
+  const sendFn = useServerFn(sendWhatsappMessageFn);
   const audioFn = useServerFn(sendWhatsappAudioFn);
   const takeoverFn = useServerFn(setHumanTakeoverFn);
 
