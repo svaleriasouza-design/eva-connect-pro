@@ -65,6 +65,48 @@ async function sendStepAudio(params: {
   }
 }
 
+/** Envia as imagens/vídeos anexados à resposta da etapa (após a resposta da EVA). */
+async function sendStepMedia(params: {
+  workspaceId: string;
+  to: string;
+  contactId: string;
+  media: { path: string; name: string; mime: string; kind: "image" | "video" }[];
+}) {
+  if (!params.media?.length) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { sendWhatsappMediaLink } = await import("./whatsapp.server");
+  const { normalizePhoneNumber } = await import("./phone");
+  const { data: c } = await (supabaseAdmin as any)
+    .from("contacts").select("whatsapp_number_id").eq("id", params.contactId).maybeSingle();
+  const { resolveSendNumber } = await import("./wa-numbers.server");
+  const numberId = (await resolveSendNumber(params.workspaceId, c?.whatsapp_number_id ?? null))?.id ?? null;
+  for (const m of params.media) {
+    if (!m?.path?.startsWith(`cadencia/${params.workspaceId}/`)) continue;
+    try {
+      const { data: signed } = await supabaseAdmin.storage.from("whatsapp-audio").createSignedUrl(m.path, 86400);
+      const send = signed?.signedUrl
+        ? await sendWhatsappMediaLink(params.workspaceId, normalizePhoneNumber(params.to), m.kind, signed.signedUrl, numberId)
+        : { ok: false, error: "Arquivo não encontrado." } as any;
+      const now = new Date().toISOString();
+      await (supabaseAdmin as any).from("activities").insert({
+        workspace_id: params.workspaceId,
+        contact_id: params.contactId,
+        kind: "whatsapp_out",
+        title: `EVA respondeu automaticamente (${m.kind === "image" ? "imagem" : "vídeo"})`,
+        content: `[${m.kind === "image" ? "imagem" : "video"}] ${m.name}`,
+        external_id: send.messageId ?? null,
+        status: send.ok ? "SENT" : "FAILED",
+        status_updated_at: now,
+        error_message: send.ok ? null : send.error ?? "Falha no envio",
+        send_mode: "eva",
+        whatsapp_number_id: numberId,
+      });
+    } catch (err) {
+      console.warn("[eva auto-reply] mídia falhou", err);
+    }
+  }
+}
+
 /** Encerra a cadência e agenda a reativação em 60 dias. */
 async function endCadence(admin: any, contactId: string, reason: string) {
   const in60 = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
@@ -531,7 +573,7 @@ export async function autoReplyToInbound(params: {
   const day = Math.max(1, params.currentDay || 1);
   const { data: stepRow } = await (admin as any)
     .from("cadence_steps")
-    .select("script, ai_instructions, reply_type, audio_path, audio_name")
+    .select("script, ai_instructions, reply_type, audio_path, audio_name, media")
     .eq("day", day)
     .maybeSingle();
   const step = (stepRow ?? {}) as {
@@ -540,6 +582,7 @@ export async function autoReplyToInbound(params: {
     reply_type?: string | null;
     audio_path?: string | null;
     audio_name?: string | null;
+    media?: { path: string; name: string; mime: string; kind: "image" | "video" }[] | null;
   };
 
 
@@ -699,6 +742,7 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
     });
     if (audio.ok) {
       console.log(`[eva auto-reply] áudio enviado contact=${params.contactId}`);
+      await sendStepMedia({ workspaceId: params.workspaceId, to: params.to, contactId: params.contactId, media: step.media ?? [] });
       return "sent:audio";
     }
     console.warn(`[eva auto-reply] áudio falhou, enviando texto: ${audio.error ?? ""}`);
@@ -722,6 +766,9 @@ Responda APENAS com o texto da mensagem que deve ser enviada ao cliente ${params
       tag: "eva-auto-reply-audio",
     });
     if (!audio.ok) console.warn(`[eva auto-reply] áudio complementar falhou: ${audio.error ?? ""}`);
+  }
+  if (res.ok) {
+    await sendStepMedia({ workspaceId: params.workspaceId, to: params.to, contactId: params.contactId, media: step.media ?? [] });
   }
   console.log(`[eva auto-reply] enviado ok=${res.ok} contact=${params.contactId} err=${res.error ?? "-"}`);
   return res.ok ? `sent:${res.messageId ?? ""}` : `send_failed:${res.error ?? ""}`;

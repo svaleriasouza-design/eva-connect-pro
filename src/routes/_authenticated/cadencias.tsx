@@ -12,6 +12,8 @@ import {
   getCadenceStatsFn,
   uploadCadenceAudioFn,
   getCadenceAudioUrlFn,
+  uploadCadenceMediaFn,
+  type CadenceMedia,
   type CadenceStep,
   type CadenceSettings,
   type CadenceReplyType,
@@ -26,7 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare, Rocket, Music } from "lucide-react";
+import { Loader2, Plus, Save, Sparkles, Sun, Moon, Play, Trash2, KanbanSquare, Rocket, Music, ImagePlus, Video, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/cadencias")({ component: Cadencias });
@@ -92,6 +94,7 @@ function Cadencias() {
       reply_type: "texto",
       audio_path: null,
       audio_name: null,
+      media: [],
     });
     toast.success(`Dia ${day} adicionado`);
   }
@@ -358,6 +361,63 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadAudio = useServerFn(uploadCadenceAudioFn);
   const getAudioUrl = useServerFn(getCadenceAudioUrlFn);
+  const uploadMedia = useServerFn(uploadCadenceMediaFn);
+  const [media, setMedia] = useState<CadenceMedia[]>(step.media ?? []);
+  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const mediaRef = useRef<HTMLInputElement>(null);
+  const replaceIdx = useRef<number | null>(null);
+
+  useEffect(() => {
+    setMedia(step.media ?? []);
+  }, [step.day, JSON.stringify(step.media ?? [])]);
+
+  // Pré-visualização: gera links temporários para os anexos já guardados.
+  useEffect(() => {
+    media.forEach(async (m) => {
+      if (mediaUrls[m.path]) return;
+      const r = await getAudioUrl({ data: { path: m.path } });
+      if (r.ok) setMediaUrls((u) => ({ ...u, [m.path]: r.url }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media]);
+
+  async function pickMedia(files: FileList) {
+    setMediaBusy(true);
+    try {
+      const list = Array.from(files);
+      const idx = replaceIdx.current;
+      const added: CadenceMedia[] = [];
+      for (const file of list) {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+        const res = await uploadMedia({ data: { day: step.day, fileName: file.name, mime: file.type || "", base64: btoa(bin) } });
+        if (!res.ok) {
+          toast.error(`${file.name}: ${res.error}`);
+          continue;
+        }
+        added.push(res.media);
+        setMediaUrls((u) => ({ ...u, [res.media.path]: URL.createObjectURL(file) }));
+      }
+      if (!added.length) return;
+      setMedia((cur) => {
+        if (idx !== null && cur[idx]) {
+          const next = [...cur];
+          next.splice(idx, 1, ...added.slice(0, 1));
+          return next;
+        }
+        return [...cur, ...added].slice(0, 10);
+      });
+      toast.success("Anexo pronto. Clique em Salvar para vincular a este dia.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao anexar");
+    } finally {
+      setMediaBusy(false);
+      replaceIdx.current = null;
+      if (mediaRef.current) mediaRef.current.value = "";
+    }
+  }
 
   useEffect(() => {
     setScript(step.script);
@@ -426,6 +486,7 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
         reply_type: replyType,
         audio_path: needsAudio ? audioPath : null,
         audio_name: needsAudio ? audioName : null,
+        media,
       });
       toast.success(`Dia ${step.day} salvo`);
     } catch (err) {
@@ -537,6 +598,81 @@ function StepEditor({ step, onSave, onDelete }: { step: CadenceStep; onSave: (s:
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <Label className="text-xs">Imagens e vídeos da resposta da EVA</Label>
+            <input
+              ref={mediaRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,video/mp4,video/3gpp"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.length) void pickMedia(e.target.files);
+              }}
+            />
+            {media.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {media.map((m, i) => (
+                  <div key={m.path} className="rounded-md border bg-background p-1.5 space-y-1">
+                    <div className="aspect-video overflow-hidden rounded bg-muted flex items-center justify-center">
+                      {mediaUrls[m.path] ? (
+                        m.kind === "image" ? (
+                          <img src={mediaUrls[m.path]} alt={m.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <video src={mediaUrls[m.path]} controls className="h-full w-full object-cover" />
+                        )
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      {m.kind === "image" ? <ImagePlus className="h-3 w-3" /> : <Video className="h-3 w-3" />}
+                      <span className="truncate flex-1" title={m.name}>{m.name}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 px-1 text-[11px]"
+                        disabled={mediaBusy}
+                        onClick={() => {
+                          replaceIdx.current = i;
+                          mediaRef.current?.click();
+                        }}
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" /> Substituir
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-1"
+                        onClick={() => setMedia((cur) => cur.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={mediaBusy || media.length >= 10}
+              onClick={() => {
+                replaceIdx.current = null;
+                mediaRef.current?.click();
+              }}
+            >
+              {mediaBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-1 h-4 w-4" />}
+              Anexar imagens ou vídeos
+            </Button>
+            <div className="text-[11px] text-muted-foreground">
+              Enviados logo após a resposta da EVA neste dia. JPG/PNG até 5 MB, MP4/3GP até 16 MB, máximo 10 arquivos.
+              Clique em Salvar para manter os anexos nas próximas execuções.
+            </div>
           </div>
         </div>
       </div>

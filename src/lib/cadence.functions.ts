@@ -12,7 +12,10 @@ export type CadenceStep = {
   reply_type: CadenceReplyType;
   audio_path: string | null;
   audio_name: string | null;
+  media?: CadenceMedia[];
 };
+/** Imagem ou vídeo anexado à resposta da EVA em uma etapa. */
+export type CadenceMedia = { path: string; name: string; mime: string; kind: "image" | "video" };
 export type CadenceSettings = {
   morning_time: string;
   afternoon_time: string;
@@ -33,7 +36,7 @@ export const getCadenceConfigFn = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     const { data: steps } = await sb
       .from("cadence_steps")
-      .select("day, script, ai_instructions, active, reply_type, audio_path, audio_name")
+      .select("day, script, ai_instructions, active, reply_type, audio_path, audio_name, media")
       .order("day", { ascending: true });
     const { data: settings } = await sb.from("cadence_settings").select("*").maybeSingle();
     return {
@@ -50,6 +53,17 @@ const stepSchema = z.object({
   reply_type: z.enum(["texto", "audio", "texto_audio"]).default("texto"),
   audio_path: z.string().nullable().default(null),
   audio_name: z.string().nullable().default(null),
+  media: z
+    .array(
+      z.object({
+        path: z.string().min(3).max(400),
+        name: z.string().max(200),
+        mime: z.string().max(64),
+        kind: z.enum(["image", "video"]),
+      }),
+    )
+    .max(10)
+    .default([]),
 });
 
 export const saveCadenceStepFn = createServerFn({ method: "POST" })
@@ -71,6 +85,7 @@ export const saveCadenceStepFn = createServerFn({ method: "POST" })
           reply_type: data.reply_type,
           audio_path: data.audio_path,
           audio_name: data.audio_name,
+          media: data.media,
         },
         { onConflict: "workspace_id,day" },
       );
@@ -128,6 +143,48 @@ export const uploadCadenceAudioFn = createServerFn({ method: "POST" })
       .upload(path, bin, { contentType: mime, upsert: false });
     if (up.error) return { ok: false as const, error: `Falha ao guardar o áudio: ${up.error.message}` };
     return { ok: true as const, path, name: data.fileName };
+  });
+
+const MEDIA_ALLOWED: Record<string, { kind: "image" | "video"; ext: string; max: number }> = {
+  "image/jpeg": { kind: "image", ext: "jpg", max: 5 * 1024 * 1024 },
+  "image/png": { kind: "image", ext: "png", max: 5 * 1024 * 1024 },
+  "video/mp4": { kind: "video", ext: "mp4", max: 16 * 1024 * 1024 },
+  "video/3gpp": { kind: "video", ext: "3gp", max: 16 * 1024 * 1024 },
+};
+
+/** Sobe UMA vez uma imagem/vídeo da resposta da etapa (reutilizado em todas as execuções). */
+export const uploadCadenceMediaFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z
+      .object({
+        day: z.number().int().min(1).max(30),
+        fileName: z.string().min(1).max(200),
+        mime: z.string().min(3).max(64),
+        base64: z.string().min(32).max(23_000_000),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const { currentWorkspaceId } = await import("./workspace-scope.server");
+    const workspaceId = await currentWorkspaceId(context.supabase);
+    const { requireRole } = await import("./users.server");
+    await requireRole(context.userId, ["admin", "operador"], workspaceId);
+    const mime = data.mime.split(";")[0].toLowerCase().replace("image/jpg", "image/jpeg");
+    const rule = MEDIA_ALLOWED[mime];
+    if (!rule) {
+      return { ok: false as const, error: "Formato não aceito pelo WhatsApp. Use JPG ou PNG (imagem) e MP4 ou 3GP (vídeo)." };
+    }
+    const bin = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+    if (!bin.length) return { ok: false as const, error: "Arquivo vazio." };
+    if (bin.length > rule.max) {
+      return { ok: false as const, error: rule.kind === "image" ? "Imagem acima de 5 MB (limite do WhatsApp)." : "Vídeo acima de 16 MB (limite do WhatsApp)." };
+    }
+    const path = `cadencia/${workspaceId}/midia-dia-${data.day}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${rule.ext}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage.from("whatsapp-audio").upload(path, bin, { contentType: mime, upsert: false });
+    if (up.error) return { ok: false as const, error: `Falha ao guardar o arquivo: ${up.error.message}` };
+    return { ok: true as const, media: { path, name: data.fileName, mime, kind: rule.kind } satisfies CadenceMedia };
   });
 
 /** URL temporária para ouvir o áudio configurado na etapa. */
