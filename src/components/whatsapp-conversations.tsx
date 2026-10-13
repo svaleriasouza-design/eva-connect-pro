@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { supabase, formatDateTime, FUNNEL_STAGES } from "@/lib/db";
-import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn } from "@/lib/whatsapp.functions";
+import { sendWhatsappMessageFn, setHumanTakeoverFn, sendWhatsappAudioFn, sendWhatsappMediaFn } from "@/lib/whatsapp.functions";
 import { listWhatsappNumbersFn } from "@/lib/wa-numbers.functions";
 import { useAccess } from "@/hooks/use-access";
 import { isEligibleForAttendance, CAMPAIGN_ORIGIN } from "@/lib/conversation-eligibility";
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip } from "lucide-react";
+import { Search, Send, Loader2, Calendar, User as UserIcon, ArrowRight, CircleDot, Check, CheckCheck, XCircle, Bot, Hand, Sparkles, Mic, Square, Paperclip, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 
 const INTEREST_RE = /\b(sim|quero|tenho interesse|interessad[ao]|pode ser|vamos|bora|gostaria|me (?:liga|chama|explica)|quanto (?:custa|é)|valor|pre[çc]o|como funciona|agendar|marcar|reuni[aã]o|hor[aá]rio|mais informa[çc]|me conta)\b/i;
