@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // da EVA em TODOS os workspaces: prospecção Dia 1, progressão Dia 2..N,
 // encerramentos e lembretes de reunião. Cada workspace tem seus próprios
 // horários, lote de novos leads e fuso.
-// Autenticação: header `apikey` com a chave anon do Supabase.
+// Autenticação: header `x-cron-secret` com o segredo CRON_SECRET.
 
 type Slot = "morning" | "afternoon";
 
@@ -75,9 +75,8 @@ export const Route = createFileRoute("/api/public/hooks/cadence-run")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey");
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        if (expected && apikey !== expected) {
+        const { isValidCronRequest } = await import("@/lib/cron-auth.server");
+        if (!(await isValidCronRequest(request))) {
           return new Response(JSON.stringify({ error: "unauthorized" }), {
             status: 401,
             headers: { "content-type": "application/json" },

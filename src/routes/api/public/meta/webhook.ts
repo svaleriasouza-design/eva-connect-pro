@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         }
 
         // Isolamento: o número que recebeu a mensagem define o workspace.
-        const { workspaceIdForPhoneNumberId, legacyWorkspaceId, wsDb } = await import(
+        const { workspaceIdForPhoneNumberId, wsDb } = await import(
           "@/lib/workspace-scope.server"
         );
         const { waNumberByPhoneNumberId } = await import("@/lib/wa-numbers.server");
@@ -56,10 +56,10 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const inboundNumberId = inboundNumber?.id ?? null;
         const workspaceId =
           inboundNumber?.workspace_id ??
-          (await workspaceIdForPhoneNumberId(String(phoneNumberId))) ??
-          (await legacyWorkspaceId());
+          (phoneNumberId ? await workspaceIdForPhoneNumberId(String(phoneNumberId)) : null);
+        // Número não cadastrado: ignora (200) sem criar contato nem responder.
         if (!workspaceId) {
-          console.warn("[webhook] nenhum workspace para phone_number_id", phoneNumberId);
+          console.warn("[webhook] phone_number_id não cadastrado, ignorado", phoneNumberId);
           return new Response("ok", { status: 200 });
         }
         console.log(
@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
 
         const { verifyMetaSignature } = await import("@/lib/whatsapp.server");
         const okSig = await verifyMetaSignature(workspaceId, rawBody, signature, inboundNumberId);
-        if (signature && !okSig) return new Response("invalid signature", { status: 401 });
+        if (!signature || !okSig) return new Response("invalid signature", { status: 401 });
 
         const supabaseAdmin = (await wsDb(workspaceId)) as any;
         const { findContactByPhone, logInbound } = await import("@/lib/messaging.server");
@@ -253,12 +253,6 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           // Sempre retornamos 200 para a Meta não reenfileirar em loop.
         }
 
-        if (request.headers.get("x-eva-debug") === "1") {
-          return new Response(JSON.stringify({ ok: true, debug }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          });
-        }
         return new Response("ok", { status: 200 });
       },
     },
