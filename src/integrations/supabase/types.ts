@@ -1413,6 +1413,10 @@ export type Database = {
         Args: { p_ids: string[]; p_workspace_id: string }
         Returns: number
       }
+      eva_set_cron_secret: {
+        Args: { p_apikey: string; p_secret: string }
+        Returns: boolean
+      }
       funnel_stage_rank: { Args: { stage: string }; Returns: number }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
