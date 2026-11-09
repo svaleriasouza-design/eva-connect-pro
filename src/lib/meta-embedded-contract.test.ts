@@ -1,3 +1,4 @@
+/// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import { assertAttempt, assertMetaAssets, EMBEDDED_ATTEMPT_TTL_MS, parseEmbeddedMessage } from "./meta-embedded-contract";
 import { decryptMetaToken, encryptMetaToken } from "./meta-token-crypto.server";
