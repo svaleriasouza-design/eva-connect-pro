@@ -15,6 +15,13 @@
       "when": 1793215013797,
       "tag": "0001_cron_secret_setter",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794236446703,
+      "tag": "0002_meta_embedded_onboarding",
+      "breakpoints": true
     }
   ]
 }
