@@ -922,6 +922,57 @@ export type Database = {
           },
         ]
       }
+      meta_embedded_attempts: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          expires_at: string
+          id: string
+          number_id: string | null
+          status: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at: string
+          id?: string
+          number_id?: string | null
+          status?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          id?: string
+          number_id?: string | null
+          status?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_embedded_attempts_number_id_fkey"
+            columns: ["number_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_embedded_attempts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_wa_settings: {
         Row: {
           access_token: string | null
@@ -1257,18 +1308,24 @@ export type Database = {
           app_secret: string | null
           connected_at: string | null
           connection_error: string | null
+          connection_source: string
           connection_status: string
           created_at: string
           default_template_lang: string
           default_template_name: string
           display_phone: string | null
+          encrypted_access_token: string | null
           graph_version: string
           id: string
           is_primary: boolean
           label: string
           last_checked_at: string | null
+          meta_app_id: string | null
+          onboarding_status: string | null
           phone_number_id: string
+          token_expires_at: string | null
           updated_at: string
+          verified_business_name: string | null
           verify_token: string | null
           waba_id: string | null
           workspace_id: string
@@ -1279,18 +1336,24 @@ export type Database = {
           app_secret?: string | null
           connected_at?: string | null
           connection_error?: string | null
+          connection_source?: string
           connection_status?: string
           created_at?: string
           default_template_lang?: string
           default_template_name?: string
           display_phone?: string | null
+          encrypted_access_token?: string | null
           graph_version?: string
           id?: string
           is_primary?: boolean
           label: string
           last_checked_at?: string | null
+          meta_app_id?: string | null
+          onboarding_status?: string | null
           phone_number_id: string
+          token_expires_at?: string | null
           updated_at?: string
+          verified_business_name?: string | null
           verify_token?: string | null
           waba_id?: string | null
           workspace_id: string
@@ -1301,18 +1364,24 @@ export type Database = {
           app_secret?: string | null
           connected_at?: string | null
           connection_error?: string | null
+          connection_source?: string
           connection_status?: string
           created_at?: string
           default_template_lang?: string
           default_template_name?: string
           display_phone?: string | null
+          encrypted_access_token?: string | null
           graph_version?: string
           id?: string
           is_primary?: boolean
           label?: string
           last_checked_at?: string | null
+          meta_app_id?: string | null
+          onboarding_status?: string | null
           phone_number_id?: string
+          token_expires_at?: string | null
           updated_at?: string
+          verified_business_name?: string | null
           verify_token?: string | null
           waba_id?: string | null
           workspace_id?: string

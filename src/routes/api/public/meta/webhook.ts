@@ -35,6 +35,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const signature = request.headers.get("x-hub-signature-256");
+        if (!signature || !/^sha256=[a-f0-9]{64}$/i.test(signature)) return new Response("invalid signature", { status: 401 });
 
         let payload: any;
         try {
@@ -48,29 +49,37 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           "@/lib/workspace-scope.server"
         );
         const { waNumberByPhoneNumberId } = await import("@/lib/wa-numbers.server");
-        const phoneNumberId =
-          payload?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? "";
-        // O phone_number_id do metadata identifica EXATAMENTE qual número da EVA
-        // recebeu a mensagem — nunca assumimos o número principal.
-        const inboundNumber = await waNumberByPhoneNumberId(String(phoneNumberId));
-        const inboundNumberId = inboundNumber?.id ?? null;
-        const workspaceId =
-          inboundNumber?.workspace_id ??
-          (phoneNumberId ? await workspaceIdForPhoneNumberId(String(phoneNumberId)) : null);
-        // Número não cadastrado: ignora (200) sem criar contato nem responder.
-        if (!workspaceId) {
-          console.warn("[webhook] phone_number_id não cadastrado, ignorado", phoneNumberId);
-          return new Response("ok", { status: 200 });
-        }
-        console.log(
-          `[webhook] phone_number_id=${phoneNumberId} numero="${inboundNumber?.label ?? "legado"}" ws=${workspaceId}`,
-        );
-
         const { verifyMetaSignature } = await import("@/lib/whatsapp.server");
-        const okSig = await verifyMetaSignature(workspaceId, rawBody, signature, inboundNumberId);
-        if (!signature || !okSig) return new Response("invalid signature", { status: 401 });
-
-        const supabaseAdmin = (await wsDb(workspaceId)) as any;
+        const events: { change: any; workspaceId: string; inboundNumberId: string | null }[] = [];
+        // Validate every known recipient against the same raw-body signature before any mutation.
+        for (const entry of payload?.entry ?? []) {
+          for (const change of entry?.changes ?? []) {
+            const phoneId = String(change?.value?.metadata?.phone_number_id ?? "");
+            if (!phoneId) continue;
+            const number = await waNumberByPhoneNumberId(phoneId);
+            const workspaceId = number?.workspace_id ?? (number ? null : await workspaceIdForPhoneNumberId(phoneId));
+            if (!workspaceId) continue;
+            if (number && !number.active) continue;
+            if (!await verifyMetaSignature(workspaceId, rawBody, signature, number?.id ?? null)) return new Response("invalid signature", { status: 401 });
+            events.push({ change, workspaceId, inboundNumberId: number?.id ?? null });
+          }
+        }
+        if (!events.length) {
+          // account_update onboarding notifications are verified by the provider app and never treated as inbound messages.
+          const { embeddedConfig } = await import("@/lib/meta-embedded.server");
+          const { appSecret } = embeddedConfig();
+          const secrets = [appSecret, process.env["META_WA_APP_SECRET"]].filter(Boolean);
+          let valid = false;
+          for (const secret of secrets) {
+            const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+            const hash = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody)));
+            const expected = `sha256=${Array.from(hash, b => b.toString(16).padStart(2, "0")).join("")}`;
+            let diff = 0;
+            for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.toLowerCase().charCodeAt(i);
+            if (diff === 0) valid = true;
+          }
+          return new Response(valid ? "ok" : "invalid signature", { status: valid ? 200 : 401 });
+        }
         const { findContactByPhone, logInbound } = await import("@/lib/messaging.server");
         const { normalizePhoneNumber } = await import("@/lib/phone");
         const now = new Date().toISOString();
@@ -78,10 +87,8 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
         const debug: string[] = [];
 
         try {
-          const entries = payload?.entry ?? [];
-          for (const entry of entries) {
-            const changes = entry?.changes ?? [];
-            for (const change of changes) {
+          for (const { change, workspaceId, inboundNumberId } of events) {
+              const supabaseAdmin = (await wsDb(workspaceId)) as any;
               const value = change?.value ?? {};
 
               // 1) Atualizações de status
@@ -156,7 +163,7 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                 if ((m?.type === "audio" || m?.type === "voice") && mediaId) {
                   try {
                     const { transcribeMetaAudio } = await import("@/lib/transcribe.server");
-                    const tr = await transcribeMetaAudio(workspaceId, String(mediaId));
+                    const tr = await transcribeMetaAudio(workspaceId, String(mediaId), inboundNumberId);
                     if (tr.ok && tr.text) {
                       text = tr.text;
                       transcribed = true;
@@ -245,7 +252,6 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
                   }
                 }
               }
-            }
           }
         } catch (err) {
           console.error("[meta webhook] processing error", err);

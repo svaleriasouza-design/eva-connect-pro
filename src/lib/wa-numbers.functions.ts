@@ -54,9 +54,11 @@ export const listWhatsappNumbersFn = createServerFn({ method: "GET" })
       connection_error: n.connection_error ?? "",
       last_checked_at: n.last_checked_at,
       connected_at: n.connected_at,
-      has_access_token: Boolean(n.access_token),
-      has_app_secret: Boolean(n.app_secret),
-      has_verify_token: Boolean(n.verify_token),
+      connection_source: n.connection_source ?? "manual",
+      token_expires_at: n.token_expires_at ?? null,
+      has_access_token: Boolean(n.connection_source === "embedded" ? n.encrypted_access_token : n.access_token),
+      has_app_secret: n.connection_source === "embedded" ? Boolean(process.env["META_EMBEDDED_APP_SECRET"]) : Boolean(n.app_secret),
+      has_verify_token: n.connection_source === "embedded" ? Boolean(process.env["META_WA_VERIFY_TOKEN"]) : Boolean(n.verify_token),
     }));
   });
 
@@ -102,6 +104,11 @@ export const saveWhatsappNumberFn = createServerFn({ method: "POST" })
     }
 
     if (id) {
+      const { data: target, error: targetError } = await db.from("whatsapp_numbers").select("connection_source").eq("id", id).eq("workspace_id", workspaceId).maybeSingle();
+      if (targetError || !target) return { ok: false as const, error: "Número não encontrado nesta empresa." };
+      if (target.connection_source === "embedded") {
+        for (const field of ["phone_number_id", "waba_id", "graph_version", "access_token", "app_secret", "verify_token"]) delete patch[field];
+      }
       const { error } = await db.from("whatsapp_numbers").update(patch).eq("id", id).eq("workspace_id", workspaceId);
       if (error) return { ok: false as const, error: error.message };
     } else {
@@ -235,7 +242,7 @@ export const testWhatsappNumberFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => idSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const workspaceId = await wid(context);
+    const workspaceId = await adminGuard(context);
     const { getWaNumber } = await import("./wa-numbers.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
@@ -263,7 +270,7 @@ export const testWhatsappNumberFn = createServerFn({ method: "POST" })
       // Garante que a Meta envie as RESPOSTAS dos clientes para a EVA:
       // inscreve a WABA no app e aponta o webhook para este sistema.
       let subscribed: string | undefined;
-      if (n.waba_id) {
+      if (n.waba_id && n.connection_source !== "embedded") {
         try {
           const { getRequest } = await import("@tanstack/react-start/server");
           const origin = new URL(getRequest().url).origin.replace(/^http:/, "https:");

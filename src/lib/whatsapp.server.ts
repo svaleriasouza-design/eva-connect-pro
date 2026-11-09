@@ -32,6 +32,14 @@ export type MetaConfig = {
  * Nada vem de variável de ambiente global (isolamento entre empresas).
  */
 export async function loadMetaConfig(workspaceId: string, numberId?: string | null): Promise<MetaConfig> {
+  if (numberId) {
+    const { getWaNumber } = await import("./wa-numbers.server");
+    const number = await getWaNumber(workspaceId, numberId);
+    if (!number || !number.active) throw new Error("O número solicitado está indisponível nesta empresa.");
+    return { numberId: number.id, label: number.label, phoneNumberId: number.phone_number_id,
+      accessToken: number.access_token ?? "", appSecret: number.app_secret ?? "", verifyToken: number.verify_token ?? "",
+      graphVersion: number.graph_version ?? "v21.0", defaultTemplateName: number.default_template_name ?? "hello_world", defaultTemplateLang: number.default_template_lang ?? "en_US" };
+  }
   try {
     const { resolveSendNumber } = await import("./wa-numbers.server");
     const n = await resolveSendNumber(workspaceId, numberId ?? null);
@@ -49,6 +57,8 @@ export async function loadMetaConfig(workspaceId: string, numberId?: string | nu
       };
     }
   } catch (err) {
+    const { listWaNumbers } = await import("./wa-numbers.server");
+    if ((await listWaNumbers(workspaceId)).some(n => n.active && n.connection_source === "embedded")) throw err;
     console.error("[meta:config] falha ao resolver número, usando config legada", err);
   }
   let row: any = {};
@@ -227,11 +237,13 @@ export async function verifyMetaSignature(
   headerValue: string | null,
   numberId?: string | null,
 ): Promise<boolean> {
-  const cfg = workspaceId ? await loadMetaConfig(workspaceId, numberId) : null;
+  let cfg: MetaConfig | null = null;
+  try { cfg = workspaceId ? await loadMetaConfig(workspaceId, numberId) : null; } catch { return false; }
   const secret = cfg?.appSecret || process.env.META_WA_APP_SECRET || "";
   if (!secret) return false;
   if (!headerValue) return false;
-  const provided = headerValue.startsWith("sha256=") ? headerValue.slice(7) : headerValue;
+  if (!/^sha256=[a-f0-9]{64}$/i.test(headerValue)) return false;
+  const provided = headerValue.slice(7).toLowerCase();
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",

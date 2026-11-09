@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, PlugZap, Star, Trash2, Pencil, Shuffle, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { MetaEmbeddedConnect } from "./meta-embedded-connect";
 
 type NumberRow = Awaited<ReturnType<typeof listWhatsappNumbersFn>>[number];
 
@@ -63,7 +64,7 @@ function randomToken(len = 32) {
   const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
   let out = "";
-  for (let i = 0; i < len; i++) out += alphabet[bytes[i]! % alphabet.length]!;
+  for (const byte of bytes) out += alphabet.charAt(byte % alphabet.length);
   return out;
 }
 
@@ -187,6 +188,7 @@ export function WhatsappNumbersCard() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        <MetaEmbeddedConnect />
         <div className="rounded-md border p-3 space-y-1">
           <div className="font-medium">URL do Webhook (a mesma para todos os números)</div>
           <div className="flex items-center gap-2">
@@ -227,6 +229,7 @@ export function WhatsappNumbersCard() {
                   </Badge>
                 )}
                 <Badge variant={n.active ? "default" : "outline"}>{n.active ? "Ativo" : "Inativo"}</Badge>
+                {n.connection_source === "embedded" && <Badge variant="secondary">Meta · conexão guiada</Badge>}
                 <Badge
                   variant={n.connection_status === "connected" ? "secondary" : n.connection_status === "error" ? "destructive" : "outline"}
                 >
@@ -255,7 +258,7 @@ export function WhatsappNumbersCard() {
                   ) : (
                     <PlugZap className="mr-1 h-3 w-3" />
                   )}
-                  Testar conexão
+                  {n.connection_source === "embedded" ? "Verificar conexão" : "Testar conexão"}
                 </Button>
                 {!n.is_primary && (
                   <Button size="sm" variant="outline" onClick={() => onPrimary(n)} disabled={busy === n.id || !n.active}>

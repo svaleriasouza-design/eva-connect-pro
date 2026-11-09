@@ -18,9 +18,10 @@ const EXT: Record<string, string> = {
 export async function downloadMetaMedia(
   workspaceId: string,
   mediaId: string,
+  numberId?: string | null,
 ): Promise<{ ok: boolean; blob?: Blob; mime?: string; error?: string }> {
   try {
-    const cfg = await loadMetaConfig(workspaceId);
+    const cfg = await loadMetaConfig(workspaceId, numberId);
     if (!cfg.accessToken) return { ok: false, error: "Token Meta não configurado." };
     const metaRes = await fetch(
       `https://graph.facebook.com/${cfg.graphVersion}/${mediaId}`,
@@ -70,10 +71,11 @@ export async function transcribeAudioBlob(
 }
 
 /** Fluxo completo: baixa da Meta e transcreve. */
-export async function transcribeMetaAudio(workspaceId: string, mediaId: string) {
-  const dl = await downloadMetaMedia(workspaceId, mediaId);
+export async function transcribeMetaAudio(workspaceId: string, mediaId: string, numberId?: string | null) {
+  const dl = await downloadMetaMedia(workspaceId, mediaId, numberId);
   if (!dl.ok || !dl.blob) return { ok: false as const, error: dl.error };
   const tr = await transcribeAudioBlob(dl.blob, dl.mime ?? "audio/ogg");
   if (!tr.ok) return { ok: false as const, error: tr.error };
-  return { ok: true as const, text: tr.text! };
+  if (!tr.text) return { ok: false as const, error: "Transcrição vazia." };
+  return { ok: true as const, text: tr.text };
 }
