@@ -62,6 +62,7 @@ export function MetaEmbeddedConnect() {
       if (!parsed || closed) return;
       if (parsed.event === "CANCEL") { fail("Conexão cancelada. Seus números atuais foram preservados."); return; }
       if (parsed.event === "ERROR") { fail("A Meta informou um erro. Tente conectar novamente."); return; }
+      if (parsed.event !== "FINISH" || !parsed.wabaId || !parsed.phoneNumberId) return;
       assets = { wabaId: parsed.wabaId, phoneNumberId: parsed.phoneNumberId }; void finalize();
     };
     const timer = window.setTimeout(() => fail("A conexão expirou. Conclua a janela Meta clicando em Finalizar."), Math.max(1, Date.parse(attempt.expiresAt) - Date.now()));
