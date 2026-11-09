@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Implementar Meta Embedded Signup com conexão isolada e credenciais cifradas, preservando números manuais.
+- [ ] Validar o novo fluxo sem envios reais e informar pendências de configuração Meta.
+
 - [x] Unificar a exclusão definitiva de contatos e empresas em todas as abas e workspaces.
 - [x] Atualizar o Dashboard com contagens reais de contatos, empresas e números ativos.
 - [x] Mostrar no Dashboard a relação entre empresas e contatos.
