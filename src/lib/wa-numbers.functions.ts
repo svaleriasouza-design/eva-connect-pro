@@ -104,6 +104,11 @@ export const saveWhatsappNumberFn = createServerFn({ method: "POST" })
     }
 
     if (id) {
+      const { data: target, error: targetError } = await db.from("whatsapp_numbers").select("connection_source").eq("id", id).eq("workspace_id", workspaceId).maybeSingle();
+      if (targetError || !target) return { ok: false as const, error: "Número não encontrado nesta empresa." };
+      if (target.connection_source === "embedded") {
+        for (const field of ["phone_number_id", "waba_id", "graph_version", "access_token", "app_secret", "verify_token"]) delete patch[field];
+      }
       const { error } = await db.from("whatsapp_numbers").update(patch).eq("id", id).eq("workspace_id", workspaceId);
       if (error) return { ok: false as const, error: error.message };
     } else {
